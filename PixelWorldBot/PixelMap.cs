@@ -1,6 +1,6 @@
 ﻿using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelWorldBot
+namespace PixelPlanetBot
 {
     static class PixelMap
     {

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelWorldBot
+namespace PixelPlanetBot
 {
     class ChunkCache
     {

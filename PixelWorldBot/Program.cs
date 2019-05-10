@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using System.Web;
 using System.Web.Script.Serialization;
 
-namespace PixelWorldBot
+namespace PixelPlanetBot
 {
     static class Program
     {

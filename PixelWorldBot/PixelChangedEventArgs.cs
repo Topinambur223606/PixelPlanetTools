@@ -1,7 +1,7 @@
 ﻿using System;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelWorldBot
+namespace PixelPlanetBot
 {
     class PixelChangedEventArgs : EventArgs
     {

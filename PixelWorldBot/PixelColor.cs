@@ -1,4 +1,4 @@
-﻿namespace PixelWorldBot
+﻿namespace PixelPlanetBot
 {
     enum PixelColor : byte
     {

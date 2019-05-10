@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace PixelWorldBot.Properties
+namespace PixelPlanetBot.Properties
 {
 
 
