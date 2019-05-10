@@ -10,7 +10,9 @@ namespace PixelPlanetBot
 {
     static class Program
     {
-        const string fileName = "guid.bin";
+        static readonly string filePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "PixelPlanetBot", "guid.bin");
 
         static Guid userGuid;
         
@@ -150,9 +152,9 @@ namespace PixelPlanetBot
 
         private static void SetUserGuid()
         {
-            if (File.Exists(fileName))
+            if (File.Exists(filePath))
             {
-                byte[] bytes = File.ReadAllBytes(fileName);
+                byte[] bytes = File.ReadAllBytes(filePath);
                 if (bytes.Length == 16)
                 {
                     userGuid = new Guid(bytes);
@@ -160,7 +162,7 @@ namespace PixelPlanetBot
                 }
             }
             userGuid = Guid.NewGuid();
-            File.WriteAllBytes(fileName, userGuid.ToByteArray());
+            File.WriteAllBytes(filePath, userGuid.ToByteArray());
         }
         private static PixelColor ClosestAvailable(Color color)
         {
