@@ -27,7 +27,7 @@ namespace PixelPlanetBot
             {
                 for (byte j = chunkY1; j <= chunkY2; j++)
                 {
-                    (byte i, byte j) chunkXY = (i, j);
+                    XY chunkXY = (i, j);
                     CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
                     wrapper.TrackChunk(chunkXY);
                 }

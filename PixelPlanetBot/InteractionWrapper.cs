@@ -138,6 +138,10 @@ namespace PixelPlanetBot
             {
                 byte[] pixelData = wc.DownloadData(url);
                 PixelColor[,] map = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
+                if (pixelData.Length == 0)
+                {
+                    return map;
+                }
                 int i = 0;
                 for (int y = 0; y < PixelMap.ChunkSize; y++)
                 {
