@@ -15,5 +15,5 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 bot.exe X Y imageURL [defendMode]
 ```
 - X, Y - top left coordinates of image, both in range -32768..32767.
-- imageURL - path to image to build; transparent parts are ignored. Don't forget to check if image fits into map.  
+- imageURL - URL of image to build; transparent parts are ignored. Don't forget to check if image fits into map.  
 - defendMode - if enabled, bot doesn't finish its work after first iteration and provides the integrity of image. Pass "Y" as fourth parameter to enable.
