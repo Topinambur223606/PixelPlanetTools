@@ -1,12 +1,18 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
+
+
 namespace PixelPlanetBot
 {
+    using Pixel = ValueTuple<short, short, PixelColor>;
     static partial class Program
     {
         static readonly string appFolder =
@@ -19,14 +25,13 @@ namespace PixelPlanetBot
         static string Fingerprint => userGuid.ToString("N");
 
         //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
-        //TODO side (U,D,L,R)
-		//TODO random pixel order
 
         static void Main(string[] args)
         {
             Bitmap image = null;
             short leftX, topY;
-            bool continuous;
+            bool continuous = false;
+            PlacingOrderMode order = PlacingOrderMode.Random;
             Task<PixelColor[,]> pixelsTask;
             try
             {
@@ -38,7 +43,28 @@ namespace PixelPlanetBot
                     MemoryStream ms = new MemoryStream(data);
                     image = new Bitmap(ms);
                 }
-                continuous = (args.Length > 3) && (args[3].ToLower() == "y");
+                if (args.Length > 3)
+                {
+                    continuous = args[3].ToLower() == "y";
+                }
+                if (args.Length > 4)
+                {
+                    switch (args[4].ToLower())
+                    {
+                        case "R":
+                            order = PlacingOrderMode.FromRight;
+                            break;
+                        case "L":
+                            order = PlacingOrderMode.FromLeft;
+                            break;
+                        case "T":
+                            order = PlacingOrderMode.FromTop;
+                            break;
+                        case "B":
+                            order = PlacingOrderMode.FromBottom;
+                            break;
+                    }
+                }
                 pixelsTask = ImageProcessing.ToPixelWorldColors(image);
             }
             catch
@@ -73,30 +99,57 @@ namespace PixelPlanetBot
                 do
                 {
                     bool changed = false;
-
-                    for (int i = 0; i < w; i++)
+                    IEnumerable<int> allY = Enumerable.Range(0, h);
+                    IEnumerable<int> allX = Enumerable.Range(0, w);
+                    Pixel[] nonEmptyPixels = allX.
+                        SelectMany(X => allY.Select(Y =>
+                            (X: (short)(X + leftX), Y: (short)(Y + topY), C: pixels[X, Y]))).
+                        Where(xy => xy.C != PixelColor.None).ToArray();
+                    IEnumerable<Pixel> pixelsToCheck;
+                    switch (order)
                     {
-                        for (int j = 0; j < h; j++)
-                        {
-                            PixelColor color = pixels[i, j];
-                            short x = (short)(leftX + i),
-                                y = (short)(topY + j);
-                            if (color != PixelColor.None)
+                        case PlacingOrderMode.FromLeft:
+                            pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
+                            break;
+                        case PlacingOrderMode.FromRight:
+                            pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
+                            break;
+                        case PlacingOrderMode.FromTop:
+                            pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
+                            break;
+                        case PlacingOrderMode.FromBottom:
+                            pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                            break;
+                        default:
+                            Random rnd = new Random();
+                            for (int i = 0; i < nonEmptyPixels.Length; i++)
                             {
-                                var actualColor = cache.GetPixel(x, y);
-                                if (color != actualColor)
-                                {
-                                    changed = true;
-                                    double cd = wrapper.PlacePixel(x, y, color);
-                                    Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
-                                }
+                                int r = rnd.Next(i, nonEmptyPixels.Length);
+                                Pixel tmp = nonEmptyPixels[r];
+                                nonEmptyPixels[r] = nonEmptyPixels[i];
+                                nonEmptyPixels[i] = tmp;
                             }
+                            pixelsToCheck = nonEmptyPixels;
+                            break;
+                    }
+
+                    foreach ((short x, short y, PixelColor color) in pixelsToCheck)
+                    {
+                        PixelColor actualColor = cache.GetPixel(x, y);
+                        if (color != actualColor)
+                        {
+                            changed = true;
+                            double cd = wrapper.PlacePixel(x, y, color);
+                            Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
                         }
                     }
                     if (continuous)
                     {
-                        Console.WriteLine("Building iteration finished");
-                        if (!changed)
+                        if (changed)
+                        {
+                            Console.WriteLine("Building iteration finished");
+                        }
+                        else
                         {
                             Console.WriteLine("No changes was made, waiting 1 min before next check");
                             Task.Delay(TimeSpan.FromMinutes(1D)).Wait();

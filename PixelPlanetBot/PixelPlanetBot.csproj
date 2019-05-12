@@ -56,6 +56,7 @@
     <Compile Include="PixelChangedEventArgs.cs" />
     <Compile Include="PixelColor.cs" />
     <Compile Include="PixelMap.cs" />
+    <Compile Include="PlacingOrderMode.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
