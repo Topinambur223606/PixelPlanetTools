@@ -13,8 +13,10 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 
 ### Usage:
 ```batch
-bot.exe X Y imageURL [defendMode]
-```
-- X, Y - top left coordinates of image, both in range -32768..32767.
-- imageURL - URL of image to build; transparent parts are ignored. Don't forget to check if image fits into map.  
-- defendMode - if enabled, bot doesn't finish its work after first iteration and provides the integrity of image. Pass "Y" as fourth parameter to enable.
+bot.exe X Y imageURL [defendMode] [placementOrder]
+```  
+
+- *X, Y* - top left coordinates of image, both in range -32768..32767.
+- *imageURL* - URL of image to build; transparent parts are ignored. Don't forget to check that image fits into map.  
+- *defendMode* - if enabled, bot wouldn't finish its work after first iteration and will provide the integrity of image. Pass "Y" to enable, "N" (or anything else) to disable. Non-required, disabled by default.
+- *placementOrder* - indicates how bot will place pixels: L - from left, R - from right, T - from top, B - from bottom, RND (or anything else) - random order. Non-required, random order by default.
