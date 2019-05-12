@@ -49,7 +49,7 @@ namespace PixelPlanetBot
                 }
                 if (args.Length > 4)
                 {
-                    switch (args[4].ToLower())
+                    switch (args[4].ToUpper())
                     {
                         case "R":
                             order = PlacingOrderMode.FromRight;
