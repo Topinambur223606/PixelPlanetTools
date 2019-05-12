@@ -18,6 +18,10 @@ namespace PixelPlanetBot
         
         static string Fingerprint => userGuid.ToString("N");
 
+        //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
+        //TODO side (U,D,L,R)
+		//TODO random pixel order
+
         static void Main(string[] args)
         {
             Bitmap image = null;
@@ -65,8 +69,7 @@ namespace PixelPlanetBot
                 ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
                 PixelColor[,] pixels = pixelsTask.Result;
 
-                ConcurrentQueue<Task> tasks = new ConcurrentQueue<Task>();
-                Task lastTask = Task.CompletedTask;
+
                 do
                 {
                     bool changed = false;
@@ -80,30 +83,23 @@ namespace PixelPlanetBot
                                 y = (short)(topY + j);
                             if (color != PixelColor.None)
                             {
-                                Task task = lastTask.ContinueWith(t =>
+                                var actualColor = cache.GetPixel(x, y);
+                                if (color != actualColor)
                                 {
-                                    var actualColor = cache.GetPixel(x, y);
-                                    if (color != actualColor)
-                                    {
-                                        changed = true;
-                                        double cd = wrapper.PlacePixel(x, y, color);
-                                        Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
-                                    }
-                                    tasks.TryDequeue(out _);
-                                });
-                                tasks.Enqueue(task);
-                                lastTask = task;
+                                    changed = true;
+                                    double cd = wrapper.PlacePixel(x, y, color);
+                                    Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                }
                             }
                         }
                     }
-                    lastTask.Wait();
                     if (continuous)
                     {
                         Console.WriteLine("Building iteration finished");
                         if (!changed)
                         {
-                            Console.WriteLine("No changes was made, waiting 10s before next check");
-                            Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+                            Console.WriteLine("No changes was made, waiting 1 min before next check");
+                            Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
                         }
                     }
                     else
