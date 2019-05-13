@@ -32,11 +32,15 @@ namespace PixelPlanetBot
 
         public static bool EmptyLastIteration { get; set; }
 
+        public static object lockObj = new object();
+
         public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
         {
-            Console.ForegroundColor = color;
-            Console.WriteLine(msg);
-            Console.ForegroundColor = ConsoleColor.White;
+            lock (lockObj)
+            {
+                Console.ForegroundColor = color;
+                Console.WriteLine(msg);
+            }
         }
 
         public static void LogPixelToConsole(string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
@@ -178,8 +182,8 @@ namespace PixelPlanetBot
                 }
                 catch (Exception ex)
                 {
-                    LogLineToConsole(ex.Message, ConsoleColor.Red);
-                    LogLineToConsole("Unhandled exception, restarting in 3 seconds...", ConsoleColor.Yellow);
+                    LogLineToConsole($"Unhandled exception" + Environment.NewLine + ex.Message, ConsoleColor.Red);
+                    LogLineToConsole("Restarting in 3 seconds...", ConsoleColor.Yellow);
                     Task.Delay(TimeSpan.FromSeconds(3D)).Wait();
                     break;
                 }
