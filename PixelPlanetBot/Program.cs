@@ -95,7 +95,6 @@ namespace PixelPlanetBot
                 }
                 ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
                 PixelColor[,] pixels = pixelsTask.Result;
-                bool finished = false;
 
                 do
                 {
@@ -163,7 +162,7 @@ namespace PixelPlanetBot
                 }
                 while (continuous);
             }
-            catch (Exception e)
+            catch
             {
                 var process = Process.GetCurrentProcess();
                 string fullPath = process.MainModule.FileName;
