@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -94,7 +95,7 @@ namespace PixelPlanetBot
                 }
                 ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
                 PixelColor[,] pixels = pixelsTask.Result;
-
+                bool finished = false;
 
                 do
                 {
@@ -164,8 +165,10 @@ namespace PixelPlanetBot
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
-                return;
+                var process = Process.GetCurrentProcess();
+                string fullPath = process.MainModule.FileName;
+                args[3] = $"\"{args[3]}\"";
+                Process.Start(fullPath, string.Join(" ", args));
             }
 
         }
