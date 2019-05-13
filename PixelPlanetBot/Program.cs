@@ -172,7 +172,7 @@ namespace PixelPlanetBot
                         else
                         {
 
-                            LogLineToConsole("\tNo changes were made, waiting 1 min before next check", ConsoleColor.Green);
+                            LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
                             Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
                         }
                     }
