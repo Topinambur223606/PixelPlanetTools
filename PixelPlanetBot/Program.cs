@@ -54,6 +54,7 @@ namespace PixelPlanetBot
         static void Main(string[] args)
         {
             Bitmap image = null;
+            ushort w, h;
             PlacingOrderMode order = PlacingOrderMode.Random;
             Task<PixelColor[,]> pixelsTask;
             try
@@ -65,6 +66,14 @@ namespace PixelPlanetBot
                     byte[] data = wc.DownloadData(args[2]);
                     MemoryStream ms = new MemoryStream(data);
                     image = new Bitmap(ms);
+                }
+                checked
+                {
+                    w = (ushort)image.Width;
+                    h = (ushort)image.Height;
+                    short check;
+                    check = (short)(leftX + w);
+                    check = (short)(topY + h);
                 }
                 if (args.Length > 3)
                 {
@@ -95,102 +104,88 @@ namespace PixelPlanetBot
                 Console.WriteLine("Parameters: [left x: -32768..32767] [top y: -32768..32767] [image URL] [defend mode: Y/N = N]");
                 return;
             }
-            try
+            Pixels = pixelsTask.Result;
+            IEnumerable<int> allY = Enumerable.Range(0, h);
+            IEnumerable<int> allX = Enumerable.Range(0, w);
+            Pixel[] nonEmptyPixels = allX.
+                SelectMany(X => allY.Select(Y =>
+                    (X: (short)(X + leftX), Y: (short)(Y + topY), C: Pixels[X, Y]))).
+                Where(xy => xy.C != PixelColor.None).ToArray();
+            IEnumerable<Pixel> pixelsToCheck;
+            switch (order)
             {
-                SetUserGuid();
-                InteractionWrapper wrapper = new InteractionWrapper(Fingerprint);
-                ushort w, h;
+                case PlacingOrderMode.FromLeft:
+                    pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
+                    break;
+                case PlacingOrderMode.FromRight:
+                    pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
+                    break;
+                case PlacingOrderMode.FromTop:
+                    pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
+                    break;
+                case PlacingOrderMode.FromBottom:
+                    pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                    break;
+                default:
+                    Random rnd = new Random();
+                    for (int i = 0; i < nonEmptyPixels.Length; i++)
+                    {
+                        int r = rnd.Next(i, nonEmptyPixels.Length);
+                        Pixel tmp = nonEmptyPixels[r];
+                        nonEmptyPixels[r] = nonEmptyPixels[i];
+                        nonEmptyPixels[i] = tmp;
+                    }
+                    pixelsToCheck = nonEmptyPixels;
+                    break;
+            }
+            do
+            {
                 try
                 {
-                    checked
+                    SetUserGuid();
+                    InteractionWrapper wrapper = new InteractionWrapper(Fingerprint);
+                    ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
+                    do
                     {
-                        w = (ushort)image.Width;
-                        h = (ushort)image.Height;
-                        short check;
-                        check = (short)(leftX + w);
-                        check = (short)(topY + h);
-                    }
-                }
-                catch
-                {
-                    throw new Exception("Out of the range, check image size and coordinates");
-                }
-                ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
-                Pixels = pixelsTask.Result;
-                IEnumerable<int> allY = Enumerable.Range(0, h);
-                IEnumerable<int> allX = Enumerable.Range(0, w);
-                Pixel[] nonEmptyPixels = allX.
-                    SelectMany(X => allY.Select(Y =>
-                        (X: (short)(X + leftX), Y: (short)(Y + topY), C: Pixels[X, Y]))).
-                    Where(xy => xy.C != PixelColor.None).ToArray();
-                IEnumerable<Pixel> pixelsToCheck;
-                switch (order)
-                {
-                    case PlacingOrderMode.FromLeft:
-                        pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
-                        break;
-                    case PlacingOrderMode.FromRight:
-                        pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
-                        break;
-                    case PlacingOrderMode.FromTop:
-                        pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
-                        break;
-                    case PlacingOrderMode.FromBottom:
-                        pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
-                        break;
-                    default:
-                        Random rnd = new Random();
-                        for (int i = 0; i < nonEmptyPixels.Length; i++)
+                        EmptyLastIteration = true;
+                        foreach ((short x, short y, PixelColor color) in pixelsToCheck)
                         {
-                            int r = rnd.Next(i, nonEmptyPixels.Length);
-                            Pixel tmp = nonEmptyPixels[r];
-                            nonEmptyPixels[r] = nonEmptyPixels[i];
-                            nonEmptyPixels[i] = tmp;
+                            PixelColor actualColor = cache.GetPixel(x, y);
+                            if (color != actualColor)
+                            {
+                                EmptyLastIteration = false;
+                                double cd = wrapper.PlacePixel(x, y, color);
+                                Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                            }
                         }
-                        pixelsToCheck = nonEmptyPixels;
-                        break;
-                }
-                do
-                {
-                    EmptyLastIteration = true;
-                    foreach ((short x, short y, PixelColor color) in pixelsToCheck)
-                    {
-                        PixelColor actualColor = cache.GetPixel(x, y);
-                        if (color != actualColor)
+                        if (DefendMode)
                         {
-                            EmptyLastIteration = false;
-                            double cd = wrapper.PlacePixel(x, y, color);
-                            Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
-                        }
-                    }
-                    if (DefendMode)
-                    {
-                        if (!EmptyLastIteration)
-                        {
-                            LogLineToConsole("Building iteration finished");
+                            if (!EmptyLastIteration)
+                            {
+                                LogLineToConsole("Building iteration finished");
+                            }
+                            else
+                            {
+                                LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
+                                Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                            }
                         }
                         else
                         {
-
-                            LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
-                            Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                            LogLineToConsole("Building finished", ConsoleColor.Green);
                         }
                     }
-                    else
-                    {
-                        LogLineToConsole("Building finished", ConsoleColor.Green);
-                    }
+                    while (DefendMode);
                 }
-                while (DefendMode);
-            }
-            catch (Exception ex)
-            {
-                LogLineToConsole(ex.Message, ConsoleColor.Red);
-                string fullPath = Process.GetCurrentProcess().MainModule.FileName;
-                args[2] = $"\"{args[2]}\"";
-                Process.Start(fullPath, string.Join(" ", args));
-            }
-
+                catch (Exception ex)
+                {
+                    LogLineToConsole(ex.Message, ConsoleColor.Red);
+                    LogLineToConsole("Unhandled exception, restarting in 3 seconds...", ConsoleColor.Yellow);
+                    Task.Delay(TimeSpan.FromSeconds(3D)).Wait();
+                    break;
+                }
+                Environment.Exit(0);
+            } while (true);
         }
 
         private static void SetUserGuid()
