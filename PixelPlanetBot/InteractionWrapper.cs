@@ -221,6 +221,7 @@ namespace PixelPlanetBot
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
             Program.LogLineToConsole("Error on WebSocket: \n" + e.Message, ConsoleColor.Red);
+            webSocket.Close();
         }
 
         private void WebSocket_OnMessage(object sender, MessageEventArgs e)

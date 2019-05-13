@@ -185,7 +185,7 @@ namespace PixelPlanetBot
                     LogLineToConsole($"Unhandled exception" + Environment.NewLine + ex.Message, ConsoleColor.Red);
                     LogLineToConsole("Restarting in 3 seconds...", ConsoleColor.Yellow);
                     Task.Delay(TimeSpan.FromSeconds(3D)).Wait();
-                    break;
+                    continue;
                 }
                 Environment.Exit(0);
             } while (true);
