@@ -24,6 +24,8 @@ namespace PixelPlanetBot
 
         private static short leftX, topY;
 
+        private static string fingerprint;
+
         public static bool DefendMode { get; set; } = false;
 
         public static bool EmptyLastIteration { get; set; }
@@ -52,7 +54,7 @@ namespace PixelPlanetBot
 
         static void Main(string[] args)
         {
-            ushort w, h;
+            ushort width, height;
             PlacingOrderMode order = PlacingOrderMode.Random;
             try
             {
@@ -90,11 +92,11 @@ namespace PixelPlanetBot
                 Pixels = ImageProcessing.ToPixelWorldColors(image);
                 checked
                 {
-                    w = (ushort)image.Width;
-                    h = (ushort)image.Height;
+                    width = (ushort)image.Width;
+                    height = (ushort)image.Height;
                     short check;
-                    check = (short)(leftX + w);
-                    check = (short)(topY + h);
+                    check = (short)(leftX + width);
+                    check = (short)(topY + height);
                 }
 
             }
@@ -104,8 +106,9 @@ namespace PixelPlanetBot
                     "Image should fit into map");
                 return;
             }
-            IEnumerable<int> allY = Enumerable.Range(0, h);
-            IEnumerable<int> allX = Enumerable.Range(0, w);
+            fingerprint = GetFingerprint();
+            IEnumerable<int> allY = Enumerable.Range(0, height);
+            IEnumerable<int> allX = Enumerable.Range(0, width);
             Pixel[] nonEmptyPixels = allX.
                 SelectMany(X => allY.Select(Y =>
                     (X: (short)(X + leftX), Y: (short)(Y + topY), C: Pixels[X, Y]))).
@@ -141,10 +144,9 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    string fingerprint = GetFingerprint();
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
-                        ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
+                        ChunkCache cache = new ChunkCache(leftX, topY, width, height, wrapper);
                         do
                         {
                             EmptyLastIteration = true;
@@ -181,8 +183,8 @@ namespace PixelPlanetBot
                 catch (Exception ex)
                 {
                     LogLineToConsole($"Unhandled exception" + Environment.NewLine + ex.Message, ConsoleColor.Red);
-                    LogLineToConsole("Restarting in 15 seconds...", ConsoleColor.Yellow);
-                    Task.Delay(TimeSpan.FromSeconds(15D)).Wait();
+                    LogLineToConsole("Restarting in 1 min...", ConsoleColor.Yellow);
+                    Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
                     continue;
                 }
                 Environment.Exit(0);
