@@ -49,7 +49,14 @@ namespace PixelPlanetBot
 
         public static bool BelongsToPicture(short x, short y)
         {
-            return Pixels[x - leftX, y - topY] != PixelColor.None;
+            try
+            {
+                return Pixels[x - leftX, y - topY] != PixelColor.None;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         static void Main(string[] args)
