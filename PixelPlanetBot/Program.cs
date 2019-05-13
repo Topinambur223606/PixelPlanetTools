@@ -20,10 +20,6 @@ namespace PixelPlanetBot
 
         static readonly string filePath = Path.Combine(appFolder, "guid.bin");
 
-        static Guid userGuid;
-
-        static string Fingerprint => userGuid.ToString("N");
-
         private static PixelColor[,] Pixels;
 
         private static short leftX, topY;
@@ -145,40 +141,42 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    SetUserGuid();
-                    InteractionWrapper wrapper = new InteractionWrapper(Fingerprint);
-                    ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
-                    do
+                    string fingerprint = GetFingerprint();
+                    using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
-                        EmptyLastIteration = true;
-                        foreach ((short x, short y, PixelColor color) in pixelsToCheck)
+                        ChunkCache cache = new ChunkCache(leftX, topY, w, h, wrapper);
+                        do
                         {
-                            PixelColor actualColor = cache.GetPixel(x, y);
-                            if (color != actualColor)
+                            EmptyLastIteration = true;
+                            foreach ((short x, short y, PixelColor color) in pixelsToCheck)
                             {
-                                EmptyLastIteration = false;
-                                double cd = wrapper.PlacePixel(x, y, color);
-                                Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                PixelColor actualColor = cache.GetPixel(x, y);
+                                if (color != actualColor)
+                                {
+                                    EmptyLastIteration = false;
+                                    double cd = wrapper.PlacePixel(x, y, color);
+                                    Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                }
                             }
-                        }
-                        if (DefendMode)
-                        {
-                            if (!EmptyLastIteration)
+                            if (DefendMode)
                             {
-                                LogLineToConsole("Building iteration finished");
+                                if (!EmptyLastIteration)
+                                {
+                                    LogLineToConsole("Building iteration finished");
+                                }
+                                else
+                                {
+                                    LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
+                                    Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                                }
                             }
                             else
                             {
-                                LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
-                                Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                                LogLineToConsole("Building finished", ConsoleColor.Green);
                             }
                         }
-                        else
-                        {
-                            LogLineToConsole("Building finished", ConsoleColor.Green);
-                        }
+                        while (DefendMode);
                     }
-                    while (DefendMode);
                 }
                 catch (Exception ex)
                 {
@@ -191,23 +189,25 @@ namespace PixelPlanetBot
             } while (true);
         }
 
-        private static void SetUserGuid()
+        private static string GetFingerprint()
         {
+            Guid guid = Guid.Empty;
             if (File.Exists(filePath))
             {
                 byte[] bytes = File.ReadAllBytes(filePath);
                 if (bytes.Length == 16)
                 {
-                    userGuid = new Guid(bytes);
-                    return;
+                    guid = new Guid(bytes);
+                    
                 }
             }
             else
             {
                 Directory.CreateDirectory(appFolder);
-                userGuid = Guid.NewGuid();
-                File.WriteAllBytes(filePath, userGuid.ToByteArray());
+                guid = Guid.NewGuid();
+                File.WriteAllBytes(filePath, guid.ToByteArray());
             }
+            return guid.ToString("N");
         }
     }
 }

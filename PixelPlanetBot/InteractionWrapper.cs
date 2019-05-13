@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
-    class InteractionWrapper
+    class InteractionWrapper : IDisposable
     {
         private const byte trackChunkOpcode = 0xA1;
 
@@ -26,7 +26,7 @@ namespace PixelPlanetBot
 
         private readonly string fingerprint;
 
-        private bool isClosing = false;
+        private bool disposed = false;
 
         private WebSocket webSocket;
 
@@ -50,12 +50,6 @@ namespace PixelPlanetBot
                 throw new Exception("Cannot connect");
             }
             Connect();
-        }
-
-        public void Close()
-        {
-            isClosing = true;
-            Disconnect();
         }
 
         public void TrackChunk(XY chunk)
@@ -211,11 +205,8 @@ namespace PixelPlanetBot
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
-            if (!isClosing)
-            {
-                Program.LogLineToConsole("Connection closed, trying to reconnect...", ConsoleColor.Red);
-                connectionDelayTimer.Start();
-            }
+            Program.LogLineToConsole("Connection closed, trying to reconnect...", ConsoleColor.Red);
+            connectionDelayTimer.Start();
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
@@ -253,7 +244,7 @@ namespace PixelPlanetBot
                 {
                     msgColor = ConsoleColor.Red;
                 }
-                Program.LogPixelToConsole($"Received pixel update:", x, y, args.Color, ConsoleColor.DarkGray);
+                Program.LogPixelToConsole($"Received pixel update:", x, y, args.Color,msgColor);
                 OnPixelChanged?.Invoke(this, args);
             }
         }
@@ -265,6 +256,17 @@ namespace PixelPlanetBot
             {
                 TrackChunk(chunk);
             }
+        }
+
+        public void Dispose()
+        {
+            if (!disposed)
+            {
+                Disconnect();
+                connectionDelayTimer.Dispose();
+                OnPixelChanged = null;
+            }
+            disposed = true;
         }
     }
 }
