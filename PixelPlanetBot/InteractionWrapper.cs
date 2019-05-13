@@ -70,7 +70,7 @@ namespace PixelPlanetBot
             while (webSocket?.ReadyState != WebSocketState.Open)
             {
                 connectionDelayTimer.Start();
-                Console.WriteLine("Waiting for reconnect...");
+                Program.LogLineToConsole("Waiting for reconnect...", ConsoleColor.Yellow);
                 Task.Delay(6000).Wait();
             }
             webSocket.Send(data);
@@ -99,12 +99,13 @@ namespace PixelPlanetBot
                             JObject json = JObject.Parse(responseString);    
                             if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                             {
-                                Console.WriteLine("Placed pixel: {0} at ({1};{2})", color, x, y);
-                                return double.Parse(json["coolDownSeconds"].ToString());
+                                int cd = int.Parse(json["coolDownSeconds"].ToString());
+                                string prefix = cd == 4 ? "P" : "Rep";
+                                Program.LogLineToConsole($"\t{prefix}laced pixel: {color} at\t({x};{y})", ConsoleColor.Green);
+                                return cd;
                             }
                             else 
                             {
-                                Console.WriteLine("Failed to place pixel");
                                 if (json["errors"].Count() > 0)
                                 {
                                     string errors = string.Concat(json["errors"].Select(e => $"{Environment.NewLine}\"{e}\""));
@@ -114,6 +115,7 @@ namespace PixelPlanetBot
                                 {
                                     if (double.TryParse(json["waitSeconds"].ToString(), out double cd))
                                     {
+                                        Program.LogLineToConsole($"Failed to place pixel, IP is overused; cooldown is {cd}", ConsoleColor.Red);
                                         return cd;
                                     }
                                     else
@@ -172,7 +174,7 @@ namespace PixelPlanetBot
 
         private void Connect()
         {
-            Console.WriteLine("Connecting...");
+            Program.LogLineToConsole("Connecting...", ConsoleColor.Yellow);
             if (webSocket != null)
             {
                 Disconnect();
@@ -211,14 +213,14 @@ namespace PixelPlanetBot
         {
             if (!isClosing)
             {
-                Console.WriteLine("Connection closed, trying to reconnect...");
+                Program.LogLineToConsole("Connection closed, trying to reconnect...", ConsoleColor.Red);
                 connectionDelayTimer.Start();
             }
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
-            Console.WriteLine("Error on WebSocket: " + e.Message);
+            Program.LogLineToConsole("Error on WebSocket: \n" + e.Message, ConsoleColor.Red);
         }
 
         private void WebSocket_OnMessage(object sender, MessageEventArgs e)
@@ -241,16 +243,23 @@ namespace PixelPlanetBot
                     Pixel = (relativeX, relativeY),
                     Color = (PixelColor)color
                 };
-                Console.WriteLine("Received pixel update: {0} at ({1};{2})", args.Color,
-                    PixelMap.ConvertToAbsolute(chunkX, relativeX),
-                    PixelMap.ConvertToAbsolute(chunkY, relativeY));
+                short x = PixelMap.ConvertToAbsolute(chunkX, relativeX);
+                short y = PixelMap.ConvertToAbsolute(chunkY, relativeY);
+                ConsoleColor msgColor = ConsoleColor.DarkGray;
+                if (Program.DefendMode &&
+                    Program.EmptyLastIteration &&
+                    Program.IsPicturePart(x, y))
+                {
+                    msgColor = ConsoleColor.Red;
+                }
+                Program.LogLineToConsole($"Received pixel update: {args.Color} at ({x};{y})", ConsoleColor.DarkGray);
                 OnPixelChanged?.Invoke(this, args);
             }
         }
 
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
-            Console.WriteLine("Starting listening for changes via websocket");
+            Program.LogLineToConsole("Starting listening for changes via websocket", ConsoleColor.Green);
             foreach (XY chunk in TrackedChunks)
             {
                 TrackChunk(chunk);

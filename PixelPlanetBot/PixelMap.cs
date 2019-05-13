@@ -6,9 +6,9 @@
 
         public const int ChunksPerSide = 256;
 
-        public static int ConvertToAbsolute(int chunk, int relative)
+        public static short ConvertToAbsolute(int chunk, int relative)
         {
-            return (chunk - ChunksPerSide / 2) * ChunkSize + relative;
+            return (short)((chunk - ChunksPerSide / 2) * ChunkSize + relative);
         }
 
         public static void ConvertToRelative(int absolute, out byte chunk, out byte relative)
