@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -53,28 +52,12 @@ namespace PixelPlanetBot
 
         static void Main(string[] args)
         {
-            Bitmap image = null;
             ushort w, h;
             PlacingOrderMode order = PlacingOrderMode.Random;
-            Task<PixelColor[,]> pixelsTask;
             try
             {
                 leftX = short.Parse(args[0]);
                 topY = short.Parse(args[1]);
-                using (WebClient wc = new WebClient())
-                {
-                    byte[] data = wc.DownloadData(args[2]);
-                    MemoryStream ms = new MemoryStream(data);
-                    image = new Bitmap(ms);
-                }
-                checked
-                {
-                    w = (ushort)image.Width;
-                    h = (ushort)image.Height;
-                    short check;
-                    check = (short)(leftX + w);
-                    check = (short)(topY + h);
-                }
                 if (args.Length > 3)
                 {
                     DefendMode = args[3].ToLower() == "y";
@@ -97,14 +80,30 @@ namespace PixelPlanetBot
                             break;
                     }
                 }
-                pixelsTask = ImageProcessing.ToPixelWorldColors(image);
+                Bitmap image;
+                using (WebClient wc = new WebClient())
+                {
+                    byte[] data = wc.DownloadData(args[2]);
+                    MemoryStream ms = new MemoryStream(data);
+                    image = new Bitmap(ms);
+                }
+                Pixels = ImageProcessing.ToPixelWorldColors(image);
+                checked
+                {
+                    w = (ushort)image.Width;
+                    h = (ushort)image.Height;
+                    short check;
+                    check = (short)(leftX + w);
+                    check = (short)(topY + h);
+                }
+
             }
             catch
             {
-                Console.WriteLine("Parameters: [left x: -32768..32767] [top y: -32768..32767] [image URL] [defend mode: Y/N = N]");
+                Console.WriteLine("Parameters: [left x: -32768..32767] [top y: -32768..32767] [image URL] [defend mode: Y/N = N]" + Environment.NewLine +
+                    "Image should fit into map");
                 return;
             }
-            Pixels = pixelsTask.Result;
             IEnumerable<int> allY = Enumerable.Range(0, h);
             IEnumerable<int> allX = Enumerable.Range(0, w);
             Pixel[] nonEmptyPixels = allX.

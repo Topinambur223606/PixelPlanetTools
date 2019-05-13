@@ -57,7 +57,7 @@ namespace PixelPlanetBot
             return (PixelColor)(index + 2);
         }
 
-        public static Task<PixelColor[,]> ToPixelWorldColors(Bitmap image)
+        public static PixelColor[,] ToPixelWorldColors(Bitmap image)
         {
             int w = image.Width;
             int h = image.Height;
@@ -69,7 +69,7 @@ namespace PixelPlanetBot
                     res[x, y] = ClosestAvailable(image.GetPixel(x, y));
                 }
             }
-            return Task.FromResult(res);
+            return res;
         }
     }
 }
