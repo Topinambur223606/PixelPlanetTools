@@ -101,7 +101,7 @@ namespace PixelPlanetBot
                             {
                                 int cd = int.Parse(json["coolDownSeconds"].ToString());
                                 string prefix = cd == 4 ? "P" : "Rep";
-                                Program.LogLineToConsole($"\t{prefix}laced pixel: {color} at\t({x};{y})", ConsoleColor.Green);
+                                Program.LogPixelToConsole($"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
                                 return cd;
                             }
                             else 
@@ -248,11 +248,11 @@ namespace PixelPlanetBot
                 ConsoleColor msgColor = ConsoleColor.DarkGray;
                 if (Program.DefendMode &&
                     Program.EmptyLastIteration &&
-                    Program.IsPicturePart(x, y))
+                    Program.BelongsToPicture(x, y))
                 {
                     msgColor = ConsoleColor.Red;
                 }
-                Program.LogLineToConsole($"Received pixel update: {args.Color} at ({x};{y})", ConsoleColor.DarkGray);
+                Program.LogPixelToConsole($"Received pixel update:", x, y, args.Color, ConsoleColor.DarkGray);
                 OnPixelChanged?.Invoke(this, args);
             }
         }

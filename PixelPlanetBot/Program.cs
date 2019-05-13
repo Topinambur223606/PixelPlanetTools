@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -16,6 +14,8 @@ namespace PixelPlanetBot
     using Pixel = ValueTuple<short, short, PixelColor>;
     static partial class Program
     {
+        //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
+
         static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
 
@@ -25,17 +25,28 @@ namespace PixelPlanetBot
 
         static string Fingerprint => userGuid.ToString("N");
 
-        //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
+        private static PixelColor[,] Pixels;
+
+        private static short leftX, topY;
 
         public static bool DefendMode { get; set; } = false;
 
         public static bool EmptyLastIteration { get; set; }
 
-        private static PixelColor[,] Pixels { get; set; }
+        public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
+        {
+            Console.ForegroundColor = color;
+            Console.WriteLine(msg);
+            Console.ForegroundColor = ConsoleColor.White;
+        }
 
-        private static short leftX, topY;
+        public static void LogPixelToConsole(string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
+        {
+            string text = $"{msg.PadRight(22, ' ')} {color.ToString().PadRight(12, ' ')} at ({x.ToString().PadLeft(6, ' ')};{y.ToString().PadLeft(6, ' ')})";
+            LogLineToConsole(text, consoleColor);
+        }
 
-        public static bool IsPicturePart(short x, short y)
+        public static bool BelongsToPicture(short x, short y)
         {
             return Pixels[x - leftX, y - topY] != PixelColor.None;
         }
@@ -156,12 +167,12 @@ namespace PixelPlanetBot
                     {
                         if (!EmptyLastIteration)
                         {
-                            LogLineToConsole("Building iteration finished", ConsoleColor.Yellow);
+                            LogLineToConsole("Building iteration finished");
                         }
                         else
                         {
 
-                            LogLineToConsole("\tNo changes was made, waiting 1 min before next check", ConsoleColor.Green);
+                            LogLineToConsole("\tNo changes were made, waiting 1 min before next check", ConsoleColor.Green);
                             Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
                         }
                     }
@@ -172,21 +183,14 @@ namespace PixelPlanetBot
                 }
                 while (DefendMode);
             }
-            catch
+            catch (Exception ex)
             {
-                var process = Process.GetCurrentProcess();
-                string fullPath = process.MainModule.FileName;
+                LogLineToConsole(ex.Message, ConsoleColor.Red);
+                string fullPath = Process.GetCurrentProcess().MainModule.FileName;
                 args[2] = $"\"{args[2]}\"";
                 Process.Start(fullPath, string.Join(" ", args));
             }
 
-        }
-
-        public static void LogLineToConsole(string msg, ConsoleColor color)
-        {
-            Console.ForegroundColor = color;
-            Console.WriteLine(msg);
-            Console.ForegroundColor = ConsoleColor.White;
         }
 
         private static void SetUserGuid()
