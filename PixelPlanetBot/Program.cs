@@ -181,7 +181,7 @@ namespace PixelPlanetBot
                                 {
                                     LogLineToConsole("No changes were made, waiting...", ConsoleColor.Green);
                                     gotGriefed.WaitOne();
-                                    Task.Delay(500).Wait();
+                                    Task.Delay(new Random().Next(300, 700)).Wait();
                                 }
                             }
                             else
