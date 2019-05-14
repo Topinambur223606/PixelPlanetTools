@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 
@@ -28,9 +30,11 @@ namespace PixelPlanetBot
 
         public static bool DefendMode { get; set; } = false;
 
-        public static bool EmptyLastIteration { get; set; }
-
         public static object lockObj = new object();
+
+        private static AutoResetEvent gotGriefed = new AutoResetEvent(false);
+
+        private static byte failsInRow = 0;
 
         public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
         {
@@ -45,18 +49,6 @@ namespace PixelPlanetBot
         {
             string text = $"{msg.PadRight(22, ' ')} {color.ToString().PadRight(12, ' ')} at ({x.ToString().PadLeft(6, ' ')};{y.ToString().PadLeft(6, ' ')})";
             LogLineToConsole(text, consoleColor);
-        }
-
-        public static bool BelongsToPicture(short x, short y)
-        {
-            try
-            {
-                return Pixels[x - leftX, y - topY] != PixelColor.None;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         static void Main(string[] args)
@@ -153,30 +145,33 @@ namespace PixelPlanetBot
                 {
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
+                        wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
                         ChunkCache cache = new ChunkCache(leftX, topY, width, height, wrapper);
+                        bool wasChanged;
                         do
                         {
-                            EmptyLastIteration = true;
+                            wasChanged = false;
+                            failsInRow = 0;
                             foreach ((short x, short y, PixelColor color) in pixelsToCheck)
                             {
                                 PixelColor actualColor = cache.GetPixel(x, y);
                                 if (color != actualColor)
                                 {
-                                    EmptyLastIteration = false;
+                                    wasChanged = true;
                                     double cd = wrapper.PlacePixel(x, y, color);
                                     Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
                                 }
                             }
                             if (DefendMode)
                             {
-                                if (!EmptyLastIteration)
+                                if (wasChanged)
                                 {
                                     LogLineToConsole("Building iteration finished");
                                 }
                                 else
                                 {
-                                    LogLineToConsole("No changes were made, waiting 1 min before next check", ConsoleColor.Green);
-                                    Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                                    LogLineToConsole("No changes were made, waiting...", ConsoleColor.Green);
+                                    gotGriefed.WaitOne();
                                 }
                             }
                             else
@@ -189,14 +184,73 @@ namespace PixelPlanetBot
                 }
                 catch (Exception ex)
                 {
-                    LogLineToConsole($"Unhandled exception" + Environment.NewLine + ex.Message, ConsoleColor.Red);
-                    LogLineToConsole("Restarting in 1 min...", ConsoleColor.Yellow);
-                    Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
-                    continue;
+                    LogLineToConsole($"Unhandled exception:" + Environment.NewLine + ex.Message, ConsoleColor.Red);
+                    if (++failsInRow < 3)
+                    {
+                        LogLineToConsole("Reconnecting in 1 min...", ConsoleColor.Yellow);
+                        Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                        continue;
+                    }
+                    else
+                    {
+                        LogLineToConsole("Cannot reconnect 3 times in a row, process is restarting...", ConsoleColor.Red);
+                        string fullPath = Process.GetCurrentProcess().MainModule.FileName;
+                        args[2] = $"\"{args[2]}\"";
+                        Process.Start(fullPath, string.Join(" ", args));
+                    }
                 }
                 Environment.Exit(0);
             } while (true);
         }
+
+        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
+        {
+            ConsoleColor msgColor;
+            short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
+            short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
+            switch (EstimateUpdate(x, y, e.Color))
+            {
+                case PixelUpdateStatus.Desired:
+                    msgColor = ConsoleColor.Green;
+                    break;
+                case PixelUpdateStatus.Wrong:
+                    msgColor = ConsoleColor.Red;
+                    gotGriefed.Set();
+                    break;
+                default:
+                    msgColor = ConsoleColor.DarkGray;
+                    break;
+            }
+            LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
+        }
+
+        private static PixelUpdateStatus EstimateUpdate(short x, short y, PixelColor color)
+        {
+            try
+            {
+                PixelColor desiredColor = Pixels[x - leftX, y - topY];
+                if (desiredColor ==  PixelColor.None)
+                {
+                    return PixelUpdateStatus.Outer;
+                }
+                else
+                {
+                    if (desiredColor == color)
+                    {
+                        return PixelUpdateStatus.Desired;
+                    }
+                    else
+                    {
+                        return PixelUpdateStatus.Wrong;
+                    }
+                }
+            }
+            catch
+            {
+                return PixelUpdateStatus.Outer;
+            }
+        }
+
 
         private static string GetFingerprint()
         {

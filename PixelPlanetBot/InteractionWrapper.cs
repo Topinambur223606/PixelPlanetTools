@@ -174,6 +174,7 @@ namespace PixelPlanetBot
                 Disconnect();
             }
             webSocket = new WebSocket(wsUrl);
+            webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
             webSocket.OnError += WebSocket_OnError;
@@ -235,16 +236,6 @@ namespace PixelPlanetBot
                     Pixel = (relativeX, relativeY),
                     Color = (PixelColor)color
                 };
-                short x = PixelMap.ConvertToAbsolute(chunkX, relativeX);
-                short y = PixelMap.ConvertToAbsolute(chunkY, relativeY);
-                ConsoleColor msgColor = ConsoleColor.DarkGray;
-                if (Program.DefendMode &&
-                    Program.EmptyLastIteration &&
-                    Program.BelongsToPicture(x, y))
-                {
-                    msgColor = ConsoleColor.Red;
-                }
-                Program.LogPixelToConsole($"Received pixel update:", x, y, args.Color,msgColor);
                 OnPixelChanged?.Invoke(this, args);
             }
         }
