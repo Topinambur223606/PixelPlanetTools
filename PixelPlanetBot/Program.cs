@@ -28,6 +28,8 @@ namespace PixelPlanetBot
 
         private static string fingerprint;
 
+        private static HashSet<Pixel> placed = new HashSet<Pixel>();
+
         public static bool DefendMode { get; set; } = false;
 
         public static object lockObj = new object();
@@ -152,21 +154,27 @@ namespace PixelPlanetBot
                         {
                             wasChanged = false;
                             failsInRow = 0;
-                            foreach ((short x, short y, PixelColor color) in pixelsToCheck)
+                            foreach (Pixel pixel in pixelsToCheck)
                             {
+                                (short x, short y, PixelColor color) = pixel;
                                 PixelColor actualColor = cache.GetPixel(x, y);
                                 if (color != actualColor)
                                 {
                                     wasChanged = true;
-                                    double cd = wrapper.PlacePixel(x, y, color);
-                                    Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                    bool success;
+                                    do
+                                    {
+                                        success = wrapper.PlacePixel(x, y, color, out double cd);
+                                        Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                    } while (!success);
+                                    placed.Add(pixel);
                                 }
                             }
                             if (DefendMode)
                             {
                                 if (wasChanged)
                                 {
-                                    LogLineToConsole("Building iteration finished");
+                                    LogLineToConsole("Building iteration finished", ConsoleColor.Green);
                                 }
                                 else
                                 {
@@ -208,20 +216,24 @@ namespace PixelPlanetBot
             ConsoleColor msgColor;
             short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
             short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
-            switch (EstimateUpdate(x, y, e.Color))
+
+            if (!placed.Remove((x, y, e.Color)))
             {
-                case PixelUpdateStatus.Desired:
-                    msgColor = ConsoleColor.Green;
-                    break;
-                case PixelUpdateStatus.Wrong:
-                    msgColor = ConsoleColor.Red;
-                    gotGriefed.Set();
-                    break;
-                default:
-                    msgColor = ConsoleColor.DarkGray;
-                    break;
+                switch (EstimateUpdate(x, y, e.Color))
+                {
+                    case PixelUpdateStatus.Desired:
+                        msgColor = ConsoleColor.Green;
+                        break;
+                    case PixelUpdateStatus.Wrong:
+                        msgColor = ConsoleColor.Red;
+                        gotGriefed.Set();
+                        break;
+                    default:
+                        msgColor = ConsoleColor.DarkGray;
+                        break;
+                }
+                LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
             }
-            LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
         }
 
         private static PixelUpdateStatus EstimateUpdate(short x, short y, PixelColor color)
@@ -255,16 +267,12 @@ namespace PixelPlanetBot
         private static string GetFingerprint()
         {
             Guid guid = Guid.Empty;
-            if (File.Exists(filePath))
+            try
             {
                 byte[] bytes = File.ReadAllBytes(filePath);
-                if (bytes.Length == 16)
-                {
-                    guid = new Guid(bytes);
-                    
-                }
+                guid = new Guid(bytes);
             }
-            else
+            catch
             {
                 Directory.CreateDirectory(appFolder);
                 guid = Guid.NewGuid();

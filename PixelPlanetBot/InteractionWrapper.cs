@@ -70,7 +70,7 @@ namespace PixelPlanetBot
             webSocket.Send(data);
         }
 
-        public double PlacePixel(int x, int y, PixelColor color)
+        public bool PlacePixel(int x, int y, PixelColor color, out double coolDown)
         {
             var data = new
             {
@@ -96,7 +96,8 @@ namespace PixelPlanetBot
                                 int cd = int.Parse(json["coolDownSeconds"].ToString());
                                 string prefix = cd == 4 ? "P" : "Rep";
                                 Program.LogPixelToConsole($"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
-                                return cd;
+                                coolDown = cd;
+                                return true;
                             }
                             else 
                             {
@@ -110,7 +111,8 @@ namespace PixelPlanetBot
                                     if (double.TryParse(json["waitSeconds"].ToString(), out double cd))
                                     {
                                         Program.LogLineToConsole($"Failed to place pixel, IP is overused; cooldown is {cd}", ConsoleColor.Red);
-                                        return cd;
+                                        coolDown = cd;
+                                        return false;
                                     }
                                     else
                                     {
