@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -13,10 +14,12 @@ using System.Threading.Tasks;
 namespace PixelPlanetBot
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
+    using Message = ValueTuple<string, ConsoleColor>;
 
     static partial class Program
     {
         //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
+		//TODO priorities
 
         private static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
@@ -26,13 +29,15 @@ namespace PixelPlanetBot
 
         private static short leftX, topY;
 
+        private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
+
+        private static AutoResetEvent messagesAvailable = new AutoResetEvent(false);
+
         private static string fingerprint;
 
         private static HashSet<Pixel> placed = new HashSet<Pixel>();
 
         public static bool DefendMode { get; set; } = false;
-
-        public static object lockObj = new object();
 
         private static AutoResetEvent gotGriefed = new AutoResetEvent(false);
 
@@ -40,11 +45,9 @@ namespace PixelPlanetBot
 
         public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
         {
-            lock (lockObj)
-            {
-                Console.ForegroundColor = color;
-                Console.WriteLine("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
-            }
+            var line = string.Format("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
+            messages.Enqueue((line, color));
+            messagesAvailable.Set();
         }
 
         public static void LogPixelToConsole(string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
@@ -55,7 +58,8 @@ namespace PixelPlanetBot
 
         private static void Main(string[] args)
         {
-            ushort width, height;
+            new Thread(ConsoleWriterThreadBody).Start();
+            ushort width = 0, height = 0;
             PlacingOrderMode order = PlacingOrderMode.Random;
             try
             {
@@ -99,13 +103,12 @@ namespace PixelPlanetBot
                     check = (short)(leftX + width);
                     check = (short)(topY + height);
                 }
-
             }
             catch
             {
                 Console.WriteLine("Parameters: [left x: -32768..32767] [top y: -32768..32767] [image URL] [defend mode: Y/N = N]" + Environment.NewLine +
                     "Image should fit into map");
-                return;
+                Environment.Exit(0);
             }
             fingerprint = GetFingerprint();
             IEnumerable<int> allY = Enumerable.Range(0, height);
@@ -149,7 +152,7 @@ namespace PixelPlanetBot
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
                         wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
-                        ChunkCache cache = new ChunkCache(leftX, topY, width, height, wrapper);
+                        ChunkCache cache = new ChunkCache(pixelsToCheck, wrapper);
                         bool wasChanged;
                         do
                         {
@@ -167,6 +170,22 @@ namespace PixelPlanetBot
                                     do
                                     {
                                         success = wrapper.PlacePixel(x, y, color, out double cd);
+                                        if (success)
+                                        {
+                                            string prefix = cd == 4 ? "P" : "Rep";
+                                            LogPixelToConsole($"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
+                                        }
+                                        else
+                                        {
+                                            if (cd == 30D)
+                                            {
+                                                LogLineToConsole($"Failed to place pixel, server error; next attempt in {cd} seconds");
+                                            }
+                                            else
+                                            {
+                                                LogLineToConsole($"Failed to place pixel, IP is overused; cooldown is {cd} seconds", ConsoleColor.Red);
+                                            }
+                                        }
                                         Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
                                     } while (!success);
                                 }
@@ -198,8 +217,8 @@ namespace PixelPlanetBot
                     LogLineToConsole($"Unhandled exception:" + Environment.NewLine + ex.Message, ConsoleColor.Red);
                     if (++failsInRow < 3)
                     {
-                        LogLineToConsole("Reconnecting in 1 min...", ConsoleColor.Yellow);
-                        Task.Delay(TimeSpan.FromMinutes(1D)).Wait();
+                        LogLineToConsole("Reconnecting in 30 seconds...", ConsoleColor.Yellow);
+                        Task.Delay(TimeSpan.FromSeconds(30D)).Wait();
                         continue;
                     }
                     else
@@ -274,6 +293,22 @@ namespace PixelPlanetBot
             }
         }
 
+        private static void ConsoleWriterThreadBody()
+        {
+            while (true)
+            {
+                if (messages.TryDequeue(out Message msg))
+                {
+                    (string line, ConsoleColor color) = msg;
+                    Console.ForegroundColor = color;
+                    Console.WriteLine(line);
+                }
+                else
+                {
+                    messagesAvailable.WaitOne();
+                }
+            }
+        }
 
         private static string GetFingerprint()
         {

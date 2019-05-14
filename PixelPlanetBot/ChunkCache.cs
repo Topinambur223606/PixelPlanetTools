@@ -1,34 +1,33 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetBot
 {
+    using Pixel = ValueTuple<short, short, PixelColor>;
+
     class ChunkCache
     {
-        private readonly Dictionary<XY, PixelColor[,]> CachedChunks;
+        private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
         private readonly InteractionWrapper wrapper;
-        private readonly byte relativeX1, relativeY1, relativeX2, relativeY2;
-        private readonly byte chunkX1, chunkY1, chunkX2, chunkY2;
 
-        public ChunkCache(short x, short y, ushort width, ushort height, InteractionWrapper wrapper)
+        public ChunkCache(IEnumerable<Pixel> pixels, InteractionWrapper wrapper)
         {
-            PixelMap.ConvertToRelative(x, out chunkX1, out relativeX1);
-            PixelMap.ConvertToRelative(y, out chunkY1, out relativeY1);
-            PixelMap.ConvertToRelative(x + width, out chunkX2, out relativeX2);
-            PixelMap.ConvertToRelative(y + height, out chunkY2, out relativeY2);
-
-            CachedChunks = new Dictionary<XY, PixelColor[,]>();
             this.wrapper = wrapper;
             wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
 
-            for (byte i = chunkX1; i <= chunkX2; i++)
+            List<XY> chunks = pixels.Select(p =>
             {
-                for (byte j = chunkY1; j <= chunkY2; j++)
-                {
-                    XY chunkXY = (i, j);
+                PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
+                PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
+                return (chunkX, chunkY);
+            }).Distinct().ToList();
+
+            foreach (XY chunkXY in chunks)
+            {
                     CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
                     wrapper.TrackChunk(chunkXY);
-                }
             }
         }
 

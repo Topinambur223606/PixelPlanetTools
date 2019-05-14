@@ -30,19 +30,17 @@ namespace PixelPlanetBot
 
         private WebSocket webSocket;
 
-        private readonly Timer connectionDelayTimer;
+        private readonly Timer connectionDelayTimer = new Timer(5000D);
 
-        private HashSet<XY> TrackedChunks { get; set; }
+        private HashSet<XY> TrackedChunks { get; set; } = new HashSet<XY>();
 
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
 
         public InteractionWrapper(string fingerprint)
         {
-            connectionDelayTimer = new Timer(5000D);
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             connectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
-            TrackedChunks = new HashSet<XY>();
             HttpWebRequest request = BuildJsonRequest("api/me", new { fingerprint });
             HttpWebResponse response = request.GetResponse() as HttpWebResponse;
             if (response.StatusCode != HttpStatusCode.OK)
@@ -54,20 +52,27 @@ namespace PixelPlanetBot
 
         public void TrackChunk(XY chunk)
         {
-            TrackedChunks.Add(chunk);
-            byte[] data = new byte[3]
+            if (TrackedChunks.Add(chunk))
             {
+                byte[] data = new byte[3]
+                {
                 trackChunkOpcode,
                 chunk.Item1,
                 chunk.Item2
-            };
-            while (webSocket?.ReadyState != WebSocketState.Open)
-            {
-                connectionDelayTimer.Start();
-                Program.LogLineToConsole("Waiting for reconnect...", ConsoleColor.Yellow);
-                Task.Delay(6000).Wait();
+                };
+                byte fails = 0;
+                while (webSocket?.ReadyState != WebSocketState.Open)
+                {
+                    if (fails++ == 3)
+                    {
+                        throw new Exception("Cannot establish connection");
+                    }
+                    connectionDelayTimer.Start();
+                    Program.LogLineToConsole("Cannot track chunk, waiting for reconnect...", ConsoleColor.Yellow);
+                    Task.Delay(6000).Wait();
+                }
+                webSocket.Send(data);
             }
-            webSocket.Send(data);
         }
 
         public bool PlacePixel(int x, int y, PixelColor color, out double coolDown)
@@ -93,10 +98,7 @@ namespace PixelPlanetBot
                             JObject json = JObject.Parse(responseString);
                             if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                             {
-                                int cd = int.Parse(json["coolDownSeconds"].ToString());
-                                string prefix = cd == 4 ? "P" : "Rep";
-                                Program.LogPixelToConsole($"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
-                                coolDown = cd;
+                                coolDown = double.Parse(json["coolDownSeconds"].ToString());
                                 return true;
                             }
                             else
@@ -108,16 +110,8 @@ namespace PixelPlanetBot
                                 }
                                 else
                                 {
-                                    if (double.TryParse(json["waitSeconds"].ToString(), out double cd))
-                                    {
-                                        Program.LogLineToConsole($"Failed to place pixel, IP is overused; cooldown is {cd}", ConsoleColor.Red);
-                                        coolDown = cd;
-                                        return false;
-                                    }
-                                    else
-                                    {
-                                        throw new Exception("Unknown error reported from server");
-                                    }
+                                    coolDown = double.Parse(json["waitSeconds"].ToString());
+                                    return false;
                                 }
                             }
                         }
@@ -125,7 +119,8 @@ namespace PixelPlanetBot
                 case HttpStatusCode.Forbidden:
                     throw new Exception("Action was forbidden by pixelworld itself");
                 default:
-                    throw new Exception(response.StatusDescription);
+                    coolDown = 30D;
+                    return false;
             }
         }
 
@@ -195,14 +190,14 @@ namespace PixelPlanetBot
 
         private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (webSocket.ReadyState != WebSocketState.Connecting &&
-                webSocket.ReadyState != WebSocketState.Open)
+            if (webSocket.ReadyState == WebSocketState.Connecting ||
+                webSocket.ReadyState == WebSocketState.Open)
             {
-                Connect();
+                 connectionDelayTimer.Stop();
             }
             else
             {
-                connectionDelayTimer.Stop();
+                Connect();
             }
         }
 
@@ -244,11 +239,11 @@ namespace PixelPlanetBot
 
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
-            Program.LogLineToConsole("Starting listening for changes via websocket", ConsoleColor.Green);
             foreach (XY chunk in TrackedChunks)
             {
                 TrackChunk(chunk);
             }
+            Program.LogLineToConsole("Listening for changes via websocket", ConsoleColor.Green);
         }
 
         public void Dispose()
