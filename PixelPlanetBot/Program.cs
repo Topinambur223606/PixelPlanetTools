@@ -216,7 +216,7 @@ namespace PixelPlanetBot
         private static bool CorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
         {
             return (actualColor == desiredColor) ||
-                    (actualColor == PixelColor.NothingOcean && desiredColor == PixelColor.LightBlue) ||
+                    (actualColor == PixelColor.NothingOcean && desiredColor == PixelColor.LightestBlue) ||
                     (actualColor == PixelColor.NothingLand && desiredColor == PixelColor.White);
 
         }
