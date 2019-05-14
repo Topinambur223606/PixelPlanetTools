@@ -143,6 +143,7 @@ namespace PixelPlanetBot
             }
             do
             {
+                placed.Clear();
                 try
                 {
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
@@ -162,12 +163,12 @@ namespace PixelPlanetBot
                                 {
                                     wasChanged = true;
                                     bool success;
+                                    placed.Add(pixel);
                                     do
                                     {
                                         success = wrapper.PlacePixel(x, y, color, out double cd);
                                         Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
                                     } while (!success);
-                                    placed.Add(pixel);
                                 }
                             }
                             if (DefendMode)
