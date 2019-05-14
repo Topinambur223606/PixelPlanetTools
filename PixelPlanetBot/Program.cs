@@ -43,7 +43,7 @@ namespace PixelPlanetBot
             lock (lockObj)
             {
                 Console.ForegroundColor = color;
-                Console.WriteLine(msg);
+                Console.WriteLine("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
             }
         }
 
