@@ -2,8 +2,9 @@
 {
     enum PixelColor : byte
     {
-        None,
-        White = 2,
+        NothingOcean,
+        NothingLand,
+        White,
         LightGray,
         MediumGray,
         DarkGray,
@@ -26,6 +27,7 @@
         Blue,
         DarkBlue,
         Orchid,
-        Violet
+        Violet,
+        None
     }
 }

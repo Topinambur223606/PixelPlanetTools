@@ -5,12 +5,10 @@ namespace PixelPlanetBot
 {
     class ChunkCache
     {
-        readonly Dictionary<XY, PixelColor[,]> CachedChunks;
-
-        readonly InteractionWrapper wrapper;
-
-        readonly byte relativeX1, relativeY1, relativeX2, relativeY2;
-        readonly byte chunkX1, chunkY1, chunkX2, chunkY2;
+        private readonly Dictionary<XY, PixelColor[,]> CachedChunks;
+        private readonly InteractionWrapper wrapper;
+        private readonly byte relativeX1, relativeY1, relativeX2, relativeY2;
+        private readonly byte chunkX1, chunkY1, chunkX2, chunkY2;
 
         public ChunkCache(short x, short y, ushort width, ushort height, InteractionWrapper wrapper)
         {

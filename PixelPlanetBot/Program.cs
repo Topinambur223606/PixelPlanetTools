@@ -13,14 +13,14 @@ using System.Threading.Tasks;
 namespace PixelPlanetBot
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
+
     static partial class Program
     {
         //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
 
-        static readonly string appFolder =
+        private static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
-
-        static readonly string filePath = Path.Combine(appFolder, "guid.bin");
+        private static readonly string filePath = Path.Combine(appFolder, "guid.bin");
 
         private static PixelColor[,] Pixels;
 
@@ -53,7 +53,7 @@ namespace PixelPlanetBot
             LogLineToConsole(text, consoleColor);
         }
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             ushort width, height;
             PlacingOrderMode order = PlacingOrderMode.Random;
@@ -159,7 +159,7 @@ namespace PixelPlanetBot
                             {
                                 (short x, short y, PixelColor color) = pixel;
                                 PixelColor actualColor = cache.GetPixel(x, y);
-                                if (color != actualColor)
+                                if (!CorrectPixelColor(actualColor, color))
                                 {
                                     wasChanged = true;
                                     bool success;
@@ -213,6 +213,14 @@ namespace PixelPlanetBot
             } while (true);
         }
 
+        private static bool CorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
+        {
+            return (actualColor == desiredColor) ||
+                    (actualColor == PixelColor.NothingOcean && desiredColor == PixelColor.LightBlue) ||
+                    (actualColor == PixelColor.NothingLand && desiredColor == PixelColor.White);
+
+        }
+
         private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
         {
             ConsoleColor msgColor;
@@ -243,7 +251,7 @@ namespace PixelPlanetBot
             try
             {
                 PixelColor desiredColor = Pixels[x - leftX, y - topY];
-                if (desiredColor ==  PixelColor.None)
+                if (desiredColor == PixelColor.None)
                 {
                     return PixelUpdateStatus.Outer;
                 }

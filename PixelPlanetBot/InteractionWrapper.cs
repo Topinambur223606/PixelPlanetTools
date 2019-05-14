@@ -1,14 +1,14 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
-using System.Net;
-using WebSocketSharp;
-using System.Timers;
 using System.IO;
-using System.Web.Script.Serialization;
-using XY = System.ValueTuple<byte, byte>;
-using Newtonsoft.Json.Linq;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
+using System.Timers;
+using System.Web.Script.Serialization;
+using WebSocketSharp;
+using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetBot
 {
@@ -90,7 +90,7 @@ namespace PixelPlanetBot
                         using (StreamReader sr = new StreamReader(response.GetResponseStream()))
                         {
                             string responseString = sr.ReadToEnd();
-                            JObject json = JObject.Parse(responseString);    
+                            JObject json = JObject.Parse(responseString);
                             if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                             {
                                 int cd = int.Parse(json["coolDownSeconds"].ToString());
@@ -99,7 +99,7 @@ namespace PixelPlanetBot
                                 coolDown = cd;
                                 return true;
                             }
-                            else 
+                            else
                             {
                                 if (json["errors"].Count() > 0)
                                 {
