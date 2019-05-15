@@ -212,6 +212,7 @@ namespace PixelPlanetBot
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             Program.LogLineToConsole("Websocket connection closed, trying to reconnect...", ConsoleColor.Red);
+            pingTimer.Stop();
             connectionDelayTimer.Start();
         }
 
