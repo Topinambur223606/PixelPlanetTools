@@ -189,8 +189,11 @@ namespace PixelPlanetBot
 
         private void Connect()
         {
-            Program.LogLineToConsole("Websocket connecting...", ConsoleColor.Yellow);
-            webSocket.Connect();
+            if (webSocket?.ReadyState != WebSocketState.Open)
+            {
+                Program.LogLineToConsole("Connecting via websocket...", ConsoleColor.Yellow);
+                webSocket.Connect();
+            }
         }
 
         private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
@@ -202,7 +205,6 @@ namespace PixelPlanetBot
             }
             else
             {
-                webSocket.Close();
                 Connect();
             }
         }
