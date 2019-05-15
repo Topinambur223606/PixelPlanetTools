@@ -1,7 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -16,32 +15,23 @@ namespace PixelPlanetBot
     class InteractionWrapper : IDisposable
     {
         private const byte subscribeOpcode = 161;
-
         private const byte unsubscribeOpcode = 162;
-
         private const byte pixelUpdatedOpcode = 193;
 
         private const string baseHttpAdress = "https://pixelplanet.fun";
-
         private const string webSocketUrlTemplate = "wss://pixelplanet.fun/ws?fingerprint={0}";
-
-        private readonly string wsUrl;
 
         private readonly string fingerprint;
 
-        private bool disposed = false;
-
         private WebSocket webSocket;
-
+        private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
         private readonly Timer wsPingTimer = new Timer(10000D);
-
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
+        
+        private bool disposed = false;
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
-
-
-
 
         public InteractionWrapper(string fingerprint, string proxyFingerprint = null, WebProxy proxy = null)
         {
@@ -49,15 +39,6 @@ namespace PixelPlanetBot
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsPingTimer.Elapsed += PingTimer_Elapsed;
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
-
-            webClient = new WebClient
-            {
-                BaseAddress = baseHttpAdress
-            };
-            webClient.Headers[HttpRequestHeader.ContentType] = "application/json";
-            webClient.Headers[HttpRequestHeader.UserAgent] = "Mozilla / 5.0(X11; Linux x86_64; rv: 57.0) Gecko / 20100101 Firefox / 57.0";
-            webClient.Headers[HttpRequestHeader.Referer] = webClient.Headers["Origin"] = baseHttpAdress;
-
             using (HttpWebResponse response = SendJsonRequest("api/me", new { fingerprint }))
             {
                 if (response.StatusCode != HttpStatusCode.OK)
@@ -74,13 +55,7 @@ namespace PixelPlanetBot
             Connect();
         }
 
-        private void PingTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            if (!webSocket.Ping())
-            {
-                webSocket.Close();
-            }
-        }
+
 
         public void UnsubscribeFromUpdates(XY chunk)
         {
@@ -188,14 +163,12 @@ namespace PixelPlanetBot
             }
         }
 
-        private WebClient webClient;
-
 
         private HttpWebResponse SendJsonRequest(string relativeUrl, object data)
         {
             HttpWebRequest request = WebRequest.CreateHttp($"{baseHttpAdress}/{relativeUrl}");
             request.Method = "POST";
-            using (var requestStream = request.GetRequestStream())
+            using (Stream requestStream = request.GetRequestStream())
             {
                 using (StreamWriter streamWriter = new StreamWriter(requestStream))
                 {
@@ -210,19 +183,20 @@ namespace PixelPlanetBot
             return request.GetResponse() as HttpWebResponse;
         }
 
-        private string UploadValues(string relativeUrl, object data)
-        {
-            JavaScriptSerializer serializer = new JavaScriptSerializer();
-            string jsonText = serializer.Serialize(data);
-            return webClient.UploadString(relativeUrl, jsonText);
-        }
-
         private void Connect()
         {
             if (webSocket?.ReadyState != WebSocketState.Open)
             {
                 Program.LogLineToConsole("Connecting via websocket...", ConsoleColor.Yellow);
                 webSocket.Connect();
+            }
+        }
+
+        private void PingTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if (!webSocket.Ping())
+            {
+                webSocket.Close();
             }
         }
 

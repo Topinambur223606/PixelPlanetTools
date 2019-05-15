@@ -6,7 +6,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,25 +22,21 @@ namespace PixelPlanetBot
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
         private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "guid{0}.bin");
 
-
+        private static bool defendMode;
         private static PixelColor[,] Pixels;
-
         private static short leftX, topY;
+        private static AutoResetEvent gotGriefed = new AutoResetEvent(false);
+        private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
+
 
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
-        private static AutoResetEvent messagesAvailable = new AutoResetEvent(false);
-
-        private static HashSet<Pixel> placed = new HashSet<Pixel>();
-
-        public static bool DefendMode { get; set; } = false;
-
-        private static AutoResetEvent gotGriefed = new AutoResetEvent(false);
+        private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
 
         private static byte failsInRow = 0;
 
         public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
         {
-            var line = string.Format("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
+            string line = string.Format("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
             messages.Enqueue((line, color));
             messagesAvailable.Set();
         }
@@ -54,7 +49,7 @@ namespace PixelPlanetBot
 
         private static void Main(string[] args)
         {
-            ushort width = 0, height = 0;
+            ushort width, height;
             PlacingOrderMode order = PlacingOrderMode.Random;
             try
             {
@@ -62,7 +57,7 @@ namespace PixelPlanetBot
                 topY = short.Parse(args[1]);
                 if (args.Length > 3)
                 {
-                    DefendMode = args[3].ToLower() == "y";
+                    defendMode = args[3].ToLower() == "y";
                 }
                 if (args.Length > 4)
                 {
@@ -103,7 +98,7 @@ namespace PixelPlanetBot
             {
                 Console.WriteLine("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [proxyIP:proxyPort = nothing]" + Environment.NewLine +
                     "Image should fit into map");
-                Environment.Exit(0);
+                return;
             }
             new Thread(ConsoleWriterThreadBody).Start();
             string fingerprint = GetFingerprint();
@@ -192,7 +187,7 @@ namespace PixelPlanetBot
                                     } while (!success);
                                 }
                             }
-                            if (DefendMode)
+                            if (defendMode)
                             {
                                 if (wasChanged)
                                 {
@@ -211,7 +206,7 @@ namespace PixelPlanetBot
                                 LogLineToConsole("Building finished", ConsoleColor.Green);
                             }
                         }
-                        while (DefendMode);
+                        while (defendMode);
                     }
                 }
                 catch (Exception ex)
@@ -241,7 +236,6 @@ namespace PixelPlanetBot
             return (actualColor == desiredColor) ||
                     (actualColor == PixelColor.NothingOcean && desiredColor == PixelColor.LightestBlue) ||
                     (actualColor == PixelColor.NothingLand && desiredColor == PixelColor.White);
-
         }
 
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
@@ -252,47 +246,30 @@ namespace PixelPlanetBot
 
             if (!placed.Remove((x, y, e.Color)))
             {
-                switch (EstimateUpdate(x, y, e.Color))
+                try
                 {
-                    case PixelUpdateStatus.Desired:
-                        msgColor = ConsoleColor.Green;
-                        break;
-                    case PixelUpdateStatus.Wrong:
-                        msgColor = ConsoleColor.Red;
-                        gotGriefed.Set();
-                        break;
-                    default:
-                        msgColor = ConsoleColor.DarkGray;
-                        break;
-                }
-                LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
-            }
-        }
-
-        private static PixelUpdateStatus EstimateUpdate(short x, short y, PixelColor color)
-        {
-            try
-            {
-                PixelColor desiredColor = Pixels[x - leftX, y - topY];
-                if (desiredColor == PixelColor.None)
-                {
-                    return PixelUpdateStatus.Outer;
-                }
-                else
-                {
-                    if (desiredColor == color)
+                    PixelColor desiredColor = Pixels[x - leftX, y - topY];
+                    if (desiredColor == PixelColor.None)
                     {
-                        return PixelUpdateStatus.Desired;
+                        msgColor = ConsoleColor.DarkGray;
                     }
                     else
                     {
-                        return PixelUpdateStatus.Wrong;
+                        if (desiredColor == e.Color)
+                        {
+                            msgColor = ConsoleColor.Green;
+                        }
+                        else
+                        {
+                            msgColor = ConsoleColor.Red;
+                        }
                     }
                 }
-            }
-            catch
-            {
-                return PixelUpdateStatus.Outer;
+                catch
+                {
+                    msgColor = ConsoleColor.DarkGray;
+                }
+                LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
             }
         }
 
@@ -316,7 +293,7 @@ namespace PixelPlanetBot
         private static string GetFingerprint(string address = null)
         {
             Guid guid = Guid.Empty;
-            var path = string.Format(guidFilePathTemplate, address?.GetHashCode());
+            string path = string.Format(guidFilePathTemplate, address?.GetHashCode());
             try
             {
                 byte[] bytes = File.ReadAllBytes(path);

@@ -3,7 +3,6 @@
     static class PixelMap
     {
         public const int ChunkSize = 256;
-
         public const int ChunksPerSide = 256;
 
         public static short ConvertToAbsolute(int chunk, int relative)
