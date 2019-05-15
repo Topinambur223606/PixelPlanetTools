@@ -219,8 +219,9 @@ namespace PixelPlanetBot
                     LogLineToConsole($"Unhandled exception:" + Environment.NewLine + ex.Message, ConsoleColor.Red);
                     if (++failsInRow < 3)
                     {
-                        LogLineToConsole("Reconnecting in 30 seconds...", ConsoleColor.Yellow);
-                        Task.Delay(TimeSpan.FromSeconds(30D)).Wait();
+                        int delay = 50 * failsInRow - 40;
+                        LogLineToConsole($"Reconnecting in {delay} seconds...", ConsoleColor.Yellow);
+                        Task.Delay(TimeSpan.FromSeconds(delay)).Wait();
                         continue;
                     }
                     else
