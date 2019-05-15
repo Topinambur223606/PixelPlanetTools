@@ -165,6 +165,7 @@ namespace PixelPlanetBot
                                     placed.Add(pixel);
                                     do
                                     {
+                                        byte placingPixelFails = 0;
                                         success = wrapper.PlacePixel(x, y, color, out double cd);
                                         if (success)
                                         {
@@ -173,6 +174,10 @@ namespace PixelPlanetBot
                                         }
                                         else
                                         {
+                                            if (placingPixelFails++ == 3)
+                                            {
+                                                throw new Exception("Cannot place pixel");
+                                            }
                                             if (cd == 30D)
                                             {
                                                 LogLineToConsole($"Failed to place pixel, server error; next attempt in {cd} seconds");

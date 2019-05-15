@@ -48,8 +48,14 @@ namespace PixelPlanetBot
             HttpWebResponse response = request.GetResponse() as HttpWebResponse;
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception("Cannot connect");
+                throw new Exception("Cannot connect to API");
             }
+            webSocket = new WebSocket(wsUrl);
+            webSocket.Log.Output = (d, s) => { };
+            webSocket.OnOpen += WebSocket_OnOpen;
+            webSocket.OnMessage += WebSocket_OnMessage;
+            webSocket.OnError += WebSocket_OnError;
+            webSocket.OnClose += WebSocket_OnClose;
             Connect();
         }
 
@@ -57,7 +63,7 @@ namespace PixelPlanetBot
         {
             if (!webSocket.Ping())
             {
-                Connect();
+                webSocket.Close();
             }
         }
 
@@ -76,10 +82,10 @@ namespace PixelPlanetBot
                 {
                     if (fails++ == 3)
                     {
-                        throw new Exception("Cannot establish connection");
+                        throw new Exception("Cannot establish connection via websocket");
                     }
                     connectionDelayTimer.Start();
-                    Program.LogLineToConsole("Cannot track chunk, waiting for reconnect...", ConsoleColor.Yellow);
+                    Program.LogLineToConsole("Cannot track chunk, waiting for websocket to reconnect...", ConsoleColor.Yellow);
                     Task.Delay(6000).Wait();
                 }
                 webSocket.Send(data);
@@ -137,24 +143,31 @@ namespace PixelPlanetBot
 
         public PixelColor[,] GetChunk(XY chunk)
         {
-            string url = $"{baseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bin";
-            using (WebClient wc = new WebClient())
+            try
             {
-                byte[] pixelData = wc.DownloadData(url);
-                PixelColor[,] map = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
-                if (pixelData.Length == 0)
+                string url = $"{baseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bin";
+                using (WebClient wc = new WebClient())
                 {
+                    byte[] pixelData = wc.DownloadData(url);
+                    PixelColor[,] map = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
+                    if (pixelData.Length == 0)
+                    {
+                        return map;
+                    }
+                    int i = 0;
+                    for (int y = 0; y < PixelMap.ChunkSize; y++)
+                    {
+                        for (int x = 0; x < PixelMap.ChunkSize; x++)
+                        {
+                            map[x, y] = (PixelColor)pixelData[i++];
+                        }
+                    }
                     return map;
                 }
-                int i = 0;
-                for (int y = 0; y < PixelMap.ChunkSize; y++)
-                {
-                    for (int x = 0; x < PixelMap.ChunkSize; x++)
-                    {
-                        map[x, y] = (PixelColor)pixelData[i++];
-                    }
-                }
-                return map;
+            }
+            catch
+            {
+                throw new Exception("Cannot download chunk data");
             }
         }
 
@@ -176,27 +189,8 @@ namespace PixelPlanetBot
 
         private void Connect()
         {
-            Program.LogLineToConsole("Connecting...", ConsoleColor.Yellow);
-            if (webSocket != null)
-            {
-                Disconnect();
-            }
-            webSocket = new WebSocket(wsUrl);
-            webSocket.Log.Output = (d, s) => { };
-            webSocket.OnOpen += WebSocket_OnOpen;
-            webSocket.OnMessage += WebSocket_OnMessage;
-            webSocket.OnError += WebSocket_OnError;
-            webSocket.OnClose += WebSocket_OnClose;
+            Program.LogLineToConsole("Websocket connecting...", ConsoleColor.Yellow);
             webSocket.Connect();
-        }
-
-        private void Disconnect()
-        {
-            webSocket.OnOpen -= WebSocket_OnOpen;
-            webSocket.OnMessage -= WebSocket_OnMessage;
-            webSocket.OnError -= WebSocket_OnError;
-            webSocket.OnClose -= WebSocket_OnClose;
-            (webSocket as IDisposable).Dispose();
         }
 
         private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
@@ -208,19 +202,20 @@ namespace PixelPlanetBot
             }
             else
             {
+                webSocket.Close();
                 Connect();
             }
         }
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
-            Program.LogLineToConsole("Connection closed, trying to reconnect...", ConsoleColor.Red);
+            Program.LogLineToConsole("Websocket connection closed, trying to reconnect...", ConsoleColor.Red);
             connectionDelayTimer.Start();
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
-            Program.LogLineToConsole("Error on WebSocket: \n" + e.Message, ConsoleColor.Red);
+            Program.LogLineToConsole("Error on websocket: \n" + e.Message, ConsoleColor.Red);
             webSocket.Close();
         }
 
@@ -262,8 +257,14 @@ namespace PixelPlanetBot
         {
             if (!disposed)
             {
-                Disconnect();
+                webSocket.OnOpen -= WebSocket_OnOpen;
+                webSocket.OnMessage -= WebSocket_OnMessage;
+                webSocket.OnError -= WebSocket_OnError;
+                webSocket.OnClose -= WebSocket_OnClose;
+                webSocket.Close();
+                (webSocket as IDisposable).Dispose();
                 connectionDelayTimer.Dispose();
+                pingTimer.Dispose();
                 OnPixelChanged = null;
             }
             disposed = true;

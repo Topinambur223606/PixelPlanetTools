@@ -14,7 +14,7 @@
         LightRed,
         Red,
         Peach,
-        DirtyYellow,
+        Orange,
         LightBrown,
         Wheat,
         Yellow,
