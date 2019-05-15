@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,22 +19,17 @@ namespace PixelPlanetBot
 
     static partial class Program
     {
-        //TODO proxy, 1 guid per proxy, save with address hash and last usage timedate, clear old
-		//TODO priorities
-
         private static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
-        private static readonly string filePath = Path.Combine(appFolder, "guid.bin");
+        private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "guid{0}.bin");
+
 
         private static PixelColor[,] Pixels;
 
         private static short leftX, topY;
 
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
-
         private static AutoResetEvent messagesAvailable = new AutoResetEvent(false);
-
-        private static string fingerprint;
 
         private static HashSet<Pixel> placed = new HashSet<Pixel>();
 
@@ -58,7 +54,6 @@ namespace PixelPlanetBot
 
         private static void Main(string[] args)
         {
-            new Thread(ConsoleWriterThreadBody).Start();
             ushort width = 0, height = 0;
             PlacingOrderMode order = PlacingOrderMode.Random;
             try
@@ -106,11 +101,12 @@ namespace PixelPlanetBot
             }
             catch
             {
-                Console.WriteLine("Parameters: [left x: -32768..32767] [top y: -32768..32767] [image URL] [defend mode: Y/N = N]" + Environment.NewLine +
+                Console.WriteLine("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [proxyIP:proxyPort = nothing]" + Environment.NewLine +
                     "Image should fit into map");
                 Environment.Exit(0);
             }
-            fingerprint = GetFingerprint();
+            new Thread(ConsoleWriterThreadBody).Start();
+            string fingerprint = GetFingerprint();
             IEnumerable<int> allY = Enumerable.Range(0, height);
             IEnumerable<int> allX = Enumerable.Range(0, width);
             Pixel[] nonEmptyPixels = allX.
@@ -310,19 +306,20 @@ namespace PixelPlanetBot
             }
         }
 
-        private static string GetFingerprint()
+        private static string GetFingerprint(string address = null)
         {
             Guid guid = Guid.Empty;
+            var path = string.Format(guidFilePathTemplate, address?.GetHashCode());
             try
             {
-                byte[] bytes = File.ReadAllBytes(filePath);
+                byte[] bytes = File.ReadAllBytes(path);
                 guid = new Guid(bytes);
             }
             catch
             {
                 Directory.CreateDirectory(appFolder);
                 guid = Guid.NewGuid();
-                File.WriteAllBytes(filePath, guid.ToByteArray());
+                File.WriteAllBytes(path, guid.ToByteArray());
             }
             return guid.ToString("N");
         }

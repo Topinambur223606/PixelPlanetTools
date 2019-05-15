@@ -31,15 +31,18 @@ namespace PixelPlanetBot
         private WebSocket webSocket;
 
         private readonly Timer connectionDelayTimer = new Timer(5000D);
+        private readonly Timer pingTimer = new Timer(3000D);
 
-        private HashSet<XY> TrackedChunks { get; set; } = new HashSet<XY>();
+        private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
 
-        public InteractionWrapper(string fingerprint)
+
+        public InteractionWrapper(string fingerprint, string proxyFingerprint = null, WebProxy proxy = null)
         {
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
+            pingTimer.Elapsed += PingTimer_Elapsed;
             connectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             HttpWebRequest request = BuildJsonRequest("api/me", new { fingerprint });
             HttpWebResponse response = request.GetResponse() as HttpWebResponse;
@@ -48,6 +51,14 @@ namespace PixelPlanetBot
                 throw new Exception("Cannot connect");
             }
             Connect();
+        }
+
+        private void PingTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if (!webSocket.Ping())
+            {
+                Connect();
+            }
         }
 
         public void TrackChunk(XY chunk)
@@ -190,8 +201,8 @@ namespace PixelPlanetBot
 
         private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (webSocket.ReadyState == WebSocketState.Connecting ||
-                webSocket.ReadyState == WebSocketState.Open)
+            if (webSocket?.ReadyState == WebSocketState.Connecting ||
+                webSocket?.ReadyState == WebSocketState.Open)
             {
                  connectionDelayTimer.Stop();
             }
@@ -239,6 +250,7 @@ namespace PixelPlanetBot
 
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
+            pingTimer.Start();
             foreach (XY chunk in TrackedChunks)
             {
                 TrackChunk(chunk);
