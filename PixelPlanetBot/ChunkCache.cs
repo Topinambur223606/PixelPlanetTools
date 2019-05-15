@@ -10,25 +10,40 @@ namespace PixelPlanetBot
     class ChunkCache
     {
         private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
-        private readonly InteractionWrapper wrapper;
+        private InteractionWrapper wrapper;
 
-        public ChunkCache(IEnumerable<Pixel> pixels, InteractionWrapper wrapper)
+        public InteractionWrapper Wrapper
         {
-            this.wrapper = wrapper;
-            wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
+            get
+            {
+                return wrapper;
+            }
+            set
+            {
+                wrapper = value;
+                wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
+                foreach (XY chunkXY in chunks)
+                {
+                    if (!CachedChunks.ContainsKey(chunkXY))
+                    {
+                        CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
+                    }
+                    wrapper.SubscribeToUpdates(chunkXY);
+                }
+            }
+        }
 
-            List<XY> chunks = pixels.Select(p =>
+        private readonly List<XY> chunks;
+
+
+        public ChunkCache(IEnumerable<Pixel> pixels)
+        {
+            chunks = pixels.Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
                 return (chunkX, chunkY);
             }).Distinct().ToList();
-
-            foreach (XY chunkXY in chunks)
-            {
-                    CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
-                    wrapper.TrackChunk(chunkXY);
-            }
         }
 
         public PixelColor GetPixel(int x, int y)

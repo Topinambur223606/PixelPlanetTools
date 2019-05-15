@@ -140,6 +140,7 @@ namespace PixelPlanetBot
                     pixelsToCheck = nonEmptyPixels;
                     break;
             }
+            ChunkCache cache = new ChunkCache(pixelsToCheck);
             do
             {
                 placed.Clear();
@@ -147,8 +148,8 @@ namespace PixelPlanetBot
                 {
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
-                        wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
-                        ChunkCache cache = new ChunkCache(pixelsToCheck, wrapper);
+                        cache.Wrapper = wrapper;
+                        wrapper.OnPixelChanged += LogPixelChanged;
                         bool wasChanged;
                         do
                         {
@@ -242,7 +243,7 @@ namespace PixelPlanetBot
 
         }
 
-        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
+        private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
         {
             ConsoleColor msgColor;
             short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
