@@ -1,16 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetBot
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
 
-    class ChunkCache
+    internal class ChunkCache
     {
         private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
         private InteractionWrapper wrapper;
+
+        private readonly List<XY> chunks;
 
         public InteractionWrapper Wrapper
         {
@@ -22,19 +25,54 @@ namespace PixelPlanetBot
             {
                 wrapper = value;
                 wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
-                foreach (XY chunkXY in chunks)
-                {
-                    if (!CachedChunks.ContainsKey(chunkXY))
-                    {
-                        CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
-                    }
-                    wrapper.SubscribeToUpdates(chunkXY);
-                }
+                wrapper.OnConnectionRestored += Wrapper_OnConnectionRestored;
+                DownloadChunks();
+                wrapper.SubscribeToUpdates(chunks);
             }
         }
 
-        private readonly List<XY> chunks;
+        private void DownloadChunks()
+        {
+            Program.LogLineToConsole("Downloading chunk data...", ConsoleColor.Yellow);
+            int fails;
+            do
+            {
+                fails = 0;
+                foreach (XY chunkXY in chunks)
+                {
+                    bool success = false;
+                    do
+                    {
+                        try
+                        {
+                            CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
+                            success = true;
+                        }
+                        catch
+                        {
+                            Program.LogLineToConsole("Cannot download chunk data, waiting 5s before next attempt", ConsoleColor.Red);
+                            if (++fails == 5)
+                            {
+                                break;
+                            }
+                            Thread.Sleep(TimeSpan.FromSeconds(5));
+                        }
+                    }
+                    while (!success);
+                }
+                if (fails == 5)
+                {
+                    Program.LogLineToConsole("Waiting 30s before next attempt", ConsoleColor.Yellow);
+                    Thread.Sleep(TimeSpan.FromSeconds(30));
+                }
+            } while (fails == 5);
+            Program.LogLineToConsole("Chunk data is downloaded", ConsoleColor.Blue);
+        }
 
+        private void Wrapper_OnConnectionRestored(object sender, EventArgs e)
+        {
+            DownloadChunks();
+        }
 
         public ChunkCache(IEnumerable<Pixel> pixels)
         {
@@ -46,7 +84,7 @@ namespace PixelPlanetBot
             }).Distinct().ToList();
         }
 
-        public PixelColor GetPixel(int x, int y)
+        public PixelColor GetPixelColor(short x, short y)
         {
             PixelMap.ConvertToRelative(x, out byte chunkX, out byte relativeX);
             PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);

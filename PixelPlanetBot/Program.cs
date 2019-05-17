@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
-using System.Threading.Tasks;
 
 
 
@@ -23,20 +21,24 @@ namespace PixelPlanetBot
         private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "guid{0}.bin");
 
         private static bool defendMode;
-        private static PixelColor[,] Pixels;
+        private static PixelColor[,] imagePixels;
+        private static IEnumerable<Pixel> pixelsToBuild;
         private static short leftX, topY;
-        private static AutoResetEvent gotGriefed = new AutoResetEvent(false);
+        private static ChunkCache cache;
+        private static readonly AutoResetEvent gotGriefed = new AutoResetEvent(false);
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
-
 
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
         private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
 
-        private static byte failsInRow = 0;
+        private static volatile int builtInLastMinute = 0;
+        private static readonly Queue<int> builtInPast = new Queue<int>();
+
+        private static bool repeatingFails = false;
 
         public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
         {
-            string line = string.Format("{0}\t{1}", DateTime.Now.ToLongTimeString(), msg);
+            string line = string.Format("{0}\t{1}", DateTime.Now.ToString("HH:mm:ss"), msg);
             messages.Enqueue((line, color));
             messagesAvailable.Set();
         }
@@ -84,7 +86,7 @@ namespace PixelPlanetBot
                     MemoryStream ms = new MemoryStream(data);
                     image = new Bitmap(ms);
                 }
-                Pixels = ImageProcessing.ToPixelWorldColors(image);
+                imagePixels = ImageProcessing.ToPixelWorldColors(image);
                 checked
                 {
                     width = (ushort)image.Width;
@@ -100,28 +102,30 @@ namespace PixelPlanetBot
                     "Image should fit into map");
                 return;
             }
-            new Thread(ConsoleWriterThreadBody).Start();
+            new Thread(ConsoleWriterThreadBody)
+            {
+                IsBackground = true
+            }.Start();
             string fingerprint = GetFingerprint();
             IEnumerable<int> allY = Enumerable.Range(0, height);
             IEnumerable<int> allX = Enumerable.Range(0, width);
             Pixel[] nonEmptyPixels = allX.
                 SelectMany(X => allY.Select(Y =>
-                    (X: (short)(X + leftX), Y: (short)(Y + topY), C: Pixels[X, Y]))).
+                    (X: (short)(X + leftX), Y: (short)(Y + topY), C: imagePixels[X, Y]))).
                 Where(xy => xy.C != PixelColor.None).ToArray();
-            IEnumerable<Pixel> pixelsToCheck;
             switch (order)
             {
                 case PlacingOrderMode.FromLeft:
-                    pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
+                    pixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
                     break;
                 case PlacingOrderMode.FromRight:
-                    pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
+                    pixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
                     break;
                 case PlacingOrderMode.FromTop:
-                    pixelsToCheck = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
+                    pixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
                     break;
                 case PlacingOrderMode.FromBottom:
-                    pixelsToCheck = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                    pixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
                     break;
                 default:
                     Random rnd = new Random();
@@ -132,28 +136,36 @@ namespace PixelPlanetBot
                         nonEmptyPixels[r] = nonEmptyPixels[i];
                         nonEmptyPixels[i] = tmp;
                     }
-                    pixelsToCheck = nonEmptyPixels;
+                    pixelsToBuild = nonEmptyPixels;
                     break;
             }
-            ChunkCache cache = new ChunkCache(pixelsToCheck);
+            cache = new ChunkCache(pixelsToBuild);
+            if (!defendMode)
+            {
+                new Thread(CompletionCalculationThreadBody)
+                {
+                    IsBackground = true
+                }.Start();
+            }
             do
             {
-                placed.Clear();
                 try
                 {
                     using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                     {
-                        cache.Wrapper = wrapper;
                         wrapper.OnPixelChanged += LogPixelChanged;
+                        cache.Wrapper = wrapper;
+                        placed.Clear();
+
                         bool wasChanged;
                         do
                         {
                             wasChanged = false;
-                            failsInRow = 0;
-                            foreach (Pixel pixel in pixelsToCheck)
+                            repeatingFails = false;
+                            foreach (Pixel pixel in pixelsToBuild)
                             {
                                 (short x, short y, PixelColor color) = pixel;
-                                PixelColor actualColor = cache.GetPixel(x, y);
+                                PixelColor actualColor = cache.GetPixelColor(x, y);
                                 if (!CorrectPixelColor(actualColor, color))
                                 {
                                     wasChanged = true;
@@ -162,7 +174,7 @@ namespace PixelPlanetBot
                                     do
                                     {
                                         byte placingPixelFails = 0;
-                                        success = wrapper.PlacePixel(x, y, color, out double cd);
+                                        success = wrapper.PlacePixel(x, y, color, out double cd, out string error);
                                         if (success)
                                         {
                                             string prefix = cd == 4 ? "P" : "Rep";
@@ -170,40 +182,31 @@ namespace PixelPlanetBot
                                         }
                                         else
                                         {
-                                            if (placingPixelFails++ == 3)
+                                            if (++placingPixelFails == 3)
                                             {
-                                                throw new Exception("Cannot place pixel");
+                                                throw new Exception("Cannot place pixel 3 times");
                                             }
-                                            if (cd == 30D)
-                                            {
-                                                LogLineToConsole($"Failed to place pixel, server error; next attempt in {cd} seconds");
-                                            }
-                                            else
-                                            {
-                                                LogLineToConsole($"Failed to place pixel, IP is overused; cooldown is {cd} seconds", ConsoleColor.Red);
-                                            }
+                                            LogLineToConsole($"Failed to place pixel: {error}", ConsoleColor.Red);
                                         }
-                                        Task.Delay(TimeSpan.FromSeconds(cd)).Wait();
+                                        Thread.Sleep(TimeSpan.FromSeconds(cd));
                                     } while (!success);
                                 }
                             }
                             if (defendMode)
                             {
-                                if (wasChanged)
-                                {
-                                    LogLineToConsole("Building iteration finished", ConsoleColor.Green);
-                                }
-                                else
+                                if (!wasChanged)
                                 {
                                     gotGriefed.Reset();
-                                    LogLineToConsole("No changes were made, waiting...", ConsoleColor.Green);
+                                    LogLineToConsole("Image is intact, waiting...", ConsoleColor.Green);
                                     gotGriefed.WaitOne();
-                                    Task.Delay(new Random().Next(500, 3000)).Wait();
+                                    Thread.Sleep(new Random().Next(500, 3000));
                                 }
                             }
                             else
                             {
-                                LogLineToConsole("Building finished", ConsoleColor.Green);
+                                LogLineToConsole("Building is finished, exiting...", ConsoleColor.Green);
+                                Thread.Sleep(TimeSpan.FromSeconds(100));
+                                return;
                             }
                         }
                         while (defendMode);
@@ -211,23 +214,13 @@ namespace PixelPlanetBot
                 }
                 catch (Exception ex)
                 {
-                    LogLineToConsole($"Unhandled exception:" + Environment.NewLine + ex.Message, ConsoleColor.Red);
-                    if (++failsInRow < 3)
-                    {
-                        int delay = 50 * failsInRow - 40;
-                        LogLineToConsole($"Reconnecting in {delay} seconds...", ConsoleColor.Yellow);
-                        Task.Delay(TimeSpan.FromSeconds(delay)).Wait();
-                        continue;
-                    }
-                    else
-                    {
-                        LogLineToConsole("Cannot reconnect 3 times in a row, process is restarting...", ConsoleColor.Red);
-                        string fullPath = Process.GetCurrentProcess().MainModule.FileName;
-                        args[2] = $"\"{args[2]}\"";
-                        Process.Start(fullPath, string.Join(" ", args));
-                    }
+                    LogLineToConsole($"Unhandled exception: {ex.Message}", ConsoleColor.Red);
+                    int delay = repeatingFails ? 30 : 10;
+                    repeatingFails = true;
+                    LogLineToConsole($"Reconnecting in {delay} seconds...", ConsoleColor.Yellow);
+                    Thread.Sleep(TimeSpan.FromSeconds(delay));
+                    continue;
                 }
-                Environment.Exit(0);
             } while (true);
         }
 
@@ -248,7 +241,7 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    PixelColor desiredColor = Pixels[x - leftX, y - topY];
+                    PixelColor desiredColor = imagePixels[x - leftX, y - topY];
                     if (desiredColor == PixelColor.None)
                     {
                         msgColor = ConsoleColor.DarkGray;
@@ -258,6 +251,7 @@ namespace PixelPlanetBot
                         if (desiredColor == e.Color)
                         {
                             msgColor = ConsoleColor.Green;
+                            builtInLastMinute++;
                         }
                         else
                         {
@@ -272,8 +266,13 @@ namespace PixelPlanetBot
                 }
                 LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
             }
+            else
+            {
+                builtInLastMinute++;
+            }
         }
 
+        //to prevent bot from stopping work when text is selected in shell
         private static void ConsoleWriterThreadBody()
         {
             while (true)
@@ -289,6 +288,33 @@ namespace PixelPlanetBot
                     messagesAvailable.WaitOne();
                 }
             }
+        }
+
+        private static void CompletionCalculationThreadBody()
+        {
+            do
+            {
+                Thread.Sleep(TimeSpan.FromMinutes(1));
+
+                builtInPast.Enqueue(builtInLastMinute);
+                builtInLastMinute = 0;
+                if (builtInPast.Count > 30)
+                {
+                    builtInPast.Dequeue();
+                }
+
+                double builtPerMinute = builtInPast.Average();
+                int done = pixelsToBuild.
+                    Where(p => cache.GetPixelColor(p.Item1, p.Item2) == p.Item3).
+                    Count();
+                int total = pixelsToBuild.Count();
+                int minsLeft = (int)Math.Round((total - done) / builtPerMinute);
+                int hrsLeft = minsLeft / 60;
+
+                LogLineToConsole($"Image is {done * 100.0 / total:F1}% complete, left approximately {hrsLeft}h {minsLeft % 60}min", ConsoleColor.Magenta);
+            }
+            while (true);
+
         }
 
         private static string GetFingerprint(string address = null)
