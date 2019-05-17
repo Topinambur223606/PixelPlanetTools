@@ -86,4 +86,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if $(ConfigurationName) == Release (
+start ..\..\executable\ILMerge.exe /target:exe /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /out:..\..\executable\PixelPlanetBot.exe PixelPlanetBot.exe Newtonsoft.Json.dll websocket-sharp.dll /ndebug
+)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

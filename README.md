@@ -9,7 +9,7 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) to get image for building.
 - You can launch bot as background service on dedicated server using [NSSM](http://nssm.cc/) (very useful thing).
 - [Imgur](https://imgur.com/upload) would be good choice to store your image.
-- You can use ILMerge to get single executable file with third party DLLs included; just launch ```MergeExecutable.ps1``` in ```PixelPlanetBot/executable/``` after compilation in "release" profile and combined EXE will appear in the same folder.
+- You can use ILMerge to get single executable file with third party DLLs included; just copy ```ILMerge.exe``` to ```PixelPlanetBot/executable/``` and launch ```MergeExecutable.ps1``` after "release" profile compilation and combined EXE will appear in the same folder.
 
 ### Usage:
 ```batch
