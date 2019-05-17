@@ -1,2 +1,0 @@
-.\ILMerge.exe /target:exe /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /out:PixelPlanetBot.exe ..\bin\Release\PixelPlanetBot.exe ..\bin\Release\Newtonsoft.Json.dll ..\bin\Release\websocket-sharp.dll
-del PixelPlanetBot.pdb
