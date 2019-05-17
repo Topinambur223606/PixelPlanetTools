@@ -6,10 +6,10 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Timers;
-using System.Web.Script.Serialization;
 using WebSocketSharp;
 using XY = System.ValueTuple<byte, byte>;
 using Timer = System.Timers.Timer;
+using Newtonsoft.Json;
 
 namespace PixelPlanetBot
 {
@@ -41,7 +41,7 @@ namespace PixelPlanetBot
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
         public event EventHandler OnConnectionRestored;
 
-        public InteractionWrapper(string fingerprint, string proxyFingerprint = null, WebProxy proxy = null)
+        public InteractionWrapper(string fingerprint)
         {
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
@@ -61,7 +61,9 @@ namespace PixelPlanetBot
             {
                 throw new Exception($"Cannot connect to API. {e.Message}");
             }
-            new Thread(WaitWebSocketThreadBody).Start();
+            Thread waitThread = new Thread(WaitWebSocketThreadBody);
+            Program.BackgroundThreads.Add(waitThread);
+            waitThread.Start();
             webSocket = new WebSocket(wsUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
@@ -257,8 +259,7 @@ namespace PixelPlanetBot
             {
                 using (StreamWriter streamWriter = new StreamWriter(requestStream))
                 {
-                    JavaScriptSerializer serializer = new JavaScriptSerializer();
-                    string jsonText = serializer.Serialize(data);
+                    string jsonText = JsonConvert.SerializeObject(data);
                     streamWriter.Write(jsonText);
                 }
             }
@@ -358,7 +359,14 @@ namespace PixelPlanetBot
         {
             while (!disposed)
             {
-                websocketIsClosed.WaitOne();
+                try
+                {
+                    websocketIsClosed.WaitOne();
+                }
+                catch (ThreadInterruptedException)
+                {
+                    return;
+                }
                 if (disposed)
                 {
                     return;
@@ -369,7 +377,14 @@ namespace PixelPlanetBot
                     {
                         return;
                     }
+                    try
+                    { 
                     websocketIsOpen.WaitOne();
+                    }
+                    catch (ThreadInterruptedException)
+                    {
+                        return;
+                    }
                 }
             }
         }
@@ -387,6 +402,10 @@ namespace PixelPlanetBot
                 wsConnectionDelayTimer.Dispose();
                 wsPingTimer.Dispose();
                 OnPixelChanged = null;
+                websocketIsClosed.Set();
+                websocketIsClosed.Dispose();
+                websocketIsOpen.Set();
+                websocketIsOpen.Dispose();
             }
             disposed = true;
         }
