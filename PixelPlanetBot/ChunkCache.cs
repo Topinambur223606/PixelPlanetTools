@@ -15,6 +15,8 @@ namespace PixelPlanetBot
 
         private readonly List<XY> chunks;
 
+        public event EventHandler OnMapRedownloaded;
+
         public InteractionWrapper Wrapper
         {
             get
@@ -72,6 +74,7 @@ namespace PixelPlanetBot
         private void Wrapper_OnConnectionRestored(object sender, EventArgs e)
         {
             DownloadChunks();
+            OnMapRedownloaded?.Invoke(this, null);
         }
 
         public ChunkCache(IEnumerable<Pixel> pixels)

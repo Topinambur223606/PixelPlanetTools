@@ -24,12 +24,11 @@ namespace PixelPlanetBot
         private static IEnumerable<Pixel> pixelsToBuild;
         private static short leftX, topY;
         private static ChunkCache cache;
-        private static readonly AutoResetEvent gotGriefed = new AutoResetEvent(false);
+
+        private static AutoResetEvent gotGriefed;
+        private static AutoResetEvent gotChunksDownloaded;
+
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
-
-        private static AutoResetEvent gotChunks;
-        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
-
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
         private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
 
@@ -37,6 +36,7 @@ namespace PixelPlanetBot
         private static readonly Queue<int> builtInPast = new Queue<int>();
 
         public static ConcurrentBag<Thread> BackgroundThreads { get; } = new ConcurrentBag<Thread>();
+        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
 
         private static bool repeatingFails = false;
@@ -163,9 +163,14 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild);
-                if (!defendMode)
+                if (defendMode)
                 {
-                    gotChunks = new AutoResetEvent(false);
+                    gotGriefed = new AutoResetEvent(false);
+                    cache.OnMapRedownloaded += (o, e) => gotGriefed.Set();
+                }
+                else
+                {
+                    gotChunksDownloaded = new AutoResetEvent(false);
                     Thread calcThread = new Thread(CompletionCalculationThreadBody);
                     BackgroundThreads.Add(calcThread);
                     calcThread.Start();
@@ -177,11 +182,10 @@ namespace PixelPlanetBot
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
-                            wrapper.OnConnectionRestored += (o, e) => gotGriefed.Set();
                             cache.Wrapper = wrapper;
                             if (!defendMode)
                             {
-                                gotChunks.Set();
+                                gotChunksDownloaded.Set();
                             }
                             placed.Clear();
 
@@ -251,8 +255,8 @@ namespace PixelPlanetBot
             }
             finally
             {
-                gotGriefed.Dispose();
-                gotChunks?.Dispose();
+                gotGriefed?.Dispose();
+                gotChunksDownloaded?.Dispose();
                 finishCTS.Dispose();
 
                 foreach (var thread in BackgroundThreads.Where(t => t.IsAlive))
@@ -343,7 +347,7 @@ namespace PixelPlanetBot
         {
             try
             {
-                gotChunks.WaitOne();
+                gotChunksDownloaded.WaitOne();
             }
             catch (ThreadInterruptedException)
             {
