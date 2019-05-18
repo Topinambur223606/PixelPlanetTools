@@ -373,14 +373,14 @@ namespace PixelPlanetBot
                 }
                 builtInPast.Enqueue(builtInLastMinute);
                 builtInLastMinute = 0;
-                if (builtInPast.Count > 30)
+                if (builtInPast.Count > 5)
                 {
                     builtInPast.Dequeue();
                 }
 
                 double builtPerMinute = builtInPast.Average();
                 int done = pixelsToBuild.
-                    Where(p => cache.GetPixelColor(p.Item1, p.Item2) == p.Item3).
+                    Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
                     Count();
                 int total = pixelsToBuild.Count();
                 int minsLeft = (int)Math.Round((total - done) / builtPerMinute);
