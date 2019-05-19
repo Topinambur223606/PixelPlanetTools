@@ -298,7 +298,7 @@ namespace PixelPlanetBot
                         else
                         {
                             msgColor = ConsoleColor.Red;
-                            gotGriefed.Set();
+                            gotGriefed?.Set();
                         }
                     }
                 }

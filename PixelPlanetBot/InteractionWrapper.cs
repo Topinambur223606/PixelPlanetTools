@@ -32,7 +32,6 @@ namespace PixelPlanetBot
         private WebSocket webSocket;
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
-        private readonly Timer wsPingTimer = new Timer(10000D);
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private bool multipleServerFails = false;
@@ -45,7 +44,6 @@ namespace PixelPlanetBot
         {
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
-            wsPingTimer.Elapsed += PingTimer_Elapsed;
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             try
             {
@@ -271,25 +269,17 @@ namespace PixelPlanetBot
 
         private void Connect()
         {
-            if (webSocket?.ReadyState != WebSocketState.Open)
+            if (!webSocket.IsAlive)
             {
                 Program.LogLineToConsole("Connecting via websocket...", ConsoleColor.Yellow);
                 webSocket.Connect();
             }
         }
 
-        private void PingTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            if (!webSocket.Ping())
-            {
-                webSocket.Close();
-            }
-        }
-
         private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (webSocket?.ReadyState == WebSocketState.Connecting ||
-                webSocket?.ReadyState == WebSocketState.Open)
+            if (webSocket.ReadyState == WebSocketState.Connecting ||
+                webSocket.ReadyState == WebSocketState.Open)
             {
                  wsConnectionDelayTimer.Stop();
             }
@@ -303,7 +293,6 @@ namespace PixelPlanetBot
         {
             websocketIsClosed.Set();
             Program.LogLineToConsole("Websocket connection closed, trying to reconnect...", ConsoleColor.Red);
-            wsPingTimer.Stop();
             wsConnectionDelayTimer.Start();
         }
 
@@ -341,17 +330,16 @@ namespace PixelPlanetBot
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
             webSocket.OnError += WebSocket_OnError;
+            if (TrackedChunks.Count > 0)
+            {
+                SubscribeToUpdates(TrackedChunks);
+            }
             if (!initialConnection)
             {
                 OnConnectionRestored?.Invoke(this, null);
             }
             initialConnection = false;
             websocketIsOpen.Set();
-            wsPingTimer.Start();
-            if (TrackedChunks.Count > 0)
-            {
-                SubscribeToUpdates(TrackedChunks);
-            }
             Program.LogLineToConsole("Listening for changes via websocket", ConsoleColor.Blue);
         }
 
@@ -378,8 +366,8 @@ namespace PixelPlanetBot
                         return;
                     }
                     try
-                    { 
-                    websocketIsOpen.WaitOne();
+                    {
+                        websocketIsOpen.WaitOne();
                     }
                     catch (ThreadInterruptedException)
                     {
@@ -393,21 +381,19 @@ namespace PixelPlanetBot
         {
             if (!disposed)
             {
+                disposed = true;
                 webSocket.OnOpen -= WebSocket_OnOpen;
                 webSocket.OnMessage -= WebSocket_OnMessage;
                 webSocket.OnError -= WebSocket_OnError;
                 webSocket.OnClose -= WebSocket_OnClose;
-                webSocket.Close();
                 (webSocket as IDisposable).Dispose();
                 wsConnectionDelayTimer.Dispose();
-                wsPingTimer.Dispose();
                 OnPixelChanged = null;
                 websocketIsClosed.Set();
                 websocketIsClosed.Dispose();
                 websocketIsOpen.Set();
                 websocketIsOpen.Dispose();
             }
-            disposed = true;
         }
     }
 }
