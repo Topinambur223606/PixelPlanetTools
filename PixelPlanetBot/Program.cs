@@ -123,7 +123,7 @@ namespace PixelPlanetBot
                 }
                 catch
                 {
-                    Console.WriteLine("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [proxyIP:proxyPort = nothing]");
+                    Console.WriteLine("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND]");// [proxyIP:proxyPort = nothing]
                     return;
                 }
                 Thread logThread = new Thread(ConsoleWriterThreadBody);
