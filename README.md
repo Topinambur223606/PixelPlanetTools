@@ -1,3 +1,8 @@
+# Bot doesn't work
+Captcha was introduced on PixelPlanet because of huge proxy abuse by russian griefers.
+Therefore, bots cannot work now, this bot too.  
+
+
 # PixelPlanetBot
 Bot for [pixelplanet.fun](https://pixelplanet.fun).
 
