@@ -271,7 +271,7 @@ namespace PixelPlanetBot
         {
             if (!webSocket.IsAlive)
             {
-                Program.LogLineToConsole("Connecting via websocket...", ConsoleColor.Yellow);
+                Program.LogLine("Connecting via websocket...", MessageGroup.State, ConsoleColor.Yellow);
                 webSocket.Connect();
             }
         }
@@ -281,7 +281,7 @@ namespace PixelPlanetBot
             if (webSocket.ReadyState == WebSocketState.Connecting ||
                 webSocket.ReadyState == WebSocketState.Open)
             {
-                 wsConnectionDelayTimer.Stop();
+                wsConnectionDelayTimer.Stop();
             }
             else
             {
@@ -292,14 +292,14 @@ namespace PixelPlanetBot
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             websocketIsClosed.Set();
-            Program.LogLineToConsole("Websocket connection closed, trying to reconnect...", ConsoleColor.Red);
+            Program.LogLine("Websocket connection closed, trying to reconnect...", MessageGroup.Error, ConsoleColor.Red);
             wsConnectionDelayTimer.Start();
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
             webSocket.OnError -= WebSocket_OnError;
-            Program.LogLineToConsole($"Error on websocket: {e.Message}", ConsoleColor.Red);
+            Program.LogLine($"Error on websocket: {e.Message}", MessageGroup.Error, ConsoleColor.Red);
             webSocket.Close();
         }
 
@@ -330,17 +330,18 @@ namespace PixelPlanetBot
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
             webSocket.OnError += WebSocket_OnError;
+            websocketIsOpen.Set();
+            websocketIsClosed.Reset();
             if (TrackedChunks.Count > 0)
             {
                 SubscribeToUpdates(TrackedChunks);
             }
+            Program.LogLine("Listening for changes via websocket", MessageGroup.State, ConsoleColor.Blue);
             if (!initialConnection)
             {
                 OnConnectionRestored?.Invoke(this, null);
             }
             initialConnection = false;
-            websocketIsOpen.Set();
-            Program.LogLineToConsole("Listening for changes via websocket", ConsoleColor.Blue);
         }
 
         private void WaitWebSocketThreadBody()

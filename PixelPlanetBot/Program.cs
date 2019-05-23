@@ -26,11 +26,14 @@ namespace PixelPlanetBot
         private static ChunkCache cache;
 
         private static AutoResetEvent gotGriefed;
-        private static AutoResetEvent gotChunksDownloaded;
+        private static AutoResetEvent gotChunksDownloaded = new AutoResetEvent(false);
+        private static object waitingGriefLock;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
         private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
+        private static string logFilePath;
+        private static bool logToFile = false;
 
         private static volatile int builtInLastMinute = 0;
         private static readonly Queue<int> builtInPast = new Queue<int>();
@@ -38,97 +41,114 @@ namespace PixelPlanetBot
         public static ConcurrentBag<Thread> BackgroundThreads { get; } = new ConcurrentBag<Thread>();
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
-
         private static bool repeatingFails = false;
 
-        public static void LogLineToConsole(string msg, ConsoleColor color = ConsoleColor.DarkGray)
+        public static void LogLine(string msg, MessageGroup group, ConsoleColor color)
         {
-            string line = string.Format("{0}\t{1}", DateTime.Now.ToString("HH:mm:ss"), msg);
+            string line = string.Format("{0}\t{1}\t{2}", DateTime.Now.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(8), msg);
             messages.Enqueue((line, color));
             messagesAvailable.Set();
         }
 
-        public static void LogPixelToConsole(string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
+        public static void LogPixel(MessageGroup group, string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
         {
-            string text = $"{msg.PadRight(22, ' ')} {color.ToString().PadRight(12, ' ')} at ({x.ToString().PadLeft(6, ' ')};{y.ToString().PadLeft(6, ' ')})";
-            LogLineToConsole(text, consoleColor);
+            string text = $"{msg.PadRight(22)} {color.ToString().PadRight(12)} at ({x.ToString().PadLeft(6)};{y.ToString().PadLeft(6)})";
+            LogLine(text, group, consoleColor);
         }
 
         private static void Main(string[] args)
         {
-            try {
+            try
+            {
+                Thread logThread = new Thread(ConsoleWriterThreadBody);
+                BackgroundThreads.Add(logThread);
+                logThread.Start();
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
                 try
                 {
-                    leftX = short.Parse(args[0]);
-                    topY = short.Parse(args[1]);
-                    if (args.Length > 3)
+                    try
                     {
-                        defendMode = args[3].ToLower() == "y";
-                    }
-                    if (args.Length > 4)
-                    {
-                        switch (args[4].ToUpper())
+                        try
                         {
-                            case "R":
-                                order = PlacingOrderMode.FromRight;
-                                break;
-                            case "L":
-                                order = PlacingOrderMode.FromLeft;
-                                break;
-                            case "T":
-                                order = PlacingOrderMode.FromTop;
-                                break;
-                            case "B":
-                                order = PlacingOrderMode.FromBottom;
-                                break;
+                            File.Open(args[5], FileMode.Append, FileAccess.Write).Dispose();
+                            logFilePath = args[5];
+                            logToFile = true;
                         }
-                    }
-                    Bitmap image;
-                    Console.Write("{0}\tDownloading image... ", DateTime.Now.ToString("HH:mm:ss"));
-                    using (WebClient wc = new WebClient())
-                    {
-                        byte[] data = wc.DownloadData(args[2]);
-                        MemoryStream ms = new MemoryStream(data);
-                        image = new Bitmap(ms);
-                    }
-                    Console.Write("Done!{0}{1}\tConverting image... ", Environment.NewLine, DateTime.Now.ToString("HH:mm:ss"));
-                    imagePixels = ImageProcessing.ToPixelWorldColors(image);
-                    Console.WriteLine("Done!");
+                        catch
+                        { }
 
-                    checked
+                        leftX = short.Parse(args[0]);
+                        topY = short.Parse(args[1]);
+                        if (args.Length > 3)
+                        {
+                            defendMode = args[3].ToLower() == "y";
+                        }
+                        if (args.Length > 4)
+                        {
+                            switch (args[4].ToUpper())
+                            {
+                                case "R":
+                                    order = PlacingOrderMode.FromRight;
+                                    break;
+                                case "L":
+                                    order = PlacingOrderMode.FromLeft;
+                                    break;
+                                case "T":
+                                    order = PlacingOrderMode.FromTop;
+                                    break;
+                                case "B":
+                                    order = PlacingOrderMode.FromBottom;
+                                    break;
+                            }
+                        }
+                        Bitmap image;
+                        LogLine("Downloading image...", MessageGroup.State, ConsoleColor.Yellow);
+                        using (WebClient wc = new WebClient())
+                        {
+                            byte[] data = wc.DownloadData(args[2]);
+                            MemoryStream ms = new MemoryStream(data);
+                            image = new Bitmap(ms);
+                        }
+                        LogLine("Image is downloaded", MessageGroup.Info, ConsoleColor.Blue);
+                        LogLine("Converting image...", MessageGroup.State, ConsoleColor.Yellow);
+                        imagePixels = ImageProcessing.ToPixelWorldColors(image);
+                        LogLine("Image is converted", MessageGroup.Info, ConsoleColor.Blue);
+
+                        checked
+                        {
+                            width = (ushort)image.Width;
+                            height = (ushort)image.Height;
+                            short check;
+                            check = (short)(leftX + width);
+                            check = (short)(topY + height);
+                        }
+
+
+                    }
+                    catch (OverflowException)
                     {
-                        width = (ushort)image.Width;
-                        height = (ushort)image.Height;
-                        short check;
-                        check = (short)(leftX + width);
-                        check = (short)(topY + height);
+                        throw new Exception("All image should be inside the map");
+                    }
+                    catch (WebException)
+                    {
+                        throw new Exception("Cannot download image");
+                    }
+                    catch (ArgumentException)
+                    {
+                        throw new Exception("Cannot convert image");
+                    }
+                    catch
+                    {
+                        throw new Exception("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [logFileName = none]");// [proxyIP:proxyPort = nothing]
                     }
                 }
-                catch (OverflowException)
+                catch (Exception ex)
                 {
-                    Console.WriteLine("All image should be inside the map");
+                    Console.WriteLine(ex.Message);
+                    finishCTS.Cancel();
                     return;
                 }
-                catch (WebException)
-                {
-                    Console.WriteLine("Cannot download image");
-                    return;
-                }
-                catch (ArgumentException)
-                {
-                    Console.WriteLine("Cannot convert image");
-                    return;
-                }
-                catch
-                {
-                    Console.WriteLine("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND]");// [proxyIP:proxyPort = nothing]
-                    return;
-                }
-                Thread logThread = new Thread(ConsoleWriterThreadBody);
-                BackgroundThreads.Add(logThread);
-                logThread.Start();
                 string fingerprint = GetFingerprint();
                 IEnumerable<int> allY = Enumerable.Range(0, height);
                 IEnumerable<int> allX = Enumerable.Range(0, width);
@@ -167,13 +187,16 @@ namespace PixelPlanetBot
                 {
                     gotGriefed = new AutoResetEvent(false);
                     cache.OnMapRedownloaded += (o, e) => gotGriefed.Set();
+                    waitingGriefLock = new object();
+                    Thread integrityThread = new Thread(IntegrityCalculationThreadBody);
+                    BackgroundThreads.Add(integrityThread);
+                    integrityThread.Start();
                 }
                 else
                 {
-                    gotChunksDownloaded = new AutoResetEvent(false);
-                    Thread calcThread = new Thread(CompletionCalculationThreadBody);
-                    BackgroundThreads.Add(calcThread);
-                    calcThread.Start();
+                    Thread progressThread = new Thread(CompletionCalculationThreadBody);
+                    BackgroundThreads.Add(progressThread);
+                    progressThread.Start();
                 }
                 do
                 {
@@ -183,10 +206,7 @@ namespace PixelPlanetBot
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
                             cache.Wrapper = wrapper;
-                            if (!defendMode)
-                            {
-                                gotChunksDownloaded.Set();
-                            }
+                            gotChunksDownloaded.Set();
                             placed.Clear();
 
                             bool wasChanged;
@@ -210,7 +230,7 @@ namespace PixelPlanetBot
                                             if (success)
                                             {
                                                 string prefix = cd == 4 ? "P" : "Rep";
-                                                LogPixelToConsole($"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
+                                                LogPixel(MessageGroup.Pixel, $"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
                                             }
                                             else
                                             {
@@ -218,7 +238,7 @@ namespace PixelPlanetBot
                                                 {
                                                     throw new Exception("Cannot place pixel 3 times");
                                                 }
-                                                LogLineToConsole($"Failed to place pixel: {error}", ConsoleColor.Red);
+                                                LogLine($"Failed to place pixel: {error}", MessageGroup.Pixel, ConsoleColor.Red);
                                             }
                                             Thread.Sleep(TimeSpan.FromSeconds(cd));
                                         } while (!success);
@@ -228,26 +248,29 @@ namespace PixelPlanetBot
                                 {
                                     if (!wasChanged)
                                     {
-                                        gotGriefed.Reset();
-                                        LogLineToConsole("Image is intact, waiting...", ConsoleColor.Green);
-                                        gotGriefed.WaitOne();
+
+                                        LogLine("Image is intact, waiting...", MessageGroup.State, ConsoleColor.Green);
+                                        lock (waitingGriefLock)
+                                        {
+                                            gotGriefed.Reset();
+                                            gotGriefed.WaitOne();
+                                        }
                                         Thread.Sleep(new Random().Next(500, 3000));
                                     }
                                 }
                             }
                             while (defendMode || wasChanged);
                             finishCTS.Cancel();
-                            LogLineToConsole("Building is finished, exiting...", ConsoleColor.Green);
-                            Thread.Sleep(1000);
+                            LogLine("Building is finished, exiting...", MessageGroup.State, ConsoleColor.Green);
                             return;
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogLineToConsole($"Unhandled exception: {ex.Message}", ConsoleColor.Red);
+                        LogLine($"Unhandled exception: {ex.Message}", MessageGroup.Error, ConsoleColor.Red);
                         int delay = repeatingFails ? 30 : 10;
                         repeatingFails = true;
-                        LogLineToConsole($"Reconnecting in {delay} seconds...", ConsoleColor.Yellow);
+                        LogLine($"Reconnecting in {delay} seconds...", MessageGroup.State, ConsoleColor.Yellow);
                         Thread.Sleep(TimeSpan.FromSeconds(delay));
                         continue;
                     }
@@ -255,11 +278,13 @@ namespace PixelPlanetBot
             }
             finally
             {
-                gotGriefed?.Dispose();
-                gotChunksDownloaded?.Dispose();
+                Thread.Sleep(1000);
+                gotChunksDownloaded.Dispose();
                 finishCTS.Dispose();
+                gotGriefed?.Dispose();
 
-                foreach (var thread in BackgroundThreads.Where(t => t.IsAlive))
+
+                foreach (Thread thread in BackgroundThreads.Where(t => t.IsAlive))
                 {
                     thread.Interrupt(); //fallback, should never work 
                 }
@@ -276,6 +301,7 @@ namespace PixelPlanetBot
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
         {
             ConsoleColor msgColor;
+            MessageGroup msgGroup;
             short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
             short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
 
@@ -287,17 +313,21 @@ namespace PixelPlanetBot
                     if (desiredColor == PixelColor.None)
                     {
                         msgColor = ConsoleColor.DarkGray;
+                        msgGroup = MessageGroup.Info;
                     }
                     else
                     {
                         if (desiredColor == e.Color)
                         {
                             msgColor = ConsoleColor.Green;
+                            msgGroup = MessageGroup.Assist;
                             builtInLastMinute++;
                         }
                         else
                         {
                             msgColor = ConsoleColor.Red;
+                            msgGroup = MessageGroup.Attack;
+                            builtInLastMinute--;
                             gotGriefed?.Set();
                         }
                     }
@@ -305,8 +335,9 @@ namespace PixelPlanetBot
                 catch
                 {
                     msgColor = ConsoleColor.DarkGray;
+                    msgGroup = MessageGroup.Info;
                 }
-                LogPixelToConsole($"Received pixel update:", x, y, e.Color, msgColor);
+                LogPixel(msgGroup, $"Received pixel update:", x, y, e.Color, msgColor);
             }
             else
             {
@@ -324,6 +355,13 @@ namespace PixelPlanetBot
                     (string line, ConsoleColor color) = msg;
                     Console.ForegroundColor = color;
                     Console.WriteLine(line);
+                    if (logToFile)
+                    {
+                        using (StreamWriter writer = new StreamWriter(logFilePath, true))
+                        {
+                            writer.WriteLine(line);
+                        }
+                    }
                 }
                 else
                 {
@@ -386,7 +424,38 @@ namespace PixelPlanetBot
                 int minsLeft = (int)Math.Round((total - done) / builtPerMinute);
                 int hrsLeft = minsLeft / 60;
 
-                LogLineToConsole($"Image is {done * 100.0 / total:F1}% complete, left approximately {hrsLeft}h {minsLeft % 60}min", ConsoleColor.Magenta);
+                LogLine($"Image is {done * 100.0 / total:F1}% complete, left approximately {hrsLeft}h {minsLeft % 60}min", MessageGroup.Info, ConsoleColor.Magenta);
+            }
+            while (true);
+        }
+
+        private static void IntegrityCalculationThreadBody()
+        {
+            try
+            {
+                gotChunksDownloaded.WaitOne();
+            }
+            catch (ThreadInterruptedException)
+            {
+                return;
+            }
+            do
+            {
+                try
+                {
+                    lock (waitingGriefLock)
+                    { }
+                    Thread.Sleep(TimeSpan.FromMinutes(1));
+                }
+                catch (ThreadInterruptedException)
+                {
+                    return;
+                }
+                int correct = pixelsToBuild.
+                    Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                    Count();
+                int total = pixelsToBuild.Count();
+                LogLine($"Image integrity is {correct * 100.0 / total:F1}% ({correct}/{total} pixels)", MessageGroup.Info, ConsoleColor.Magenta);
             }
             while (true);
         }

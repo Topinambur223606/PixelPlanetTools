@@ -35,7 +35,7 @@ namespace PixelPlanetBot
 
         private void DownloadChunks()
         {
-            Program.LogLineToConsole("Downloading chunk data...", ConsoleColor.Yellow);
+            Program.LogLine("Downloading chunk data...", MessageGroup.State, ConsoleColor.Yellow);
             int fails;
             do
             {
@@ -52,7 +52,7 @@ namespace PixelPlanetBot
                         }
                         catch
                         {
-                            Program.LogLineToConsole("Cannot download chunk data, waiting 5s before next attempt", ConsoleColor.Red);
+                            Program.LogLine("Cannot download chunk data, waiting 5s before next attempt", MessageGroup.Error, ConsoleColor.Red);
                             if (++fails == 5)
                             {
                                 break;
@@ -64,11 +64,11 @@ namespace PixelPlanetBot
                 }
                 if (fails == 5)
                 {
-                    Program.LogLineToConsole("Waiting 30s before next attempt", ConsoleColor.Yellow);
+                    Program.LogLine("Waiting 30s before next attempt", MessageGroup.State, ConsoleColor.Yellow);
                     Thread.Sleep(TimeSpan.FromSeconds(30));
                 }
             } while (fails == 5);
-            Program.LogLineToConsole("Chunk data is downloaded", ConsoleColor.Blue);
+            Program.LogLine("Chunk data is downloaded", MessageGroup.Info, ConsoleColor.Blue);
         }
 
         private void Wrapper_OnConnectionRestored(object sender, EventArgs e)

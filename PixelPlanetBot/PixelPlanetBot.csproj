@@ -55,6 +55,7 @@
     <Compile Include="ChunkCache.cs" />
     <Compile Include="ImageProcessing.cs" />
     <Compile Include="InteractionWrapper.cs" />
+    <Compile Include="MessageGroup.cs" />
     <Compile Include="PixelChangedEventArgs.cs" />
     <Compile Include="PixelColor.cs" />
     <Compile Include="PixelMap.cs" />
