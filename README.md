@@ -19,7 +19,7 @@ bot.exe fingerprint
 ```  
 **fingerprint** - 128-bit (32 hex symbols) value that represents your browser specs hash; allows to pass captcha task to user.
 
-###Regular usage:
+### Regular usage:
 ```batch
 bot.exe X Y imageURL [defendMode] [placementOrder] [logFileName]
 ```  
