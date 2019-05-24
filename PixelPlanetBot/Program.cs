@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace PixelPlanetBot
     {
         private static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
-        private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "guid{0}.bin");
+        private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "fingerprint{0}.bin");
 
         private static bool defendMode;
         private static PixelColor[,] imagePixels;
@@ -35,6 +36,8 @@ namespace PixelPlanetBot
         private static string logFilePath;
         private static bool logToFile = false;
 
+
+        private static string fingerprint;
         private static volatile int builtInLastMinute = 0;
         private static readonly Queue<int> builtInPast = new Queue<int>();
 
@@ -60,6 +63,20 @@ namespace PixelPlanetBot
         {
             try
             {
+                if (args.Length == 1)
+                {
+                    try
+                    {
+                        SaveFingerprint(Guid.Parse(args[0]));
+                        Console.WriteLine("Fingerprint is saved, now you can relauch bot with needed parameters");
+                    }
+                    catch
+                    {
+                        Console.WriteLine("You should pass correct 128-bit fingerprint (GUID)");
+                    }
+                    return;
+                }
+
                 Thread logThread = new Thread(ConsoleWriterThreadBody);
                 BackgroundThreads.Add(logThread);
                 logThread.Start();
@@ -102,6 +119,9 @@ namespace PixelPlanetBot
                                     break;
                             }
                         }
+
+                        fingerprint = GetFingerprint();
+
                         Bitmap image;
                         LogLine("Downloading image...", MessageGroup.State, ConsoleColor.Yellow);
                         using (WebClient wc = new WebClient())
@@ -128,7 +148,7 @@ namespace PixelPlanetBot
                     }
                     catch (OverflowException)
                     {
-                        throw new Exception("All image should be inside the map");
+                        throw new Exception("Entire image should be inside the map");
                     }
                     catch (WebException)
                     {
@@ -137,6 +157,10 @@ namespace PixelPlanetBot
                     catch (ArgumentException)
                     {
                         throw new Exception("Cannot convert image");
+                    }
+                    catch (IOException)
+                    {
+                        throw new Exception("Fingerprint is not saved, pass it from browser as only parameter to app to save before usage");
                     }
                     catch
                     {
@@ -149,7 +173,6 @@ namespace PixelPlanetBot
                     finishCTS.Cancel();
                     return;
                 }
-                string fingerprint = GetFingerprint();
                 IEnumerable<int> allY = Enumerable.Range(0, height);
                 IEnumerable<int> allX = Enumerable.Range(0, width);
                 Pixel[] nonEmptyPixels = allX.
@@ -234,7 +257,16 @@ namespace PixelPlanetBot
                                             }
                                             else
                                             {
-                                                if (++placingPixelFails == 3)
+                                                if (cd == 0.0)
+                                                {
+                                                    LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Error, ConsoleColor.Red);
+                                                    Random rnd = new Random();
+                                                    int rx = rnd.Next(ushort.MinValue, ushort.MaxValue);
+                                                    int ry = rnd.Next(ushort.MinValue, ushort.MaxValue);
+                                                    Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{rx},{ry},30");
+                                                    Console.ReadKey(true);
+                                                }
+                                                else if (++placingPixelFails == 3)
                                                 {
                                                     throw new Exception("Cannot place pixel 3 times");
                                                 }
@@ -260,7 +292,6 @@ namespace PixelPlanetBot
                                 }
                             }
                             while (defendMode || wasChanged);
-                            finishCTS.Cancel();
                             LogLine("Building is finished, exiting...", MessageGroup.State, ConsoleColor.Green);
                             return;
                         }
@@ -278,6 +309,7 @@ namespace PixelPlanetBot
             }
             finally
             {
+                finishCTS.Cancel();
                 Thread.Sleep(1000);
                 gotChunksDownloaded.Dispose();
                 finishCTS.Dispose();
@@ -294,8 +326,8 @@ namespace PixelPlanetBot
         private static bool CorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
         {
             return (actualColor == desiredColor) ||
-                    (actualColor == PixelColor.NothingOcean && desiredColor == PixelColor.LightestBlue) ||
-                    (actualColor == PixelColor.NothingLand && desiredColor == PixelColor.White);
+                    (actualColor == PixelColor.UnsetOcean && desiredColor == PixelColor.SkyBlue) ||
+                    (actualColor == PixelColor.UnsetLand && desiredColor == PixelColor.White);
         }
 
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
@@ -455,7 +487,7 @@ namespace PixelPlanetBot
                     Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
                     Count();
                 int total = pixelsToBuild.Count();
-                LogLine($"Image integrity is {correct * 100.0 / total:F1}% ({correct}/{total} pixels)", MessageGroup.Info, ConsoleColor.Magenta);
+                LogLine($"Image integrity is {correct * 100.0 / total:F1}%, {total - correct} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
             }
             while (true);
         }
@@ -464,18 +496,16 @@ namespace PixelPlanetBot
         {
             Guid guid = Guid.Empty;
             string path = string.Format(guidFilePathTemplate, address?.GetHashCode());
-            try
-            {
-                byte[] bytes = File.ReadAllBytes(path);
-                guid = new Guid(bytes);
-            }
-            catch
-            {
-                Directory.CreateDirectory(appFolder);
-                guid = Guid.NewGuid();
-                File.WriteAllBytes(path, guid.ToByteArray());
-            }
+            byte[] bytes = File.ReadAllBytes(path);
+            guid = new Guid(bytes);
             return guid.ToString("N");
+        }
+
+        private static void SaveFingerprint(Guid guid, string address = null)
+        {
+            string path = string.Format(guidFilePathTemplate, address?.GetHashCode());
+            Directory.CreateDirectory(appFolder);
+            File.WriteAllBytes(path, guid.ToByteArray());
         }
     }
 }

@@ -20,7 +20,7 @@ namespace PixelPlanetBot
         private const byte subscribeManyOpcode = 0xA3;
         private const byte pixelUpdatedOpcode = 0xC1;
 
-        private const string baseHttpAdress = "https://pixelplanet.fun";
+        public const string BaseHttpAdress = "https://pixelplanet.fun";
         private const string webSocketUrlTemplate = "wss://pixelplanet.fun/ws?fingerprint={0}";
 
         private readonly string fingerprint;
@@ -154,12 +154,12 @@ namespace PixelPlanetBot
 
             var data = new
             {
-                x,
-                y,
-                a = x + y - 8,
+                a = x + y + 8,
                 color = (byte)color,
                 fingerprint,
-                token = "null"
+                token = "null",
+                x,
+                y
             };
             try
             {
@@ -219,8 +219,12 @@ namespace PixelPlanetBot
                             multipleServerFails = true;
                             error = $"Site is overloaded, delay {coolDown}s before next attempt";
                             return false;
+                        case (HttpStatusCode)422:
+                            error = null;
+                            coolDown = 0;
+                            return false;
                         default:
-                            throw new Exception($"Error: {response.StatusDescription}");
+                            throw new Exception(response.StatusDescription);
                     }
                 }
             }
@@ -228,7 +232,7 @@ namespace PixelPlanetBot
 
         public PixelColor[,] GetChunk(XY chunk)
         {
-            string url = $"{baseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bin";
+            string url = $"{BaseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bin";
             using (WebClient wc = new WebClient())
             {
                 byte[] pixelData = wc.DownloadData(url);
@@ -251,7 +255,7 @@ namespace PixelPlanetBot
 
         private HttpWebResponse SendJsonRequest(string relativeUrl, object data)
         {
-            HttpWebRequest request = WebRequest.CreateHttp($"{baseHttpAdress}/{relativeUrl}");
+            HttpWebRequest request = WebRequest.CreateHttp($"{BaseHttpAdress}/{relativeUrl}");
             request.Method = "POST";
             using (Stream requestStream = request.GetRequestStream())
             {
@@ -262,7 +266,7 @@ namespace PixelPlanetBot
                 }
             }
             request.ContentType = "application/json";
-            request.Headers["Origin"] = request.Referer = baseHttpAdress;
+            request.Headers["Origin"] = request.Referer = BaseHttpAdress;
             request.UserAgent = "Mozilla / 5.0(X11; Linux x86_64; rv: 57.0) Gecko / 20100101 Firefox / 57.0";
             return request.GetResponse() as HttpWebResponse;
         }

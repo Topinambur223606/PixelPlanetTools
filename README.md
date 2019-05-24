@@ -10,8 +10,17 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - You can launch bot as background service on dedicated server using [NSSM](http://nssm.cc/) (very useful thing).
 - [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetBot/master/PixelPlanetBot/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy ```ILMerge.exe``` to ```PixelPlanetBot/executable/```, launch "release" profile compilation and combined EXE will appear in that folder.
+- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when site will ask to pass captcha again, default browser will be opened, you should just place pixel anywhere and then press Enter in bot shell window.  
+To get fingerprint, open dev tools before placing pixel, switch to "Network" tab (in Chrome and Opera) and place pixel. Request to ```api/pixel``` will appear, its body contains field named ```fingerprint``` with value that you should copy and pass to bot before usage.
 
-### Usage:
+### Linking with browser:
+```batch
+bot.exe fingerprint
+```  
+**fingerprint** - 128-bit (32 hex symbols) value that represents your browser specs hash; allows to pass captcha task to user.
+
+
+###Regular usage:
 ```batch
 bot.exe X Y imageURL [defendMode] [placementOrder] [logFileName]
 ```  
