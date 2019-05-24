@@ -266,11 +266,15 @@ namespace PixelPlanetBot
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{rx},{ry},30");
                                                     Console.ReadKey(true);
                                                 }
-                                                else if (++placingPixelFails == 3)
+                                                else
                                                 {
-                                                    throw new Exception("Cannot place pixel 3 times");
+                                                    LogLine($"Failed to place pixel: {error}", MessageGroup.Pixel, ConsoleColor.Red);
+                                                    if (++placingPixelFails == 3)
+                                                    {
+                                                        throw new Exception("Cannot place pixel 3 times");
+                                                    }
                                                 }
-                                                LogLine($"Failed to place pixel: {error}", MessageGroup.Pixel, ConsoleColor.Red);
+                                                
                                             }
                                             Thread.Sleep(TimeSpan.FromSeconds(cd));
                                         } while (!success);
