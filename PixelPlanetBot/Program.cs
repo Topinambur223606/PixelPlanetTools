@@ -261,8 +261,8 @@ namespace PixelPlanetBot
                                                 {
                                                     LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Error, ConsoleColor.Red);
                                                     Random rnd = new Random();
-                                                    int rx = rnd.Next(ushort.MinValue, ushort.MaxValue);
-                                                    int ry = rnd.Next(ushort.MinValue, ushort.MaxValue);
+                                                    int rx = rnd.Next(short.MinValue, short.MaxValue);
+                                                    int ry = rnd.Next(short.MinValue, short.MaxValue);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{rx},{ry},30");
                                                     Console.ReadKey(true);
                                                 }
