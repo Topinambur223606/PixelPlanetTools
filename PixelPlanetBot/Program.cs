@@ -233,7 +233,6 @@ namespace PixelPlanetBot
                             wrapper.OnConnectionLost += (o, e) => mapDownloadedFence.Close();
                             cache.Wrapper = wrapper;
                             placed.Clear();
-                            Task waitTask = Task.CompletedTask;
                             bool wasChanged;
                             do
                             {
@@ -251,14 +250,18 @@ namespace PixelPlanetBot
                                         do
                                         {
                                             byte placingPixelFails = 0;
-                                            waitTask.Wait();
+                                            if (!CorrectPixelColor(actualColor, color))
+                                            {
+                                                success = true;
+                                                continue;
+                                            }
                                             mapDownloadedFence.WaitOpened();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
                                                 string prefix = cd == 4 ? "P" : "Rep";
                                                 LogPixel(MessageGroup.Pixel, $"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
-                                                waitTask = Task.Delay(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
+                                                Task.Delay(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
                                             }
                                             else
                                             {
@@ -282,8 +285,9 @@ namespace PixelPlanetBot
                                                     {
                                                         throw new Exception("Cannot place pixel 3 times");
                                                     }
-                                                    waitTask = Task.Delay(TimeSpan.FromSeconds(cd));
+                                                    
                                                 }
+                                                Thread.Sleep(TimeSpan.FromSeconds(cd));
                                             }
 
                                         } while (!success);
