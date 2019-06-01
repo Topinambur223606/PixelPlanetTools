@@ -7,6 +7,7 @@
         Assist,
         Attack,
         Error,
-        State
+        State,
+        Captcha
     }
 }

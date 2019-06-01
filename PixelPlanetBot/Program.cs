@@ -27,10 +27,9 @@ namespace PixelPlanetBot
         private static bool defendMode;
         private static ChunkCache cache;
         private static bool repeatingFails = false;
-        
+
         private static AutoResetEvent gotGriefed;
-        private static AutoResetEvent gotChunksDownloaded = new AutoResetEvent(false);
-        private static readonly Fence mapRedownloadedFence = new Fence(true);
+        private static readonly Fence mapDownloadedFence = new Fence(true);
         private static readonly Fence captchaPassedFence = new Fence(true);
         private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private static readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
@@ -43,14 +42,16 @@ namespace PixelPlanetBot
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
         private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
-        private static readonly ConcurrentQueue<Message> consoleMessages = new ConcurrentQueue<Message>();        
+        private static readonly ConcurrentQueue<Message> consoleMessages = new ConcurrentQueue<Message>();
 
         private static volatile int builtInLastMinute = 0;
+        private static volatile int griefedInLastMinute = 0;
         private static readonly Queue<int> builtInPast = new Queue<int>();
+        private static readonly Queue<int> griefedInPast = new Queue<int>();
 
         public static void LogLine(string msg, MessageGroup group, ConsoleColor color)
         {
-            string line = string.Format("{0}  {1}  {2}", DateTime.Now.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(8), msg);
+            string line = string.Format("{0}  {1}  {2}", DateTime.Now.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(9), msg);
             messages.Enqueue((line, color));
             messagesAvailable.Set();
         }
@@ -214,18 +215,14 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild);
-                cache.OnMapRedownloaded += (o, e) => mapRedownloadedFence.Open();
+                cache.OnMapDownloaded += (o, e) => mapDownloadedFence.Open();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
-                    cache.OnMapRedownloaded += (o, e) => gotGriefed.Set();
-                    waitingGriefLock = new object();
-                    StartBackgroundThread(IntegrityCalculationThreadBody);
+                    cache.OnMapDownloaded += (o, e) => gotGriefed.Set();
+                    waitingGriefLock = new object();                    
                 }
-                else
-                {
-                    StartBackgroundThread(CompletionCalculationThreadBody);
-                }
+                StartBackgroundThread(StatsCollectionThreadBody);
                 do
                 {
                     try
@@ -233,9 +230,8 @@ namespace PixelPlanetBot
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
-                            wrapper.OnConnectionLost += (o, e) => mapRedownloadedFence.Close();
+                            wrapper.OnConnectionLost += (o, e) => mapDownloadedFence.Close();
                             cache.Wrapper = wrapper;
-                            gotChunksDownloaded.Set();
                             placed.Clear();
                             Task waitTask = Task.CompletedTask;
                             bool wasChanged;
@@ -256,7 +252,7 @@ namespace PixelPlanetBot
                                         {
                                             byte placingPixelFails = 0;
                                             waitTask.Wait();
-                                            mapRedownloadedFence.WaitOpened();
+                                            mapDownloadedFence.WaitOpened();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
@@ -268,7 +264,7 @@ namespace PixelPlanetBot
                                             {
                                                 if (cd == 0.0)
                                                 {
-                                                    LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Error, ConsoleColor.Red);
+                                                    LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha, ConsoleColor.Red);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     Thread.Sleep(100);
                                                     captchaPassedFence.Close();
@@ -289,7 +285,7 @@ namespace PixelPlanetBot
                                                     waitTask = Task.Delay(TimeSpan.FromSeconds(cd));
                                                 }
                                             }
-                                            
+
                                         } while (!success);
                                     }
                                 }
@@ -328,10 +324,10 @@ namespace PixelPlanetBot
             {
                 finishCTS.Cancel();
                 Thread.Sleep(1000);
-                gotChunksDownloaded.Dispose();
                 finishCTS.Dispose();
                 gotGriefed?.Dispose();
-
+                mapDownloadedFence?.Dispose();
+                captchaPassedFence?.Dispose();
 
                 foreach (Thread thread in backgroundThreads.Where(t => t.IsAlive))
                 {
@@ -376,7 +372,7 @@ namespace PixelPlanetBot
                         {
                             msgColor = ConsoleColor.Red;
                             msgGroup = MessageGroup.Attack;
-                            builtInLastMinute--;
+                            griefedInLastMinute++;
                             gotGriefed?.Set();
                         }
                     }
@@ -457,83 +453,83 @@ namespace PixelPlanetBot
             }
         }
 
-        private static void CompletionCalculationThreadBody()
+        private static void StatsCollectionThreadBody()
         {
             try
             {
-                gotChunksDownloaded.WaitOne();
+                mapDownloadedFence.WaitOpened();
+                do
+                {
+                    if (finishCTS.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token).Wait();
+                    }
+                    catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                    {
+                        return;
+                    }
+                    builtInPast.Enqueue(builtInLastMinute);
+                    builtInLastMinute = 0;
+                    if (builtInPast.Count > 5)
+                    {
+                        builtInPast.Dequeue();
+                    }
+
+                    griefedInPast.Enqueue(griefedInLastMinute);
+                    griefedInLastMinute = 0;
+                    if (griefedInPast.Count > 5)
+                    {
+                        griefedInPast.Dequeue();
+                    }
+
+                    double griefedPerMinute = griefedInPast.Where(i => i > 0).Cast<int?>().Average() ?? 0;
+                    double builtPerMinute = builtInPast.Where(i => i > 0).Cast<int?>().Average() ?? 0;
+                    double buildSpeed = builtPerMinute - griefedPerMinute;
+                    int done = pixelsToBuild.
+                       Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                       Count();
+                    int total = pixelsToBuild.Count();
+                    double percent = Math.Floor(done * 1000.0 / total) / 10.0;
+                    if (finishCTS.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    if (defendMode)
+                    {
+                        LogLine($"Image integrity is {done * 100.0 / total:F1}%, {total - done} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
+                        lock (gotGriefed)
+                        { }
+                    }
+                    else
+                    {
+                        string info = $"Image is {percent:F1}% complete, ";
+                        if (buildSpeed > 0)
+                        {
+                            int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
+                            int hrsLeft = minsLeft / 60;
+                            info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
+                        }
+                        else 
+                        {
+                            info += $"no progress in last 5 minutes";
+                        }
+                        LogLine(info, MessageGroup.Info, ConsoleColor.Magenta);
+                    }
+                    if (griefedPerMinute > 1)
+                    {
+                        LogLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, ConsoleColor.Magenta);
+                        LogLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, ConsoleColor.Magenta);
+                    }
+                } while (true);
             }
             catch (ThreadInterruptedException)
             {
                 return;
             }
-            do
-            {
-                if (finishCTS.IsCancellationRequested)
-                {
-                    return;
-                }
-                try
-                {
-                    Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token).Wait();
-                }
-                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                {
-                    return;
-                }
-                catch (ThreadInterruptedException)
-                {
-                    return;
-                }
-                builtInPast.Enqueue(builtInLastMinute);
-                builtInLastMinute = 0;
-                if (builtInPast.Count > 5)
-                {
-                    builtInPast.Dequeue();
-                }
-
-                double builtPerMinute = builtInPast.Average();
-                int done = pixelsToBuild.
-                    Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                    Count();
-                int total = pixelsToBuild.Count();
-                int minsLeft = (int)Math.Round((total - done) / builtPerMinute);
-                int hrsLeft = minsLeft / 60;
-
-                LogLine($"Image is {done * 100.0 / total:F1}% complete, left approximately {hrsLeft}h {minsLeft % 60}min", MessageGroup.Info, ConsoleColor.Magenta);
-            }
-            while (true);
-        }
-
-        private static void IntegrityCalculationThreadBody()
-        {
-            try
-            {
-                gotChunksDownloaded.WaitOne();
-            }
-            catch (ThreadInterruptedException)
-            {
-                return;
-            }
-            do
-            {
-                try
-                {
-                    lock (waitingGriefLock)
-                    { }
-                    Thread.Sleep(TimeSpan.FromMinutes(1));
-                }
-                catch (ThreadInterruptedException)
-                {
-                    return;
-                }
-                int correct = pixelsToBuild.
-                    Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                    Count();
-                int total = pixelsToBuild.Count();
-                LogLine($"Image integrity is {correct * 100.0 / total:F1}%, {total - correct} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
-            }
-            while (true);
         }
 
         private static string GetFingerprint()

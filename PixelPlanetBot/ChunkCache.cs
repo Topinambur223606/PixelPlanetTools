@@ -15,7 +15,7 @@ namespace PixelPlanetBot
 
         private readonly List<XY> chunks;
 
-        public event EventHandler OnMapRedownloaded;
+        public event EventHandler OnMapDownloaded;
 
         public InteractionWrapper Wrapper
         {
@@ -69,12 +69,12 @@ namespace PixelPlanetBot
                 }
             } while (fails == 5);
             Program.LogLine("Chunk data is downloaded", MessageGroup.Info, ConsoleColor.Blue);
+            OnMapDownloaded?.Invoke(this, null);
         }
 
         private void Wrapper_OnConnectionRestored(object sender, EventArgs e)
         {
             DownloadChunks();
-            OnMapRedownloaded?.Invoke(this, null);
         }
 
         public ChunkCache(IEnumerable<Pixel> pixels)
