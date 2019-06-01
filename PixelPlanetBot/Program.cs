@@ -500,7 +500,7 @@ namespace PixelPlanetBot
                     }
                     if (defendMode)
                     {
-                        LogLine($"Image integrity is {done * 100.0 / total:F1}%, {total - done} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
+                        LogLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
                         lock (waitingGriefLock)
                         { }
                     }
