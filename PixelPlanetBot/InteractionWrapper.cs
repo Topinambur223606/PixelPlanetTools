@@ -4,12 +4,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Threading;
 using System.Timers;
 using WebSocketSharp;
+using Newtonsoft.Json;
 using XY = System.ValueTuple<byte, byte>;
 using Timer = System.Timers.Timer;
-using Newtonsoft.Json;
 
 namespace PixelPlanetBot
 {
@@ -25,13 +24,10 @@ namespace PixelPlanetBot
 
         private readonly string fingerprint;
 
-        private readonly object interactionLock = new object();
-        private readonly AutoResetEvent websocketIsOpen = new AutoResetEvent(false);
-        private readonly AutoResetEvent websocketIsClosed = new AutoResetEvent(true);
-
         private WebSocket webSocket;
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
+        private readonly Fence websocketFence = new Fence();
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private bool multipleServerFails = false;
@@ -39,6 +35,7 @@ namespace PixelPlanetBot
         private bool initialConnection = true;
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
         public event EventHandler OnConnectionRestored;
+        public event EventHandler OnConnectionLost;
 
         public InteractionWrapper(string fingerprint)
         {
@@ -59,9 +56,6 @@ namespace PixelPlanetBot
             {
                 throw new Exception($"Cannot connect to API. {e.Message}");
             }
-            Thread waitThread = new Thread(WaitWebSocketThreadBody);
-            Program.BackgroundThreads.Add(waitThread);
-            waitThread.Start();
             webSocket = new WebSocket(wsUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
@@ -70,57 +64,12 @@ namespace PixelPlanetBot
             Connect();
         }
 
-        //idk where it can be used
-        public void UnsubscribeFromUpdates(XY chunk)
-        {
-            lock (interactionLock)
-            {
-                if (disposed)
-                {
-                    return;
-                }
-            }
-
-            if (TrackedChunks.Remove(chunk))
-            {
-                byte[] data = new byte[3]
-                {
-                    unsubscribeOpcode,
-                    chunk.Item1,
-                    chunk.Item2
-                };
-                webSocket.Send(data);
-            }
-        }
-
-        //now unused
-        public void SubscribeToChunkUpdates(XY chunk)
-        {
-            lock (interactionLock)
-            {
-                if (disposed)
-                {
-                    return;
-                }
-            }
-            TrackedChunks.Add(chunk);
-            byte[] data = new byte[3]
-            {
-                    subscribeOpcode,
-                    chunk.Item1,
-                    chunk.Item2
-            };
-            webSocket.Send(data);
-        }
-
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
-            lock (interactionLock)
+            websocketFence.WaitOpened();
+            if (disposed)
             {
-                if (disposed)
-                {
-                    return;
-                }
+                return;
             }
             TrackedChunks.UnionWith(chunks);
             using (MemoryStream ms = new MemoryStream())
@@ -140,18 +89,16 @@ namespace PixelPlanetBot
             }
         }
 
-        public bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out string error)
+        public bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out double totalCoolDown, out string error)
         {
-            lock (interactionLock)
+            websocketFence.WaitOpened();
+            if (disposed)
             {
-                if (disposed)
-                {
-                    coolDown = -1;
-                    error = "Connection is disposed";
-                    return false;
-                }
+                coolDown = -1;
+                totalCoolDown = -1;
+                error = "Connection is disposed";
+                return false;
             }
-
             var data = new
             {
                 a = x + y + 8,
@@ -176,6 +123,7 @@ namespace PixelPlanetBot
                                     if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                                     {
                                         coolDown = double.Parse(json["coolDownSeconds"].ToString());
+                                        totalCoolDown = double.Parse(json["waitSeconds"].ToString());
                                         error = string.Empty;
                                         multipleServerFails = false;
                                         return true;
@@ -189,7 +137,7 @@ namespace PixelPlanetBot
                                         }
                                         else
                                         {
-                                            coolDown = double.Parse(json["waitSeconds"].ToString());
+                                            coolDown = totalCoolDown = double.Parse(json["waitSeconds"].ToString());
                                             error = "IP is overused";
                                             multipleServerFails = false;
                                             return false;
@@ -215,13 +163,13 @@ namespace PixelPlanetBot
                         case HttpStatusCode.Forbidden:
                             throw new Exception("Action was forbidden by pixelworld; admins could have prevented you from placing pixel or area is protected");
                         case HttpStatusCode.BadGateway:
-                            coolDown = multipleServerFails ? 30 : 10;
+                            totalCoolDown = coolDown = multipleServerFails ? 30 : 10;
                             multipleServerFails = true;
                             error = $"Site is overloaded, delay {coolDown}s before next attempt";
                             return false;
                         case (HttpStatusCode)422:
                             error = null;
-                            coolDown = 0;
+                            totalCoolDown = coolDown = 0;
                             return false;
                         default:
                             throw new Exception(response.StatusDescription);
@@ -295,8 +243,9 @@ namespace PixelPlanetBot
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
-            websocketIsClosed.Set();
-            Program.LogLine("Websocket connection closed, trying to reconnect...", MessageGroup.Error, ConsoleColor.Red);
+            OnConnectionLost?.Invoke(this, null);
+            websocketFence.Close();
+            Program.LogLine("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error, ConsoleColor.Red);
             wsConnectionDelayTimer.Start();
         }
 
@@ -334,8 +283,7 @@ namespace PixelPlanetBot
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
             webSocket.OnError += WebSocket_OnError;
-            websocketIsOpen.Set();
-            websocketIsClosed.Reset();
+            websocketFence.Open();
             if (TrackedChunks.Count > 0)
             {
                 SubscribeToUpdates(TrackedChunks);
@@ -346,40 +294,6 @@ namespace PixelPlanetBot
                 OnConnectionRestored?.Invoke(this, null);
             }
             initialConnection = false;
-        }
-
-        private void WaitWebSocketThreadBody()
-        {
-            while (!disposed)
-            {
-                try
-                {
-                    websocketIsClosed.WaitOne();
-                }
-                catch (ThreadInterruptedException)
-                {
-                    return;
-                }
-                if (disposed)
-                {
-                    return;
-                }
-                lock (interactionLock)
-                {
-                    if (disposed)
-                    {
-                        return;
-                    }
-                    try
-                    {
-                        websocketIsOpen.WaitOne();
-                    }
-                    catch (ThreadInterruptedException)
-                    {
-                        return;
-                    }
-                }
-            }
         }
 
         public void Dispose()
@@ -394,10 +308,7 @@ namespace PixelPlanetBot
                 (webSocket as IDisposable).Dispose();
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
-                websocketIsClosed.Set();
-                websocketIsClosed.Dispose();
-                websocketIsOpen.Set();
-                websocketIsOpen.Dispose();
+                websocketFence.Dispose();
             }
         }
     }

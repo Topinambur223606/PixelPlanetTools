@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChunkCache.cs" />
+    <Compile Include="Fence.cs" />
     <Compile Include="ImageProcessing.cs" />
     <Compile Include="InteractionWrapper.cs" />
     <Compile Include="MessageGroup.cs" />
