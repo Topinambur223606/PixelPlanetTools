@@ -29,8 +29,8 @@ namespace PixelPlanetBot
         private static bool repeatingFails = false;
 
         private static AutoResetEvent gotGriefed;
-        private static readonly Fence mapDownloadedFence = new Fence(true);
-        private static readonly Fence captchaPassedFence = new Fence(true);
+        private static readonly Gate mapDownloadedGate = new Gate(true);
+        private static readonly Gate captchaPassedGate = new Gate(true);
         private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private static readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
         private static object waitingGriefLock;
@@ -215,7 +215,7 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild);
-                cache.OnMapDownloaded += (o, e) => mapDownloadedFence.Open();
+                cache.OnMapDownloaded += (o, e) => mapDownloadedGate.Open();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
@@ -230,7 +230,7 @@ namespace PixelPlanetBot
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
-                            wrapper.OnConnectionLost += (o, e) => mapDownloadedFence.Close();
+                            wrapper.OnConnectionLost += (o, e) => mapDownloadedGate.Close();
                             cache.Wrapper = wrapper;
                             placed.Clear();
                             bool wasChanged;
@@ -250,18 +250,13 @@ namespace PixelPlanetBot
                                         do
                                         {
                                             byte placingPixelFails = 0;
-                                            if (!CorrectPixelColor(actualColor, color))
-                                            {
-                                                success = true;
-                                                continue;
-                                            }
-                                            mapDownloadedFence.WaitOpened();
+                                            mapDownloadedGate.WaitOpened();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
                                                 string prefix = cd == 4 ? "P" : "Rep";
                                                 LogPixel(MessageGroup.Pixel, $"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
-                                                Task.Delay(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
+                                                Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
                                             }
                                             else
                                             {
@@ -270,13 +265,13 @@ namespace PixelPlanetBot
                                                     LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha, ConsoleColor.Red);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     Thread.Sleep(100);
-                                                    captchaPassedFence.Close();
+                                                    captchaPassedGate.Close();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    captchaPassedFence.Open();
+                                                    captchaPassedGate.Open();
                                                 }
                                                 else
                                                 {
@@ -330,8 +325,8 @@ namespace PixelPlanetBot
                 Thread.Sleep(1000);
                 finishCTS.Dispose();
                 gotGriefed?.Dispose();
-                mapDownloadedFence?.Dispose();
-                captchaPassedFence?.Dispose();
+                mapDownloadedGate?.Dispose();
+                captchaPassedGate?.Dispose();
 
                 foreach (Thread thread in backgroundThreads.Where(t => t.IsAlive))
                 {
@@ -398,7 +393,7 @@ namespace PixelPlanetBot
         {
             while (true)
             {
-                captchaPassedFence.WaitOpened();
+                captchaPassedGate.WaitOpened();
                 if (consoleMessages.TryDequeue(out Message msg))
                 {
                     (string line, ConsoleColor color) = msg;
@@ -461,7 +456,7 @@ namespace PixelPlanetBot
         {
             try
             {
-                mapDownloadedFence.WaitOpened();
+                mapDownloadedGate.WaitOpened();
                 do
                 {
                     if (finishCTS.IsCancellationRequested)

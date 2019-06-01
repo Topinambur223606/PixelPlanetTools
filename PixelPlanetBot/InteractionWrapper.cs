@@ -27,7 +27,7 @@ namespace PixelPlanetBot
         private WebSocket webSocket;
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
-        private readonly Fence websocketFence = new Fence();
+        private readonly Gate websocketGate = new Gate();
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private bool multipleServerFails = false;
@@ -66,7 +66,7 @@ namespace PixelPlanetBot
 
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
-            websocketFence.WaitOpened();
+            websocketGate.WaitOpened();
             if (disposed)
             {
                 return;
@@ -91,7 +91,7 @@ namespace PixelPlanetBot
 
         public bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out double totalCoolDown, out string error)
         {
-            websocketFence.WaitOpened();
+            websocketGate.WaitOpened();
             if (disposed)
             {
                 coolDown = -1;
@@ -244,7 +244,7 @@ namespace PixelPlanetBot
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             OnConnectionLost?.Invoke(this, null);
-            websocketFence.Close();
+            websocketGate.Close();
             Program.LogLine("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error, ConsoleColor.Red);
             wsConnectionDelayTimer.Start();
         }
@@ -283,7 +283,7 @@ namespace PixelPlanetBot
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
             webSocket.OnError += WebSocket_OnError;
-            websocketFence.Open();
+            websocketGate.Open();
             if (TrackedChunks.Count > 0)
             {
                 SubscribeToUpdates(TrackedChunks);
@@ -308,7 +308,7 @@ namespace PixelPlanetBot
                 (webSocket as IDisposable).Dispose();
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
-                websocketFence.Dispose();
+                websocketGate.Dispose();
             }
         }
     }

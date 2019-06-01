@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace PixelPlanetBot
 {
-    class Fence : IDisposable
+    class Gate : IDisposable
     {
         private AutoResetEvent opened;
         private AutoResetEvent closed;
@@ -12,7 +12,7 @@ namespace PixelPlanetBot
         private readonly object lockObject = new object();
         private readonly Thread workingThread;
 
-        public Fence(bool isOpen = false)
+        public Gate(bool isOpen = false)
         {
             this.isOpen = isOpen;
             opened = new AutoResetEvent(isOpen);
