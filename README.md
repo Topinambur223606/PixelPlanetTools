@@ -7,7 +7,6 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - PixelPlanet recognizes user by IP, so launching multiple bots on same computer \/ from computers in same LAN wouldn't work.
 - IDK what PixelPlanet admins think about bots, but Woyken mentions that abusers and griefers might be banned.
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) to get image for building.
-- You can launch bot as background service on dedicated server using [NSSM](http://nssm.cc/) (very useful thing).
 - [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetBot/master/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy ```ILMerge.exe``` to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
 - After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when site will ask to pass captcha again, default browser will be opened, you should just place pixel anywhere and then press any key in bot shell window.  
