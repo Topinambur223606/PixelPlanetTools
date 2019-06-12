@@ -5,89 +5,60 @@ namespace PixelPlanetUtils
 {
     public class Gate : IDisposable
     {
-        private AutoResetEvent opened;
-        private AutoResetEvent closed;
+        private readonly AutoResetEvent autoResetEvent;
         private bool isOpen;
-        private readonly object lockObject = new object();
-        private Thread workingThread;
+
+        public bool IsDisposed { get; private set; } = false;
 
         public Gate(bool isOpen = false)
         {
             this.isOpen = isOpen;
-            opened = new AutoResetEvent(isOpen);
-            closed = new AutoResetEvent(false);
-            workingThread = new Thread(ThreadBody);
-            workingThread.Start();
+            autoResetEvent = new AutoResetEvent(isOpen);
         }
-
-        public void WaitOpened()
-        {
-            if (!IsDisposed)
-            {
-                lock (lockObject)
-                { }
-            }
-        }
-
-        public bool IsDisposed { get; private set; } = false;
 
         public bool IsOpen
         {
             get => isOpen;
             set
             {
-                if (!IsDisposed)
+                if (value)
                 {
-                    if (value)
-                    {
-                        Open();
-                    }
-                    else
-                    {
-                        Close();
-                    }
+                    Open();
+                }
+                else
+                {
+                    Close();
                 }
             }
         }
 
-        public void Open()
+        public void WaitOpened()
         {
-            if (!IsDisposed && !isOpen)
+            if (!IsDisposed)
             {
-                opened.Set();
-                isOpen = true;
+                autoResetEvent.WaitOne();
+                if (!IsDisposed && isOpen)
+                {
+                    autoResetEvent.Set();
+                }
             }
         }
 
         public void Close()
         {
-            if (!IsDisposed && isOpen)
+            if (!IsDisposed)
             {
-                closed.Set();
+                autoResetEvent.Reset();
                 isOpen = false;
             }
         }
 
-        private void ThreadBody()
+        public void Open()
         {
-            try
+            if (!IsDisposed)
             {
-                while (!IsDisposed)
-                {
-                    lock (lockObject)
-                    {
-                        opened.WaitOne();
-                    }
-                    if (IsDisposed)
-                    {
-                        return;
-                    }
-                    closed.WaitOne();
-                }
-            }
-            catch (ThreadInterruptedException)
-            {
-                return;
+                autoResetEvent.Set();
+                isOpen = true;
             }
         }
 
@@ -95,15 +66,9 @@ namespace PixelPlanetUtils
         {
             if (!IsDisposed)
             {
+                Open();
                 IsDisposed = true;
-                opened.Set();
-                closed.Set();
-                opened.Dispose();
-                closed.Dispose();
-                if (workingThread.IsAlive)
-                {
-                    workingThread.Interrupt();
-                }
+                autoResetEvent.Dispose();
             }
         }
     }
