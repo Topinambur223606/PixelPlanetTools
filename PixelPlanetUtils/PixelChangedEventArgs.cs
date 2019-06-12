@@ -1,10 +1,12 @@
 ﻿using System;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelPlanetBot
+namespace PixelPlanetUtils
 {
-    class PixelChangedEventArgs : EventArgs
+    public class PixelChangedEventArgs : EventArgs
     {
+        public DateTime DateTime { get; set; }
+
         public XY Chunk { get; set; }
 
         public XY Pixel { get; set; }

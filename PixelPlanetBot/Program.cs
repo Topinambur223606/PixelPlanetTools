@@ -1,8 +1,8 @@
-﻿using System;
+﻿using PixelPlanetUtils;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
+    
     using Pixel = ValueTuple<short, short, PixelColor>;
     using Message = ValueTuple<string, ConsoleColor>;
 
@@ -20,19 +21,16 @@ namespace PixelPlanetBot
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
         private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "fingerprint.bin");
         private static string logFilePath;
-        private static bool logToFile = false;
 
-        private static ConcurrentBag<Thread> backgroundThreads = new ConcurrentBag<Thread>();
+        private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static bool defendMode;
         private static ChunkCache cache;
         private static bool repeatingFails = false;
 
         private static AutoResetEvent gotGriefed;
-        private static readonly Gate mapDownloadedGate = new Gate(true);
-        private static readonly Gate captchaPassedGate = new Gate(true);
-        private static readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
-        private static readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
+        private static Gate mapDownloadedGate;
+
         private static object waitingGriefLock;
 
         private static PixelColor[,] imagePixels;
@@ -48,27 +46,8 @@ namespace PixelPlanetBot
         private static volatile int griefedInLastMinute = 0;
         private static readonly Queue<int> builtInPast = new Queue<int>();
         private static readonly Queue<int> griefedInPast = new Queue<int>();
+        private static Logger logger;
 
-        public static void LogLine(string msg, MessageGroup group, ConsoleColor color)
-        {
-            string line = string.Format("{0}  {1}  {2}", DateTime.Now.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(9), msg);
-            messages.Enqueue((line, color));
-            messagesAvailable.Set();
-        }
-
-        public static void LogPixel(MessageGroup group, string msg, int x, int y, PixelColor color, ConsoleColor consoleColor)
-        {
-            string text = $"{msg.PadRight(22)} {color.ToString().PadRight(13)} at ({x.ToString().PadLeft(6)};{y.ToString().PadLeft(6)})";
-            LogLine(text, group, consoleColor);
-        }
-
-        public static Thread StartBackgroundThread(ThreadStart threadBody)
-        {
-            Thread thread = new Thread(threadBody);
-            backgroundThreads.Add(thread);
-            thread.Start();
-            return thread;
-        }
 
         private static void Main(string[] args)
         {
@@ -87,23 +66,12 @@ namespace PixelPlanetBot
                     }
                     return;
                 }
-                StartBackgroundThread(LogWriterThreadBody);
-                StartBackgroundThread(ConsoleWriterThreadBody);
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
                 try
                 {
                     try
                     {
-                        try
-                        {
-                            File.Open(args[5], FileMode.Append, FileAccess.Write).Dispose();
-                            logFilePath = args[5];
-                            logToFile = true;
-                        }
-                        catch
-                        { }
-
                         leftX = short.Parse(args[0]);
                         topY = short.Parse(args[1]);
                         if (args.Length > 3)
@@ -128,32 +96,24 @@ namespace PixelPlanetBot
                                     break;
                             }
                         }
-
                         fingerprint = GetFingerprint();
-
-                        Bitmap image;
-                        LogLine("Downloading image...", MessageGroup.State, ConsoleColor.Yellow);
-                        using (WebClient wc = new WebClient())
+                        try
                         {
-                            byte[] data = wc.DownloadData(args[2]);
-                            MemoryStream ms = new MemoryStream(data);
-                            image = new Bitmap(ms);
+                            File.Open(args[5], FileMode.Append, FileAccess.Write).Dispose();
+                            logFilePath = args[5];
                         }
-                        LogLine("Image is downloaded", MessageGroup.Info, ConsoleColor.Blue);
-                        LogLine("Converting image...", MessageGroup.State, ConsoleColor.Yellow);
-                        imagePixels = ImageProcessing.ToPixelWorldColors(image);
-                        LogLine("Image is converted", MessageGroup.Info, ConsoleColor.Blue);
-
+                        catch
+                        { }
+                        logger = new Logger(finishCTS.Token, logFilePath);
+                        imagePixels = ImageProcessing.PixelColorsByUrl(args[2], logger.LogLine);
                         checked
                         {
-                            width = (ushort)image.Width;
-                            height = (ushort)image.Height;
+                            width = (ushort)imagePixels.GetLength(0);
+                            height = (ushort)imagePixels.GetLength(1);
                             short check;
                             check = (short)(leftX + width);
                             check = (short)(topY + height);
                         }
-
-
                     }
                     catch (OverflowException)
                     {
@@ -214,24 +174,27 @@ namespace PixelPlanetBot
                         pixelsToBuild = nonEmptyPixels;
                         break;
                 }
-                cache = new ChunkCache(pixelsToBuild);
+                cache = new ChunkCache(pixelsToBuild, logger.LogLine);
+                mapDownloadedGate = new Gate(true);
                 cache.OnMapDownloaded += (o, e) => mapDownloadedGate.Open();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
                     cache.OnMapDownloaded += (o, e) => gotGriefed.Set();
-                    waitingGriefLock = new object();                    
+                    waitingGriefLock = new object();
                 }
-                StartBackgroundThread(StatsCollectionThreadBody);
+                statsThread = new Thread(StatsCollectionThreadBody);
+                statsThread.Start();
                 do
                 {
                     try
                     {
-                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint))
+                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
                             wrapper.OnConnectionLost += (o, e) => mapDownloadedGate.Close();
                             cache.Wrapper = wrapper;
+                            cache.DownloadChunks();
                             placed.Clear();
                             bool wasChanged;
                             do
@@ -242,7 +205,7 @@ namespace PixelPlanetBot
                                 {
                                     (short x, short y, PixelColor color) = pixel;
                                     PixelColor actualColor = cache.GetPixelColor(x, y);
-                                    if (!CorrectPixelColor(actualColor, color))
+                                    if (!IsCorrectPixelColor(actualColor, color))
                                     {
                                         wasChanged = true;
                                         bool success;
@@ -255,32 +218,32 @@ namespace PixelPlanetBot
                                             if (success)
                                             {
                                                 string prefix = cd == 4 ? "P" : "Rep";
-                                                LogPixel(MessageGroup.Pixel, $"{prefix}laced pixel:", x, y, color, ConsoleColor.Green);
+                                                logger.LogPixel($"{prefix}laced pixel:", MessageGroup.Pixel, x, y, color);
                                                 Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
                                             }
                                             else
                                             {
                                                 if (cd == 0.0)
                                                 {
-                                                    LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha, ConsoleColor.Red);
+                                                    logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     Thread.Sleep(100);
-                                                    captchaPassedGate.Close();
+                                                    logger.ConsoleLoggingGate.Close();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    captchaPassedGate.Open();
+                                                    logger.ConsoleLoggingGate.Open();
                                                 }
                                                 else
                                                 {
-                                                    LogLine($"Failed to place pixel: {error}", MessageGroup.Pixel, ConsoleColor.Red);
+                                                    logger.LogLine($"Failed to place pixel: {error}", MessageGroup.PixelFail);
                                                     if (++placingPixelFails == 3)
                                                     {
                                                         throw new Exception("Cannot place pixel 3 times");
                                                     }
-                                                    
+
                                                 }
                                                 Thread.Sleep(TimeSpan.FromSeconds(cd));
                                             }
@@ -293,7 +256,7 @@ namespace PixelPlanetBot
                                     if (!wasChanged)
                                     {
 
-                                        LogLine("Image is intact, waiting...", MessageGroup.State, ConsoleColor.Green);
+                                        logger.LogLine("Image is intact, waiting...", MessageGroup.ImageDone);
                                         lock (waitingGriefLock)
                                         {
                                             gotGriefed.Reset();
@@ -304,16 +267,16 @@ namespace PixelPlanetBot
                                 }
                             }
                             while (defendMode || wasChanged);
-                            LogLine("Building is finished, exiting...", MessageGroup.State, ConsoleColor.Green);
+                            logger.LogLine("Building is finished, exiting...", MessageGroup.ImageDone);
                             return;
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogLine($"Unhandled exception: {ex.Message}", MessageGroup.Error, ConsoleColor.Red);
+                        logger.LogLine($"Unhandled exception: {ex.Message}", MessageGroup.Error);
                         int delay = repeatingFails ? 30 : 10;
                         repeatingFails = true;
-                        LogLine($"Reconnecting in {delay} seconds...", MessageGroup.State, ConsoleColor.Yellow);
+                        logger.LogLine($"Reconnecting in {delay} seconds...", MessageGroup.TechState);
                         Thread.Sleep(TimeSpan.FromSeconds(delay));
                         continue;
                     }
@@ -322,20 +285,19 @@ namespace PixelPlanetBot
             finally
             {
                 finishCTS.Cancel();
-                Thread.Sleep(1000);
-                finishCTS.Dispose();
                 gotGriefed?.Dispose();
                 mapDownloadedGate?.Dispose();
-                captchaPassedGate?.Dispose();
-
-                foreach (Thread thread in backgroundThreads.Where(t => t.IsAlive))
+                logger?.Dispose();
+                Thread.Sleep(1000);
+                finishCTS.Dispose();
+                if (statsThread?.IsAlive ?? false)
                 {
-                    thread.Interrupt(); //fallback, should never work 
+                    statsThread.Interrupt(); //fallback, should never work 
                 }
             }
         }
 
-        private static bool CorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
+        private static bool IsCorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
         {
             return (actualColor == desiredColor) ||
                     (actualColor == PixelColor.UnsetOcean && desiredColor == PixelColor.SkyBlue) ||
@@ -344,7 +306,6 @@ namespace PixelPlanetBot
 
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
         {
-            ConsoleColor msgColor;
             MessageGroup msgGroup;
             short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
             short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
@@ -356,20 +317,17 @@ namespace PixelPlanetBot
                     PixelColor desiredColor = imagePixels[x - leftX, y - topY];
                     if (desiredColor == PixelColor.None)
                     {
-                        msgColor = ConsoleColor.DarkGray;
                         msgGroup = MessageGroup.Info;
                     }
                     else
                     {
                         if (desiredColor == e.Color)
                         {
-                            msgColor = ConsoleColor.Green;
                             msgGroup = MessageGroup.Assist;
                             builtInLastMinute++;
                         }
                         else
                         {
-                            msgColor = ConsoleColor.Red;
                             msgGroup = MessageGroup.Attack;
                             griefedInLastMinute++;
                             gotGriefed?.Set();
@@ -378,77 +336,13 @@ namespace PixelPlanetBot
                 }
                 catch
                 {
-                    msgColor = ConsoleColor.DarkGray;
                     msgGroup = MessageGroup.Info;
                 }
-                LogPixel(msgGroup, $"Received pixel update:", x, y, e.Color, msgColor);
+                logger.LogPixel($"Received pixel update:", msgGroup, x, y, e.Color);
             }
             else
             {
                 builtInLastMinute++;
-            }
-        }
-
-        private static void ConsoleWriterThreadBody()
-        {
-            while (true)
-            {
-                captchaPassedGate.WaitOpened();
-                if (consoleMessages.TryDequeue(out Message msg))
-                {
-                    (string line, ConsoleColor color) = msg;
-                    Console.ForegroundColor = color;
-                    Console.WriteLine(line);
-                }
-                else
-                {
-                    if (finishCTS.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    try
-                    {
-                        consoleMessagesAvailable.WaitOne();
-                    }
-                    catch (ThreadInterruptedException)
-                    {
-                        return;
-                    }
-                }
-            }
-        }
-
-        private static void LogWriterThreadBody()
-        {
-            while (true)
-            {
-                if (messages.TryDequeue(out Message msg))
-                {
-                    consoleMessages.Enqueue(msg);
-                    consoleMessagesAvailable.Set();
-                    if (logToFile)
-                    {
-                        using (StreamWriter writer = new StreamWriter(logFilePath, true))
-                        {
-                            writer.WriteLine(msg.Item1);
-                        }
-                    }
-                }
-                else
-                {
-                    if (finishCTS.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    try
-                    {
-                        messagesAvailable.WaitOne();
-                    }
-                    catch (ThreadInterruptedException)
-                    {
-                        return;
-                    }
-                }
             }
         }
 
@@ -489,7 +383,7 @@ namespace PixelPlanetBot
                     double builtPerMinute = builtInPast.Where(i => i > 0).Cast<int?>().Average() ?? 0;
                     double buildSpeed = builtPerMinute - griefedPerMinute;
                     int done = pixelsToBuild.
-                       Where(p => CorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                       Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
                        Count();
                     int total = pixelsToBuild.Count();
                     double percent = Math.Floor(done * 1000.0 / total) / 10.0;
@@ -499,7 +393,7 @@ namespace PixelPlanetBot
                     }
                     if (defendMode)
                     {
-                        LogLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, ConsoleColor.Magenta);
+                        logger.LogLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info);
                         lock (waitingGriefLock)
                         { }
                     }
@@ -516,12 +410,12 @@ namespace PixelPlanetBot
                         {
                             info += $"no progress in last 5 minutes";
                         }
-                        LogLine(info, MessageGroup.Info, ConsoleColor.Magenta);
+                        logger.LogLine(info, MessageGroup.Info);
                     }
                     if (griefedPerMinute > 1)
                     {
-                        LogLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, ConsoleColor.Magenta);
-                        LogLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, ConsoleColor.Magenta);
+                        logger.LogLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info);
+                        logger.LogLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info);
                     }
                 } while (true);
             }

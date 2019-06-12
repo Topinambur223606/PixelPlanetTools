@@ -10,9 +10,9 @@ using Newtonsoft.Json;
 using XY = System.ValueTuple<byte, byte>;
 using Timer = System.Timers.Timer;
 
-namespace PixelPlanetBot
+namespace PixelPlanetUtils
 {
-    class InteractionWrapper : IDisposable
+    public class InteractionWrapper : IDisposable
     {
         private const byte subscribeOpcode = 0xA1;
         private const byte unsubscribeOpcode = 0xA2;
@@ -28,8 +28,10 @@ namespace PixelPlanetBot
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
         private readonly Gate websocketGate = new Gate();
+        private readonly Gate listeningGate;
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
+        private readonly bool listeningMode;
         private bool multipleServerFails = false;
         private volatile bool disposed = false;
         private bool initialConnection = true;
@@ -37,8 +39,15 @@ namespace PixelPlanetBot
         public event EventHandler OnConnectionRestored;
         public event EventHandler OnConnectionLost;
 
-        public InteractionWrapper(string fingerprint)
+        private readonly Action<string, MessageGroup> logger;
+
+        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, bool listeningMode = false)
         {
+            this.logger = logger;
+            if (this.listeningMode = listeningMode)
+            {
+                listeningGate = new Gate();
+            }
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
@@ -89,8 +98,31 @@ namespace PixelPlanetBot
             }
         }
 
+        public void StartListening()
+        {
+            if (!listeningMode)
+            {
+                throw new InvalidOperationException();
+            }
+            listeningGate.Close();
+            listeningGate.WaitOpened();
+        }
+
+        public void StopListening()
+        {
+            if (!listeningMode)
+            {
+                throw new InvalidOperationException();
+            }
+            listeningGate.Open();
+        }
+
         public bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out double totalCoolDown, out string error)
         {
+            if (listeningMode)
+            {
+                throw new InvalidOperationException();
+            }
             websocketGate.WaitOpened();
             if (disposed)
             {
@@ -223,7 +255,7 @@ namespace PixelPlanetBot
         {
             if (!webSocket.IsAlive)
             {
-                Program.LogLine("Connecting via websocket...", MessageGroup.State, ConsoleColor.Yellow);
+                logger?.Invoke("Connecting via websocket...", MessageGroup.TechState);
                 webSocket.Connect();
             }
         }
@@ -245,14 +277,14 @@ namespace PixelPlanetBot
         {
             OnConnectionLost?.Invoke(this, null);
             websocketGate.Close();
-            Program.LogLine("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error, ConsoleColor.Red);
+            logger?.Invoke("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error);
             wsConnectionDelayTimer.Start();
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
             webSocket.OnError -= WebSocket_OnError;
-            Program.LogLine($"Error on websocket: {e.Message}", MessageGroup.Error, ConsoleColor.Red);
+            logger?.Invoke($"Error on websocket: {e.Message}", MessageGroup.Error);
             webSocket.Close();
         }
 
@@ -274,7 +306,8 @@ namespace PixelPlanetBot
                 {
                     Chunk = (chunkX, chunkY),
                     Pixel = (relativeX, relativeY),
-                    Color = (PixelColor)color
+                    Color = (PixelColor)color,
+                    DateTime = DateTime.Now
                 };
                 OnPixelChanged?.Invoke(this, args);
             }
@@ -288,7 +321,7 @@ namespace PixelPlanetBot
             {
                 SubscribeToUpdates(TrackedChunks);
             }
-            Program.LogLine("Listening for changes via websocket", MessageGroup.State, ConsoleColor.Blue);
+            logger?.Invoke("Listening for changes via websocket", MessageGroup.TechInfo);
             if (!initialConnection)
             {
                 OnConnectionRestored?.Invoke(this, null);
@@ -309,6 +342,10 @@ namespace PixelPlanetBot
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
                 websocketGate.Dispose();
+                if (listeningMode) 
+                {
+                    listeningGate.Dispose();
+                }
             }
         }
     }

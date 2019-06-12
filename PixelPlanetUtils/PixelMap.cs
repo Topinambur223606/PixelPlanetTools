@@ -1,6 +1,6 @@
-﻿namespace PixelPlanetBot
+﻿namespace PixelPlanetUtils
 {
-    static class PixelMap
+    public static class PixelMap
     {
         public const int ChunkSize = 256;
         private const int ChunksPerSide = 256;

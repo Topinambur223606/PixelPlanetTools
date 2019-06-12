@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace PixelPlanetBot.Properties {
+namespace PixelPlanetUtils.Properties {
     using System;
     
     

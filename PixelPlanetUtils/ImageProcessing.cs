@@ -1,9 +1,12 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Net;
 
-namespace PixelPlanetBot
+namespace PixelPlanetUtils
 {
-    static class ImageProcessing
+    public static class ImageProcessing
     {
         private static readonly Color[] colors = new Color[24]
         {
@@ -56,7 +59,7 @@ namespace PixelPlanetBot
             return (PixelColor)(index + 2);
         }
 
-        public static PixelColor[,] ToPixelWorldColors(Bitmap image)
+        private static PixelColor[,] ToPixelWorldColors(Bitmap image)
         {
             int w = image.Width;
             int h = image.Height;
@@ -69,6 +72,24 @@ namespace PixelPlanetBot
                 }
             }
             return res;
+        }
+
+        public static PixelColor[,] PixelColorsByUrl(string imageUrl, Action<string, MessageGroup> logger)
+        {
+            Bitmap image;
+            logger?.Invoke("Downloading image...", MessageGroup.TechState);
+            using (WebClient wc = new WebClient())
+            {
+                byte[] data = wc.DownloadData(imageUrl);
+                MemoryStream ms = new MemoryStream(data);
+                image = new Bitmap(ms);
+            }
+            logger?.Invoke("Image is downloaded", MessageGroup.Info);
+            logger?.Invoke("Converting image...", MessageGroup.TechState);
+            PixelColor[,] imagePixels = ToPixelWorldColors(image);
+            logger?.Invoke("Image is converted", MessageGroup.Info);
+            image.Dispose();
+            return imagePixels;
         }
     }
 }

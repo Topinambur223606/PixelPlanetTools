@@ -4,18 +4,19 @@ using System.Linq;
 using System.Threading;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelPlanetBot
+namespace PixelPlanetUtils
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
 
-    internal class ChunkCache
+    public class ChunkCache
     {
         private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
         private InteractionWrapper wrapper;
-
+        private readonly bool interactiveMode;
         private readonly List<XY> chunks;
 
         public event EventHandler OnMapDownloaded;
+        private readonly Action<string, MessageGroup> logger;
 
         public InteractionWrapper Wrapper
         {
@@ -26,16 +27,18 @@ namespace PixelPlanetBot
             set
             {
                 wrapper = value;
-                wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
-                wrapper.OnConnectionRestored += Wrapper_OnConnectionRestored;
-                DownloadChunks();
                 wrapper.SubscribeToUpdates(chunks);
+                if (interactiveMode)
+                {
+                    wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
+                    wrapper.OnConnectionRestored += Wrapper_OnConnectionRestored;
+                }
             }
         }
 
-        private void DownloadChunks()
+        public void DownloadChunks()
         {
-            Program.LogLine("Downloading chunk data...", MessageGroup.State, ConsoleColor.Yellow);
+            logger?.Invoke("Downloading chunk data...", MessageGroup.TechState);
             int fails;
             do
             {
@@ -52,7 +55,7 @@ namespace PixelPlanetBot
                         }
                         catch
                         {
-                            Program.LogLine("Cannot download chunk data, waiting 5s before next attempt", MessageGroup.Error, ConsoleColor.Red);
+                            logger?.Invoke("Cannot download chunk data, waiting 5s before next attempt", MessageGroup.Error);
                             if (++fails == 5)
                             {
                                 break;
@@ -64,11 +67,11 @@ namespace PixelPlanetBot
                 }
                 if (fails == 5)
                 {
-                    Program.LogLine("Waiting 30s before next attempt", MessageGroup.State, ConsoleColor.Yellow);
+                    logger?.Invoke("Waiting 30s before next attempt", MessageGroup.TechState);
                     Thread.Sleep(TimeSpan.FromSeconds(30));
                 }
             } while (fails == 5);
-            Program.LogLine("Chunk data is downloaded", MessageGroup.Info, ConsoleColor.Blue);
+            logger?.Invoke("Chunk data is downloaded", MessageGroup.TechInfo);
             OnMapDownloaded?.Invoke(this, null);
         }
 
@@ -77,14 +80,34 @@ namespace PixelPlanetBot
             DownloadChunks();
         }
 
-        public ChunkCache(IEnumerable<Pixel> pixels)
+        public ChunkCache(IEnumerable<Pixel> pixels, Action<string, MessageGroup> logger, bool interactiveMode = true)
         {
+            interactiveMode = true;
+            this.logger = logger;
             chunks = pixels.Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
                 return (chunkX, chunkY);
             }).Distinct().ToList();
+        }
+
+        public ChunkCache(short x1, short y1, short x2, short y2, Action<string, MessageGroup> logger)
+        {
+            interactiveMode = false;
+            this.logger = logger;
+            PixelMap.ConvertToRelative(x1, out byte chunkX1, out _);
+            PixelMap.ConvertToRelative(y1, out byte chunkY1, out _);
+            PixelMap.ConvertToRelative(x2, out byte chunkX2, out _);
+            PixelMap.ConvertToRelative(y2, out byte chunkY2, out _);
+            chunks = new List<XY>();
+            for (byte i = chunkX1; i <= chunkX2; i++)
+            {
+                for (byte j = chunkY1; j <= chunkY2; j++)
+                {
+                    chunks.Add((i, j));
+                }
+            }
         }
 
         public PixelColor GetPixelColor(short x, short y)

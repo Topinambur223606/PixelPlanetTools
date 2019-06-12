@@ -1,6 +1,6 @@
-﻿namespace PixelPlanetBot
+﻿namespace PixelPlanetUtils
 {
-    enum PixelColor : byte
+    public enum PixelColor : byte
     {
         UnsetOcean,
         UnsetLand,

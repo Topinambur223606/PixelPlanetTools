@@ -1,50 +1,50 @@
 ﻿using System;
 using System.Threading;
 
-namespace PixelPlanetBot
+namespace PixelPlanetUtils
 {
-    class Gate : IDisposable
+    public class Gate : IDisposable
     {
         private AutoResetEvent opened;
         private AutoResetEvent closed;
-        private bool disposed = false;
         private bool isOpen;
         private readonly object lockObject = new object();
-        private readonly Thread workingThread;
+        private Thread workingThread;
 
         public Gate(bool isOpen = false)
         {
             this.isOpen = isOpen;
             opened = new AutoResetEvent(isOpen);
             closed = new AutoResetEvent(false);
-            workingThread = Program.StartBackgroundThread(ThreadBody);
+            workingThread = new Thread(ThreadBody);
+            workingThread.Start();
         }
 
         public void WaitOpened()
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
                 lock (lockObject)
                 { }
             }
         }
 
+        public bool IsDisposed { get; private set; } = false;
+
         public bool IsOpen
         {
             get => isOpen;
             set
             {
-                if (!disposed)
+                if (!IsDisposed)
                 {
-                    if (value && !isOpen)
+                    if (value)
                     {
-                        opened.Set();
-                        isOpen = true;
+                        Open();
                     }
-                    else if (!value && isOpen)
+                    else
                     {
-                        closed.Set();
-                        isOpen = false;
+                        Close();
                     }
                 }
             }
@@ -52,25 +52,33 @@ namespace PixelPlanetBot
 
         public void Open()
         {
-            IsOpen = true;
+            if (!IsDisposed && !isOpen)
+            {
+                opened.Set();
+                isOpen = true;
+            }
         }
 
         public void Close()
         {
-            IsOpen = false;
+            if (!IsDisposed && isOpen)
+            {
+                closed.Set();
+                isOpen = false;
+            }
         }
 
         private void ThreadBody()
         {
             try
             {
-                while (!disposed)
+                while (!IsDisposed)
                 {
                     lock (lockObject)
                     {
                         opened.WaitOne();
                     }
-                    if (disposed)
+                    if (IsDisposed)
                     {
                         return;
                     }
@@ -85,13 +93,13 @@ namespace PixelPlanetBot
 
         public void Dispose()
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
-                disposed = true;
-                IsOpen = true;
+                IsDisposed = true;
+                opened.Set();
+                closed.Set();
                 opened.Dispose();
                 closed.Dispose();
-                Thread.Sleep(50);
                 if (workingThread.IsAlive)
                 {
                     workingThread.Interrupt();

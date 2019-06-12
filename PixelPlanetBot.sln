@@ -5,6 +5,10 @@ VisualStudioVersion = 15.0.28307.136
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixelPlanetBot", "PixelPlanetBot\PixelPlanetBot.csproj", "{A02B190E-6626-4597-ACE1-213F1C572132}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixelPlanetUtils", "PixelPlanetUtils\PixelPlanetUtils.csproj", "{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixelPlanetWatcher", "PixelPlanetWatcher\PixelPlanetWatcher.csproj", "{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{A02B190E-6626-4597-ACE1-213F1C572132}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A02B190E-6626-4597-ACE1-213F1C572132}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A02B190E-6626-4597-ACE1-213F1C572132}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
