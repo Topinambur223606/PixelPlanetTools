@@ -84,10 +84,10 @@ namespace PixelPlanetUtils
                 MemoryStream ms = new MemoryStream(data);
                 image = new Bitmap(ms);
             }
-            logger?.Invoke("Image is downloaded", MessageGroup.Info);
+            logger?.Invoke("Image is downloaded", MessageGroup.TechInfo);
             logger?.Invoke("Converting image...", MessageGroup.TechState);
             PixelColor[,] imagePixels = ToPixelWorldColors(image);
-            logger?.Invoke("Image is converted", MessageGroup.Info);
+            logger?.Invoke("Image is converted", MessageGroup.TechInfo);
             image.Dispose();
             return imagePixels;
         }
