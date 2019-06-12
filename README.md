@@ -23,7 +23,6 @@ bot.exe fingerprint
 ```batch
 bot.exe X Y imageURL [defendMode] [placementOrder] [logFileName]
 ```  
-
 - **X, Y** - top left coordinates of image, both in range -32768..32767.
 - **imageURL** - URL of image to build; transparent parts are ignored. Don't forget to check that image fits into map.  
 - **defendMode** - if enabled, bot wouldn't finish its work after first iteration and will provide the integrity of image. Pass "Y" to enable, "N" (or anything else) to disable. Non-required, disabled by default.
@@ -31,7 +30,8 @@ bot.exe X Y imageURL [defendMode] [placementOrder] [logFileName]
 - **logFileName** - if specified, enables writing logs to file at given path.  
 
 # PixelPlanetWatcher
-Program that logs updates in given rectangle to the binary file.
+Program that logs updates in given rectangle to the binary file.  
+
 File format:
 - Coordinates: X1, Y1, X2, Y2 - signed 16-bit integers;
 - Start time: DateTime 64-bit representation;
@@ -41,7 +41,14 @@ File format:
   - Count of updates: unsigned 32-bit integer;
   - Pixel updates:
     - Coordinates: X, Y - signed 16-bit integers;
-	- Pixel color: unsigned byte.
+    - Pixel color: unsigned byte.
 
 File is available to use after program is closed.
 Utility for generating video from binary files is planned to be implemented.
+
+### Usage:
+```batch
+watcher.exe X1 Y1 X2 Y2 [logFileName]
+```  
+- **X1, Y1, X2, Y2** - top left and bottom right coordinates of rectangle to track, all in range -32768..32767.
+- **logFileName** - if specified, enables writing logs to file at given path.  
