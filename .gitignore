@@ -261,4 +261,4 @@ __pycache__/
 *.pyc
 
 # executable folder
-/executable/ILMerge.exe
+/executable/ILRepack.exe

@@ -37,7 +37,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public ManualResetEvent ConsoleLoggingGate { get; } = new ManualResetEvent(true);
+        public ManualResetEvent ConsoleLoggingResetEvent { get; } = new ManualResetEvent(true);
 
         public void LogLine(string msg, MessageGroup group)
         {
@@ -85,7 +85,7 @@ namespace PixelPlanetUtils
             {
                 while (true)
                 {
-                    ConsoleLoggingGate.WaitOne();
+                    ConsoleLoggingResetEvent.WaitOne();
                     if (consoleMessages.TryDequeue(out Message msg))
                     {
                         (string line, ConsoleColor color) = msg;
@@ -149,10 +149,11 @@ namespace PixelPlanetUtils
                 disposed = true;
                 messagesAvailable.Set();
                 consoleMessagesAvailable.Set();
+                ConsoleLoggingResetEvent.Set();
+                Thread.Sleep(50);
                 messagesAvailable.Dispose();
                 consoleMessagesAvailable.Dispose();
-                ConsoleLoggingGate.Dispose();
-                Thread.Sleep(50);
+                ConsoleLoggingResetEvent.Dispose();
                 if (loggingThread.IsAlive)
                 {
                     loggingThread.Interrupt();

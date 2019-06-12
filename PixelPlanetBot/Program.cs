@@ -1,6 +1,5 @@
 ﻿using PixelPlanetUtils;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -11,9 +10,8 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
-    
+
     using Pixel = ValueTuple<short, short, PixelColor>;
-    using Message = ValueTuple<string, ConsoleColor>;
 
     static partial class Program
     {
@@ -29,7 +27,7 @@ namespace PixelPlanetBot
         private static bool repeatingFails = false;
 
         private static AutoResetEvent gotGriefed;
-        private static ManualResetEvent mapDownloadedGate;
+        private static ManualResetEvent mapDownloadedResetEvent;
 
         private static object waitingGriefLock;
 
@@ -39,8 +37,6 @@ namespace PixelPlanetBot
         private static string fingerprint;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
-        private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
-        private static readonly ConcurrentQueue<Message> consoleMessages = new ConcurrentQueue<Message>();
 
         private static volatile int builtInLastMinute = 0;
         private static volatile int griefedInLastMinute = 0;
@@ -175,8 +171,8 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild, logger.LogLine);
-                mapDownloadedGate = new ManualResetEvent(true);
-                cache.OnMapDownloaded += (o, e) => mapDownloadedGate.Set();
+                mapDownloadedResetEvent = new ManualResetEvent(true);
+                cache.OnMapDownloaded += (o, e) => mapDownloadedResetEvent.Set();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
@@ -192,7 +188,7 @@ namespace PixelPlanetBot
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
-                            wrapper.OnConnectionLost += (o, e) => mapDownloadedGate.Reset();
+                            wrapper.OnConnectionLost += (o, e) => mapDownloadedResetEvent.Reset();
                             cache.Wrapper = wrapper;
                             cache.DownloadChunks();
                             placed.Clear();
@@ -213,7 +209,7 @@ namespace PixelPlanetBot
                                         do
                                         {
                                             byte placingPixelFails = 0;
-                                            mapDownloadedGate.WaitOne();
+                                            mapDownloadedResetEvent.WaitOne();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
@@ -228,13 +224,13 @@ namespace PixelPlanetBot
                                                     logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     Thread.Sleep(100);
-                                                    logger.ConsoleLoggingGate.Reset();
+                                                    logger.ConsoleLoggingResetEvent.Reset();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    logger.ConsoleLoggingGate.Set();
+                                                    logger.ConsoleLoggingResetEvent.Set();
                                                 }
                                                 else
                                                 {
@@ -286,7 +282,7 @@ namespace PixelPlanetBot
             {
                 finishCTS.Cancel();
                 gotGriefed?.Dispose();
-                mapDownloadedGate?.Dispose();
+                mapDownloadedResetEvent?.Dispose();
                 logger?.Dispose();
                 Thread.Sleep(1000);
                 finishCTS.Dispose();
@@ -350,7 +346,7 @@ namespace PixelPlanetBot
         {
             try
             {
-                mapDownloadedGate.WaitOne();
+                mapDownloadedResetEvent.WaitOne();
                 do
                 {
                     if (finishCTS.IsCancellationRequested)
