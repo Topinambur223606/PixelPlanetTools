@@ -9,6 +9,7 @@ using WebSocketSharp;
 using Newtonsoft.Json;
 using XY = System.ValueTuple<byte, byte>;
 using Timer = System.Timers.Timer;
+using System.Threading;
 
 namespace PixelPlanetUtils
 {
@@ -27,8 +28,8 @@ namespace PixelPlanetUtils
         private WebSocket webSocket;
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
-        private readonly Gate websocketGate = new Gate();
-        private readonly Gate listeningGate;
+        private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
+        private readonly ManualResetEvent listeningResetEvent;
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private readonly bool listeningMode;
@@ -46,7 +47,7 @@ namespace PixelPlanetUtils
             this.logger = logger;
             if (this.listeningMode = listeningMode)
             {
-                listeningGate = new Gate();
+                listeningResetEvent = new ManualResetEvent(false);
             }
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
@@ -75,7 +76,7 @@ namespace PixelPlanetUtils
 
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
-            websocketGate.WaitOpened();
+            websocketResetEvent.WaitOne();
             if (disposed)
             {
                 return;
@@ -104,8 +105,8 @@ namespace PixelPlanetUtils
             {
                 throw new InvalidOperationException();
             }
-            listeningGate.Close();
-            listeningGate.WaitOpened();
+            listeningResetEvent.Reset();
+            listeningResetEvent.WaitOne();
         }
 
         public void StopListening()
@@ -114,7 +115,7 @@ namespace PixelPlanetUtils
             {
                 throw new InvalidOperationException();
             }
-            listeningGate.Open();
+            listeningResetEvent.Set();
         }
 
         public bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out double totalCoolDown, out string error)
@@ -123,7 +124,7 @@ namespace PixelPlanetUtils
             {
                 throw new InvalidOperationException();
             }
-            websocketGate.WaitOpened();
+            websocketResetEvent.WaitOne();
             if (disposed)
             {
                 coolDown = -1;
@@ -276,7 +277,7 @@ namespace PixelPlanetUtils
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             OnConnectionLost?.Invoke(this, null);
-            websocketGate.Close();
+            websocketResetEvent.Reset();
             logger?.Invoke("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error);
             wsConnectionDelayTimer.Start();
         }
@@ -316,7 +317,7 @@ namespace PixelPlanetUtils
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
             webSocket.OnError += WebSocket_OnError;
-            websocketGate.Open();
+            websocketResetEvent.Set();
             if (TrackedChunks.Count > 0)
             {
                 SubscribeToUpdates(TrackedChunks);
@@ -341,10 +342,10 @@ namespace PixelPlanetUtils
                 (webSocket as IDisposable).Dispose();
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
-                websocketGate.Dispose();
+                websocketResetEvent.Dispose();
                 if (listeningMode) 
                 {
-                    listeningGate.Dispose();
+                    listeningResetEvent.Dispose();
                 }
             }
         }

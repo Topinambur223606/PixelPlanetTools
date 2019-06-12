@@ -37,7 +37,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public Gate ConsoleLoggingGate { get; } = new Gate(true);
+        public ManualResetEvent ConsoleLoggingGate { get; } = new ManualResetEvent(true);
 
         public void LogLine(string msg, MessageGroup group)
         {
@@ -85,7 +85,7 @@ namespace PixelPlanetUtils
             {
                 while (true)
                 {
-                    ConsoleLoggingGate.WaitOpened();
+                    ConsoleLoggingGate.WaitOne();
                     if (consoleMessages.TryDequeue(out Message msg))
                     {
                         (string line, ConsoleColor color) = msg;

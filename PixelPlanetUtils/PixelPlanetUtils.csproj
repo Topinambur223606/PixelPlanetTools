@@ -43,7 +43,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChunkCache.cs" />
-    <Compile Include="Gate.cs" />
     <Compile Include="ImageProcessing.cs" />
     <Compile Include="InteractionWrapper.cs" />
     <Compile Include="Logger.cs" />

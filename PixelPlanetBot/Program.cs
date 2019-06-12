@@ -29,7 +29,7 @@ namespace PixelPlanetBot
         private static bool repeatingFails = false;
 
         private static AutoResetEvent gotGriefed;
-        private static Gate mapDownloadedGate;
+        private static ManualResetEvent mapDownloadedGate;
 
         private static object waitingGriefLock;
 
@@ -175,8 +175,8 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild, logger.LogLine);
-                mapDownloadedGate = new Gate(true);
-                cache.OnMapDownloaded += (o, e) => mapDownloadedGate.Open();
+                mapDownloadedGate = new ManualResetEvent(true);
+                cache.OnMapDownloaded += (o, e) => mapDownloadedGate.Set();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
@@ -192,7 +192,7 @@ namespace PixelPlanetBot
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine))
                         {
                             wrapper.OnPixelChanged += LogPixelChanged;
-                            wrapper.OnConnectionLost += (o, e) => mapDownloadedGate.Close();
+                            wrapper.OnConnectionLost += (o, e) => mapDownloadedGate.Reset();
                             cache.Wrapper = wrapper;
                             cache.DownloadChunks();
                             placed.Clear();
@@ -213,7 +213,7 @@ namespace PixelPlanetBot
                                         do
                                         {
                                             byte placingPixelFails = 0;
-                                            mapDownloadedGate.WaitOpened();
+                                            mapDownloadedGate.WaitOne();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
@@ -228,13 +228,13 @@ namespace PixelPlanetBot
                                                     logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     Thread.Sleep(100);
-                                                    logger.ConsoleLoggingGate.Close();
+                                                    logger.ConsoleLoggingGate.Reset();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    logger.ConsoleLoggingGate.Open();
+                                                    logger.ConsoleLoggingGate.Set();
                                                 }
                                                 else
                                                 {
@@ -350,7 +350,7 @@ namespace PixelPlanetBot
         {
             try
             {
-                mapDownloadedGate.WaitOpened();
+                mapDownloadedGate.WaitOne();
                 do
                 {
                     if (finishCTS.IsCancellationRequested)
