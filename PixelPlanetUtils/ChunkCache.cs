@@ -80,7 +80,7 @@ namespace PixelPlanetUtils
             DownloadChunks();
         }
 
-        public ChunkCache(IEnumerable<Pixel> pixels, Action<string, MessageGroup> logger, bool interactiveMode = true)
+        public ChunkCache(IEnumerable<Pixel> pixels, Action<string, MessageGroup> logger)
         {
             interactiveMode = true;
             this.logger = logger;
