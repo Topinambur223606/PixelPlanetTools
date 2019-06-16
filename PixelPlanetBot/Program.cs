@@ -313,7 +313,7 @@ namespace PixelPlanetBot
                     PixelColor desiredColor = imagePixels[x - leftX, y - topY];
                     if (desiredColor == PixelColor.None)
                     {
-                        msgGroup = MessageGroup.Info;
+                        msgGroup = MessageGroup.PixelInfo;
                     }
                     else
                     {
@@ -332,7 +332,7 @@ namespace PixelPlanetBot
                 }
                 catch
                 {
-                    msgGroup = MessageGroup.Info;
+                    msgGroup = MessageGroup.PixelInfo;
                 }
                 logger.LogPixel($"Received pixel update:", msgGroup, x, y, e.Color);
             }
