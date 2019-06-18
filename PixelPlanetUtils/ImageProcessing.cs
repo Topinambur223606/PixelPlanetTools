@@ -8,24 +8,30 @@ namespace PixelPlanetUtils
 {
     public static class ImageProcessing
     {
-        private static readonly Rgba32[] colors = new Rgba32[24]
+        private static readonly Rgba32[] colors = new Rgba32[30]
         {
            Rgba32.White,
            new Rgba32(228, 228, 228),
+           new Rgba32(196, 196, 196),
            new Rgba32(136, 136, 136),
            new Rgba32(78, 78, 78),
            Rgba32.Black,
            new Rgba32(244, 179, 174),
            new Rgba32(255, 167, 209),
+           new Rgba32(255,  84, 178),
            new Rgba32(255, 101, 101),
            new Rgba32(229, 0, 0),
+           new Rgba32(154, 0, 0),
            new Rgba32(254, 164, 96),
            new Rgba32(229, 149, 0),
            new Rgba32(160, 106, 66),
+           new Rgba32(96, 64, 40),
            new Rgba32(245, 223, 176),
+           new Rgba32(255, 248, 137),
            new Rgba32(229, 217, 0),
            new Rgba32(148, 224, 68),
            new Rgba32(2, 190, 1),
+           new Rgba32(104, 131, 56),
            new Rgba32(0, 101, 19),
            new Rgba32(202, 227, 255),
            new Rgba32(0, 211, 221),
