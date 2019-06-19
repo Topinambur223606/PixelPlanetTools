@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading.Tasks;
 
 using SixLabors.ImageSharp;
@@ -51,11 +52,11 @@ namespace PixelPlanetUtils
             int index = 0, bestD = 260000;
             for (int i = 0; i < colors.Length; i++)
             {
-                var c = colors[i];
+                Rgba32 c = colors[i];
                 int dr = c.R - color.R,
                 dg = c.G - color.G,
                 db = c.B - color.B;
-                var d = dr * dr + dg * dg + db * db;
+                int d = dr * dr + dg * dg + db * db;
                 if (d < bestD)
                 {
                     index = i;
@@ -68,22 +69,25 @@ namespace PixelPlanetUtils
         public static PixelColor[,] PixelColorsByUrl(string imageUrl, Action<string, MessageGroup> logger)
         {
             logger?.Invoke("Downloading image...", MessageGroup.TechState);
-            using (Image<Rgba32> image = Image.Load(imageUrl))
+            using (WebClient wc = new WebClient())
             {
-                logger?.Invoke("Image is downloaded", MessageGroup.TechInfo);
-                logger?.Invoke("Converting image...", MessageGroup.TechState);
-                int w = image.Width;
-                int h = image.Height;
-                PixelColor[,] res = new PixelColor[w, h];
-                Parallel.For(0, w, x =>
+                using (Image<Rgba32> image = Image.Load(wc.DownloadData(imageUrl)))
                 {
-                    for (int y = 0; y < h; y++)
+                    logger?.Invoke("Image is downloaded", MessageGroup.TechInfo);
+                    logger?.Invoke("Converting image...", MessageGroup.TechState);
+                    int w = image.Width;
+                    int h = image.Height;
+                    PixelColor[,] res = new PixelColor[w, h];
+                    Parallel.For(0, w, x =>
                     {
-                        res[x, y] = ClosestAvailable(image[x, y]);
-                    }
-                });
-                logger?.Invoke("Image is converted", MessageGroup.TechInfo);
-                return res;
+                        for (int y = 0; y < h; y++)
+                        {
+                            res[x, y] = ClosestAvailable(image[x, y]);
+                        }
+                    });
+                    logger?.Invoke("Image is converted", MessageGroup.TechInfo);
+                    return res;
+                }
             }
         }
     }
