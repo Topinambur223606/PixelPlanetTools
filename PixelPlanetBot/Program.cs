@@ -42,6 +42,7 @@ namespace PixelPlanetBot
         private static volatile int griefedInLastMinute = 0;
         private static readonly Queue<int> builtInPast = new Queue<int>();
         private static readonly Queue<int> griefedInPast = new Queue<int>();
+        private static readonly Queue<int> doneInPast = new Queue<int>();
         private static Logger logger;
 
 
@@ -191,7 +192,7 @@ namespace PixelPlanetBot
                         break;
                 }
                 cache = new ChunkCache(pixelsToBuild, logger.LogLine);
-                mapDownloadedResetEvent = new ManualResetEvent(true);
+                mapDownloadedResetEvent = new ManualResetEvent(false);
                 cache.OnMapDownloaded += (o, e) => mapDownloadedResetEvent.Set();
                 if (defendMode)
                 {
@@ -380,6 +381,11 @@ namespace PixelPlanetBot
             try
             {
                 mapDownloadedResetEvent.WaitOne();
+                var taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+                int done = pixelsToBuild.
+                      Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                      Count();
+                doneInPast.Enqueue(done);
                 do
                 {
                     if (finishCTS.IsCancellationRequested)
@@ -388,7 +394,7 @@ namespace PixelPlanetBot
                     }
                     try
                     {
-                        Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token).Wait();
+                        taskToWait.Wait();
                     }
                     catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
                     {
@@ -408,12 +414,21 @@ namespace PixelPlanetBot
                         griefedInPast.Dequeue();
                     }
 
-                    double griefedPerMinute = griefedInPast.Where(i => i > 0).Cast<int?>().Average() ?? 0;
-                    double builtPerMinute = builtInPast.Where(i => i > 0).Cast<int?>().Average() ?? 0;
-                    double buildSpeed = builtPerMinute - griefedPerMinute;
-                    int done = pixelsToBuild.
+                    double griefedPerMinute = griefedInPast.Average();
+                    double builtPerMinute = builtInPast.Average();
+                    
+                    done = pixelsToBuild.
                        Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
                        Count();
+
+                    double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
+
+                    doneInPast.Enqueue(done);
+                    if (doneInPast.Count > 5)
+                    {
+                        doneInPast.Dequeue();
+                    }
+
                     int total = pixelsToBuild.Count();
                     double percent = Math.Floor(done * 1000.0 / total) / 10.0;
                     if (finishCTS.IsCancellationRequested)
@@ -446,6 +461,7 @@ namespace PixelPlanetBot
                         logger.LogLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info);
                         logger.LogLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info);
                     }
+                    taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
                 } while (true);
             }
             catch (ThreadInterruptedException)
