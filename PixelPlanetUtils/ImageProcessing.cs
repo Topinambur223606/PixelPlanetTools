@@ -66,12 +66,12 @@ namespace PixelPlanetUtils
             return (PixelColor)(index + 2);
         }
 
-        public static PixelColor[,] PixelColorsByUrl(string imageUrl, Action<string, MessageGroup> logger)
+        public static PixelColor[,] PixelColorsByUri(string imageUri, Action<string, MessageGroup> logger)
         {
             logger?.Invoke("Downloading image...", MessageGroup.TechState);
             using (WebClient wc = new WebClient())
             {
-                using (Image<Rgba32> image = Image.Load(wc.DownloadData(imageUrl)))
+                using (Image<Rgba32> image = Image.Load(wc.DownloadData(imageUri)))
                 {
                     logger?.Invoke("Image is downloaded", MessageGroup.TechInfo);
                     logger?.Invoke("Converting image...", MessageGroup.TechState);

@@ -20,10 +20,11 @@ bot.exe fingerprint
 
 ### Regular usage:
 ```batch
-bot.exe X Y imageURL [defendMode] [placementOrder] [logFileName]
+bot.exe X Y imageURL [notificationMode] [defendMode] [placementOrder] [logFileName]
 ```  
 - **X, Y** - top left coordinates of image, both in range -32768..32767.
 - **imageURL** - URL or path to image file that is built. Transparent parts are ignored. Don't forget to check that image fits into map.  
+- **notificationMode** - defines bot behaviour when captcha appears: "B" - opens default browser in place of last attempt, "S" - produces beep sounds, "BS" - combined; if parameter doesn't contain this two letters, bot waits silently.
 - **defendMode** - if enabled, bot wouldn't finish its work after first iteration and will provide the integrity of image. Pass "Y" to enable, "N" (or anything else) to disable. Non-required, disabled by default.
 - **placementOrder** - indicates how bot will place pixels: L - from left, R - from right, T - from top, B - from bottom, RND (or anything else) - random order. Non-required, random order by default.
 - **logFileName** - if specified, enables writing logs to file at given path.  

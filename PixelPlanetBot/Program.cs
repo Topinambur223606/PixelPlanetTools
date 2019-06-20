@@ -18,11 +18,11 @@ namespace PixelPlanetBot
         private static readonly string appFolder =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
         private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "fingerprint.bin");
-        private static string logFilePath;
 
         private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static bool defendMode;
+        private static CaptchaNotificationMode notificationMode;
         private static ChunkCache cache;
         private static bool repeatingFails = false;
 
@@ -64,44 +64,64 @@ namespace PixelPlanetBot
                 }
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
+                notificationMode = CaptchaNotificationMode.Browser;
                 try
                 {
                     try
                     {
                         leftX = short.Parse(args[0]);
                         topY = short.Parse(args[1]);
+                        fingerprint = GetFingerprint();
+                        string logFilePath = null;
                         if (args.Length > 3)
                         {
-                            defendMode = args[3].ToLower() == "y";
-                        }
-                        if (args.Length > 4)
-                        {
-                            switch (args[4].ToUpper())
+                            notificationMode = CaptchaNotificationMode.None;
+                            string upper = args[3].ToUpper();
+                            if (upper.Contains('B'))
                             {
-                                case "R":
-                                    order = PlacingOrderMode.FromRight;
-                                    break;
-                                case "L":
-                                    order = PlacingOrderMode.FromLeft;
-                                    break;
-                                case "T":
-                                    order = PlacingOrderMode.FromTop;
-                                    break;
-                                case "B":
-                                    order = PlacingOrderMode.FromBottom;
-                                    break;
+                                notificationMode |= CaptchaNotificationMode.Browser;
+                            }
+                            if (upper.Contains('S'))
+                            {
+                                notificationMode |= CaptchaNotificationMode.Sound;
+                            }
+                            if (args.Length > 4)
+                            {
+                                defendMode = args[4].ToUpper() == "Y";
+
+                                if (args.Length > 5)
+                                {
+                                    switch (args[5].ToUpper())
+                                    {
+                                        case "R":
+                                            order = PlacingOrderMode.FromRight;
+                                            break;
+                                        case "L":
+                                            order = PlacingOrderMode.FromLeft;
+                                            break;
+                                        case "T":
+                                            order = PlacingOrderMode.FromTop;
+                                            break;
+                                        case "B":
+                                            order = PlacingOrderMode.FromBottom;
+                                            break;
+                                    }
+
+                                    if (args.Length > 6)
+                                    {
+                                        try
+                                        {
+                                            File.OpenWrite(args[6]).Dispose();
+                                            logFilePath = args[6];
+                                        }
+                                        catch
+                                        { }
+                                    }
+                                }
                             }
                         }
-                        fingerprint = GetFingerprint();
-                        try
-                        {
-                            File.Open(args[5], FileMode.Append, FileAccess.Write).Dispose();
-                            logFilePath = args[5];
-                        }
-                        catch
-                        { }
                         logger = new Logger(finishCTS.Token, logFilePath);
-                        imagePixels = ImageProcessing.PixelColorsByUrl(args[2], logger.LogLine);
+                        imagePixels = ImageProcessing.PixelColorsByUri(args[2], logger.LogLine);
                         checked
                         {
                             width = (ushort)imagePixels.GetLength(0);
@@ -129,7 +149,7 @@ namespace PixelPlanetBot
                     }
                     catch
                     {
-                        throw new Exception("Parameters: <leftX: -32768..32767> <topY: -32768..32767> <imageURL> [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [logFileName = none]");// [proxyIP:proxyPort = nothing]
+                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = B] [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [logFileName = none]");
                     }
                 }
                 catch (Exception ex)
@@ -222,7 +242,20 @@ namespace PixelPlanetBot
                                                 if (cd == 0.0)
                                                 {
                                                     logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
-                                                    Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
+                                                    if (notificationMode.HasFlag(CaptchaNotificationMode.Sound))
+                                                    {
+                                                        Task.Run(() =>
+                                                        {
+                                                            for (int j = 0; j < 7; j++)
+                                                            {
+                                                                Console.Beep(1000, 100);
+                                                            }
+                                                        });
+                                                    }
+                                                    if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                                                    {
+                                                        Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
+                                                    }
                                                     Thread.Sleep(100);
                                                     logger.ConsoleLoggingResetEvent.Reset();
                                                     while (Console.KeyAvailable)
