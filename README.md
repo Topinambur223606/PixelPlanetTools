@@ -10,7 +10,7 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - If you place image in the internet, [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
 - After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when site will ask to pass captcha again, default browser will be opened, you should just place pixel anywhere and then press any key in bot shell window.  
-To get fingerprint, open dev tools before placing pixel, switch to "Network" tab (in Chrome and Opera) and place pixel. Request to ```api/pixel``` will appear, its body contains field named ```fingerprint``` with value that you should copy and pass to bot before usage.
+To get fingerprint, open [fingerprint.html](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/fingerprint.html) and it will appear; adblock plugins may block fingerprint script - if they did, disable them all and refresh with Shift+F5.
 
 ### Linking with browser:
 ```batch
@@ -24,7 +24,7 @@ bot.exe X Y imageURL [notificationMode] [defendMode] [placementOrder] [logFileNa
 ```  
 - **X, Y** - top left coordinates of image, both in range -32768..32767.
 - **imageURL** - URL or path to image file that is built. Transparent parts are ignored. Don't forget to check that image fits into map.  
-- **notificationMode** - defines bot behaviour when captcha appears: "B" - opens default browser in place of last attempt, "S" - produces beep sounds, "BS" - combined; if parameter doesn't contain this two letters, bot waits silently.
+- **notificationMode** - defines bot behaviour when captcha appears: "B" - opens default browser in place of last attempt, "S" - produces beep sounds, "BS" - combined; if parameter doesn't contain this two letters, bot waits silently. Non-required, opens browser by default.
 - **defendMode** - if enabled, bot wouldn't finish its work after first iteration and will provide the integrity of image. Pass "Y" to enable, "N" (or anything else) to disable. Non-required, disabled by default.
 - **placementOrder** - indicates how bot will place pixels: L - from left, R - from right, T - from top, B - from bottom, RND (or anything else) - random order. Non-required, random order by default.
 - **logFileName** - if specified, enables writing logs to file at given path.  
