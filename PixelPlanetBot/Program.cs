@@ -400,6 +400,10 @@ namespace PixelPlanetBot
                     {
                         return;
                     }
+                    if (finishCTS.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     builtInPast.Enqueue(builtInLastMinute);
                     builtInLastMinute = 0;
                     if (builtInPast.Count > 5)

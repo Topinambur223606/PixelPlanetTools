@@ -74,7 +74,40 @@ namespace PixelPlanetUtils
             Connect();
         }
 
+        public void SubscribeToUpdates(XY chunk)
+        {
+            websocketResetEvent.WaitOne();
+            if (disposed)
+            {
+                return;
+            }
+            TrackedChunks.Add(chunk);
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (BinaryWriter sw = new BinaryWriter(ms))
+                {
+                    sw.Write(subscribeOpcode);
+                    sw.Write(chunk.Item1);
+                    sw.Write(chunk.Item2);
+                }
+                byte[] data = ms.ToArray();
+                webSocket.Send(data);
+            }
+        }
+
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
+        {
+            if (chunks.Skip(1).Any())
+            {
+                SubscribeToUpdatesMany(chunks);
+            }
+            else
+            {
+                SubscribeToUpdates(chunks.First());
+            }
+        }
+
+        public void SubscribeToUpdatesMany(IEnumerable<XY> chunks)
         {
             websocketResetEvent.WaitOne();
             if (disposed)
@@ -213,7 +246,7 @@ namespace PixelPlanetUtils
 
         public PixelColor[,] GetChunk(XY chunk)
         {
-            string url = $"{BaseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bin";
+            string url = $"{BaseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bmp";
             using (WebClient wc = new WebClient())
             {
                 byte[] pixelData = wc.DownloadData(url);
