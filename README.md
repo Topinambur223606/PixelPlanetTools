@@ -9,8 +9,9 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) to get image for building.
 - If you place image in the internet, [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
-- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when site will ask to pass captcha again, default browser will be opened, you should just place pixel anywhere and then press any key in bot shell window.  
-To get fingerprint, open [fingerprint.html](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/fingerprint.html) and it will appear; adblock plugins may block fingerprint script - if they did, disable them all and refresh with Shift+F5.
+- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when bot will ask to pass captcha again, you should just open site, place pixel anywhere and then press any key in bot shell window.  
+To get fingerprint, open [fingerprint.html](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/fingerprint.html) and it will appear; adblock plugins may block fingerprint script - if they did, disable them all and refresh with Shift+F5. This is simple, but sometimes that fingerprint differs from real one.  
+Another way to get fingerprint - open dev tools before placing pixel, switch to "Network" tab (in Chrome and Opera) and place pixel. Request to ```api/pixel``` will appear, its body contains field named ```fingerprint``` with value that you should copy and pass to bot before usage. 
 
 ### Linking with browser:
 ```batch
