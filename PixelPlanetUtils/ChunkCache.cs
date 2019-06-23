@@ -120,9 +120,11 @@ namespace PixelPlanetUtils
 
         private void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
         {
-            PixelColor[,] chunkMap = CachedChunks[e.Chunk];
-            (byte rX, byte rY) = e.Pixel;
-            chunkMap[rX, rY] = e.Color;
+            if (CachedChunks.TryGetValue(e.Chunk, out PixelColor[,] chunkMap))
+            {
+                (byte rX, byte rY) = e.Pixel;
+                chunkMap[rX, rY] = e.Color;
+            }
         }
     }
 }

@@ -10,6 +10,9 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
+	
+//TODO border mode
+//TODO reminding
 
     using Pixel = ValueTuple<short, short, PixelColor>;
 
@@ -208,10 +211,10 @@ namespace PixelPlanetBot
                     {
                         using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine))
                         {
-                            wrapper.OnPixelChanged += LogPixelChanged;
                             wrapper.OnConnectionLost += (o, e) => mapDownloadedResetEvent.Reset();
                             cache.Wrapper = wrapper;
                             cache.DownloadChunks();
+                            wrapper.OnPixelChanged += LogPixelChanged;
                             placed.Clear();
                             bool wasChanged;
                             do
@@ -243,13 +246,27 @@ namespace PixelPlanetBot
                                                 if (cd == 0.0)
                                                 {
                                                     logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
+                                                    CancellationTokenSource captchaCts = null;
                                                     if (notificationMode.HasFlag(CaptchaNotificationMode.Sound))
                                                     {
+                                                        captchaCts = new CancellationTokenSource();
                                                         Task.Run(() =>
                                                         {
-                                                            for (int j = 0; j < 7; j++)
+                                                            CancellationToken token = captchaCts.Token;
+                                                            while (!token.IsCancellationRequested)
                                                             {
-                                                                Console.Beep(1000, 100);
+                                                                for (int j = 0; j < 7; j++)
+                                                                {
+                                                                    Console.Beep(1000, 100);
+                                                                }
+                                                                try
+                                                                {
+                                                                    Task.Delay(TimeSpan.FromMinutes(1), token);
+                                                                }
+                                                                catch (TaskCanceledException)
+                                                                {
+                                                                    return;
+                                                                }
                                                             }
                                                         });
                                                     }
@@ -265,6 +282,8 @@ namespace PixelPlanetBot
                                                     }
                                                     Console.ReadKey(true);
                                                     logger.ConsoleLoggingResetEvent.Set();
+                                                    captchaCts?.Cancel();
+                                                    captchaCts?.Dispose();
                                                 }
                                                 else
                                                 {
@@ -381,7 +400,7 @@ namespace PixelPlanetBot
             try
             {
                 mapDownloadedResetEvent.WaitOne();
-                var taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+                Task taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
                 int done = pixelsToBuild.
                       Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
                       Count();
