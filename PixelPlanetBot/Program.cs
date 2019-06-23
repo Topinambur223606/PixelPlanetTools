@@ -261,7 +261,11 @@ namespace PixelPlanetBot
                                                                 }
                                                                 try
                                                                 {
-                                                                    Task.Delay(TimeSpan.FromMinutes(1), token);
+                                                                    Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
+                                                                }
+                                                                catch (AggregateException e) when (e.InnerException is TaskCanceledException)
+                                                                {
+                                                                    return;
                                                                 }
                                                                 catch (TaskCanceledException)
                                                                 {
