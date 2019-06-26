@@ -110,7 +110,7 @@ namespace PixelPlanetWatcher
                                 short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
                                 if (x <= x2 && x >= x1 && y <= y2 && y >= y1)
                                 {
-                                    logger.LogPixel("Received pixel update:", MessageGroup.PixelInfo, x, y, e.Color);
+                                    logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
                                     lock (listLockObj)
                                     {
                                         updates.Add((x, y, e.Color));

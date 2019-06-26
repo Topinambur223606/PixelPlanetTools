@@ -68,7 +68,7 @@ namespace PixelPlanetBot
                 }
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
-                notificationMode = CaptchaNotificationMode.Browser;
+                notificationMode = CaptchaNotificationMode.Sound;
                 try
                 {
                     try
@@ -98,16 +98,19 @@ namespace PixelPlanetBot
                                     switch (args[5].ToUpper())
                                     {
                                         case "R":
-                                            order = PlacingOrderMode.FromRight;
+                                            order = PlacingOrderMode.Right;
                                             break;
                                         case "L":
-                                            order = PlacingOrderMode.FromLeft;
+                                            order = PlacingOrderMode.Left;
                                             break;
                                         case "T":
-                                            order = PlacingOrderMode.FromTop;
+                                            order = PlacingOrderMode.Top;
                                             break;
                                         case "B":
-                                            order = PlacingOrderMode.FromBottom;
+                                            order = PlacingOrderMode.Bottom;
+                                            break;
+                                        case "O":
+                                            order = PlacingOrderMode.Outline;
                                             break;
                                     }
 
@@ -153,7 +156,7 @@ namespace PixelPlanetBot
                     }
                     catch
                     {
-                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = B] [defendMode: Y/N = N] [buildFrom L/R/T/B/RND = RND] [logFileName = none]");
+                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [logFileName = none]");
                     }
                 }
                 catch (Exception ex)
@@ -162,25 +165,60 @@ namespace PixelPlanetBot
                     finishCTS.Cancel();
                     return;
                 }
+                logger.LogLine("Calculating pixel placing order", MessageGroup.TechState);
+                IEnumerable<Pixel> relativePixelsToBuild;
                 IEnumerable<int> allY = Enumerable.Range(0, height);
                 IEnumerable<int> allX = Enumerable.Range(0, width);
                 Pixel[] nonEmptyPixels = allX.
                     SelectMany(X => allY.Select(Y =>
-                        (X: (short)(X + leftX), Y: (short)(Y + topY), C: imagePixels[X, Y]))).
-                    Where(xy => xy.C != PixelColor.None).ToArray();
+                        ((short)X, (short)Y, C: imagePixels[X, Y]))).
+                    Where(xyc => xyc.C != PixelColor.None).ToArray();
                 switch (order)
                 {
-                    case PlacingOrderMode.FromLeft:
-                        pixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
+                    case PlacingOrderMode.Left:
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
                         break;
-                    case PlacingOrderMode.FromRight:
-                        pixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
+                    case PlacingOrderMode.Right:
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
                         break;
-                    case PlacingOrderMode.FromTop:
-                        pixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
+                    case PlacingOrderMode.Top:
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
                         break;
-                    case PlacingOrderMode.FromBottom:
-                        pixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                    case PlacingOrderMode.Bottom:
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                        break;
+                    case PlacingOrderMode.Outline:
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy =>
+                        {
+                            const double emptyScore = 5.0;
+                            const int radius = 3;
+                            double score = 0;
+                            (short x, short y, PixelColor c) = xy;
+                            for (var i = -radius; i <= radius; i++) 
+                            {
+                                for (var j = -radius; j <= radius; j++) 
+                                {
+                                    double dist = Math.Sqrt(i * i + j * j);
+                                    try
+                                    {
+                                        var c2 = imagePixels[x + i, y + j];
+                                        if (c2 == PixelColor.None)
+                                        {
+                                            score += emptyScore / dist;
+                                        }
+                                        else if (c != c2)
+                                        {
+                                            score += 1.0 / dist;
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        score += emptyScore / dist;
+                                    }
+                                }
+                            }
+                            return score;
+                        }).ThenBy(e => Guid.NewGuid());
                         break;
                     default:
                         Random rnd = new Random();
@@ -191,9 +229,12 @@ namespace PixelPlanetBot
                             nonEmptyPixels[r] = nonEmptyPixels[i];
                             nonEmptyPixels[i] = tmp;
                         }
-                        pixelsToBuild = nonEmptyPixels;
+                        relativePixelsToBuild = nonEmptyPixels;
                         break;
                 }
+
+                pixelsToBuild = relativePixelsToBuild.Select(p => ((short)(p.Item1 + leftX), (short)(p.Item2 + topY), p.Item3)).ToList();
+                logger.LogLine("Pixel placing order is calculated", MessageGroup.TechInfo);
                 cache = new ChunkCache(pixelsToBuild, logger.LogLine);
                 mapDownloadedResetEvent = new ManualResetEvent(false);
                 cache.OnMapDownloaded += (o, e) => mapDownloadedResetEvent.Set();
@@ -223,6 +264,7 @@ namespace PixelPlanetBot
                                 repeatingFails = false;
                                 foreach (Pixel pixel in pixelsToBuild)
                                 {
+                                    mapDownloadedResetEvent.WaitOne();
                                     (short x, short y, PixelColor color) = pixel;
                                     PixelColor actualColor = cache.GetPixelColor(x, y);
                                     if (!IsCorrectPixelColor(actualColor, color))
@@ -233,12 +275,11 @@ namespace PixelPlanetBot
                                         do
                                         {
                                             byte placingPixelFails = 0;
-                                            mapDownloadedResetEvent.WaitOne();
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
                                                 string prefix = cd == 4 ? "P" : "Rep";
-                                                logger.LogPixel($"{prefix}laced pixel:", MessageGroup.Pixel, x, y, color);
+                                                logger.LogPixel($"{prefix}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
                                                 Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
                                             }
                                             else
@@ -391,7 +432,7 @@ namespace PixelPlanetBot
                 {
                     msgGroup = MessageGroup.PixelInfo;
                 }
-                logger.LogPixel($"Received pixel update:", msgGroup, x, y, e.Color);
+                logger.LogPixel($"Received pixel update:", e.DateTime, msgGroup, x, y, e.Color);
             }
             else
             {
@@ -458,13 +499,14 @@ namespace PixelPlanetBot
 
                     int total = pixelsToBuild.Count();
                     double percent = Math.Floor(done * 1000.0 / total) / 10.0;
+                    DateTime time = DateTime.Now;
                     if (finishCTS.IsCancellationRequested)
                     {
                         return;
                     }
                     if (defendMode)
                     {
-                        logger.LogLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info);
+                        logger.LogTimedLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
                         lock (waitingGriefLock)
                         { }
                     }
@@ -481,12 +523,12 @@ namespace PixelPlanetBot
                         {
                             info += $"no progress in last 5 minutes";
                         }
-                        logger.LogLine(info, MessageGroup.Info);
+                        logger.LogTimedLine(info, MessageGroup.Info, time);
                     }
                     if (griefedPerMinute > 1)
                     {
-                        logger.LogLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info);
-                        logger.LogLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info);
+                        logger.LogTimedLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
+                        logger.LogTimedLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
                     }
                     taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
                 } while (true);

@@ -6,13 +6,13 @@ using System.Threading;
 namespace PixelPlanetUtils
 {
 
-    using Message = ValueTuple<string, ConsoleColor>;
+    using LogEntry = ValueTuple<string, ConsoleColor>;
 
     public class Logger : IDisposable
     {
 
-        private readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
-        private readonly ConcurrentQueue<Message> consoleMessages = new ConcurrentQueue<Message>();
+        private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
+        private readonly ConcurrentQueue<LogEntry> consoleMessages = new ConcurrentQueue<LogEntry>();
         private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
         private readonly CancellationToken finishToken;
@@ -41,7 +41,12 @@ namespace PixelPlanetUtils
 
         public void LogLine(string msg, MessageGroup group)
         {
-            string line = string.Format("{0}  {1}  {2}", DateTime.Now.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
+            LogTimedLine(msg, group, DateTime.Now);
+        }
+
+        public void LogTimedLine(string msg, MessageGroup group, DateTime time)
+        {
+            string line = string.Format("{0}  {1}  {2}", time.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
             ConsoleColor color;
             switch (group)
             {
@@ -73,10 +78,10 @@ namespace PixelPlanetUtils
             messagesAvailable.Set();
         }
 
-        public void LogPixel(string msg, MessageGroup group, int x, int y, PixelColor color)
+        public void LogPixel(string msg, DateTime time, MessageGroup group, int x, int y, PixelColor color)
         {
             string text = $"{msg.PadRight(22)} {color.ToString().PadRight(13)} at ({x.ToString().PadLeft(6)};{y.ToString().PadLeft(6)})";
-            LogLine(text, group);
+            LogTimedLine(text, group, time);
         }
 
         private void ConsoleWriterThreadBody()
@@ -86,7 +91,7 @@ namespace PixelPlanetUtils
                 while (true)
                 {
                     ConsoleLoggingResetEvent.WaitOne();
-                    if (consoleMessages.TryDequeue(out Message msg))
+                    if (consoleMessages.TryDequeue(out LogEntry msg))
                     {
                         (string line, ConsoleColor color) = msg;
                         Console.ForegroundColor = color;
@@ -114,7 +119,7 @@ namespace PixelPlanetUtils
             {
                 while (true)
                 {
-                    if (messages.TryDequeue(out Message msg))
+                    if (messages.TryDequeue(out LogEntry msg))
                     {
                         consoleMessages.Enqueue(msg);
                         consoleMessagesAvailable.Set();

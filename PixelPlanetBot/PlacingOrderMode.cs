@@ -3,9 +3,10 @@
     enum PlacingOrderMode
     {
         Random,
-        FromLeft,
-        FromRight,
-        FromTop,
-        FromBottom
+        Left,
+        Right,
+        Top,
+        Bottom,
+        Outline
     }
 }
