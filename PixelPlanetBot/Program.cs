@@ -561,23 +561,16 @@ namespace PixelPlanetBot
             //for backward compatibility, will be removed soon
             if (!File.Exists(PathTo.Fingerprint) && File.Exists(PathTo.OldFingerprint))
             {
-                byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
-                Guid guid = new Guid(bytes);
-                SaveFingerprint(guid);
+                File.Move(PathTo.OldFingerprint, PathTo.Fingerprint);
                 try
                 {
-                    File.Delete(PathTo.OldFingerprint);
                     Directory.Delete(PathTo.OldAppFolder);
                 }
                 catch
                 { }
-                return new Guid(bytes).ToString("N");
             }
-            else
-            {
-                byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
-                return new Guid(bytes).ToString("N");
-            }
+            byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
+            return new Guid(bytes).ToString("N");
         }
 
         private static void SaveFingerprint(Guid guid)
