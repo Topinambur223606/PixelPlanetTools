@@ -176,16 +176,16 @@ namespace PixelPlanetBot
                 switch (order)
                 {
                     case PlacingOrderMode.Left:
-                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ToList();
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Right:
-                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ToList();
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Top:
-                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ToList();
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Bottom:
-                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ToList();
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Outline:
                         relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy =>
