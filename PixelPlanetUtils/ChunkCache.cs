@@ -84,12 +84,14 @@ namespace PixelPlanetUtils
         {
             interactiveMode = true;
             this.logger = logger;
+            logger?.Invoke("Calculating list of chunks...", MessageGroup.TechState);
             chunks = pixels.Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
                 return (chunkX, chunkY);
             }).Distinct().ToList();
+            logger?.Invoke("Chunk list is calculated", MessageGroup.TechInfo);
         }
 
         public ChunkCache(short x1, short y1, short x2, short y2, Action<string, MessageGroup> logger)

@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixelPlanetUtils", "PixelPl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixelPlanetWatcher", "PixelPlanetWatcher\PixelPlanetWatcher.csproj", "{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Updater", "Updater\Updater.csproj", "{D0F13AD2-1835-48D8-88CD-823182E3D4C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,14 @@ Global
 		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Release|x64.ActiveCfg = Release|Any CPU
 		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Release|x64.Build.0 = Release|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Debug|x64.Build.0 = Debug|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Release|x64.ActiveCfg = Release|Any CPU
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

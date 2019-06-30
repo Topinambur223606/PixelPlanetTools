@@ -10,18 +10,11 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
-	
-//TODO border mode
-//TODO reminding
-
     using Pixel = ValueTuple<short, short, PixelColor>;
 
     static partial class Program
     {
-        private static readonly string appFolder =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
-        private static readonly string guidFilePathTemplate = Path.Combine(appFolder, "fingerprint.bin");
-
+        
         private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static bool defendMode;
@@ -62,9 +55,33 @@ namespace PixelPlanetBot
                     }
                     catch
                     {
-                        Console.WriteLine("You should pass correct 128-bit fingerprint (GUID)");
+                        Console.WriteLine("You should pass correct 128-bit fingerprint (GUID) from your browser");
                     }
                     return;
+                }
+                UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetBot));
+                if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                {
+                    Console.WriteLine($"Update is available - version {version}");
+                    if (isCompatible)
+                    {
+                        Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Argument list or order was changed, bot should be relaunched manually after update");
+                    }
+                    Console.WriteLine("Press Enter to update, anything else to skip");
+                    while (Console.KeyAvailable)
+                    {
+                        Console.ReadKey(true);
+                    }
+                    ConsoleKeyInfo key = Console.ReadKey(true);
+                    if (key.Key == ConsoleKey.Enter)
+                    {
+                        checker.StartUpdate();
+                        return;
+                    }
                 }
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
@@ -165,7 +182,7 @@ namespace PixelPlanetBot
                     finishCTS.Cancel();
                     return;
                 }
-                logger.LogLine("Calculating pixel placing order", MessageGroup.TechState);
+                logger.LogLine("Calculating pixel placing order...", MessageGroup.TechState);
                 IEnumerable<Pixel> relativePixelsToBuild;
                 IEnumerable<int> allY = Enumerable.Range(0, height);
                 IEnumerable<int> allX = Enumerable.Range(0, width);
@@ -194,14 +211,14 @@ namespace PixelPlanetBot
                             const int radius = 3;
                             double score = 0;
                             (short x, short y, PixelColor c) = xy;
-                            for (var i = -radius; i <= radius; i++) 
+                            for (int i = -radius; i <= radius; i++) 
                             {
-                                for (var j = -radius; j <= radius; j++) 
+                                for (int j = -radius; j <= radius; j++) 
                                 {
                                     double dist = Math.Sqrt(i * i + j * j);
                                     try
                                     {
-                                        var c2 = imagePixels[x + i, y + j];
+                                        PixelColor c2 = imagePixels[x + i, y + j];
                                         if (c2 == PixelColor.None)
                                         {
                                             score += emptyScore / dist;
@@ -541,16 +558,32 @@ namespace PixelPlanetBot
 
         private static string GetFingerprint()
         {
-            Guid guid = Guid.Empty;
-            byte[] bytes = File.ReadAllBytes(guidFilePathTemplate);
-            guid = new Guid(bytes);
-            return guid.ToString("N");
+            //for backward compatibility, will be removed soon
+            if (!File.Exists(PathTo.Fingerprint) && File.Exists(PathTo.OldFingerprint))
+            {
+                byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
+                Guid guid = new Guid(bytes);
+                SaveFingerprint(guid);
+                try
+                {
+                    File.Delete(PathTo.OldFingerprint);
+                    Directory.Delete(PathTo.OldAppFolder);
+                }
+                catch
+                { }
+                return new Guid(bytes).ToString("N");
+            }
+            else
+            {
+                byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
+                return new Guid(bytes).ToString("N");
+            }
         }
 
         private static void SaveFingerprint(Guid guid)
         {
-            Directory.CreateDirectory(appFolder);
-            File.WriteAllBytes(guidFilePathTemplate, guid.ToByteArray());
+            Directory.CreateDirectory(PathTo.AppFolder);
+            File.WriteAllBytes(PathTo.Fingerprint, guid.ToByteArray());
         }
     }
 }

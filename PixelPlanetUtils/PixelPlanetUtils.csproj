@@ -61,10 +61,17 @@
     <Compile Include="InteractionWrapper.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="MessageGroup.cs" />
+    <Compile Include="PathTo.cs" />
     <Compile Include="PixelChangedEventArgs.cs" />
     <Compile Include="PixelColor.cs" />
     <Compile Include="PixelMap.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="UpdateChecker.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -85,6 +92,15 @@
     <PackageReference Include="WebSocketSharpFork">
       <Version>1.0.4</Version>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Updater.exe" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
