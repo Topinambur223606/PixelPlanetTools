@@ -561,6 +561,7 @@ namespace PixelPlanetBot
             //for backward compatibility, will be removed soon
             if (!File.Exists(PathTo.Fingerprint) && File.Exists(PathTo.OldFingerprint))
             {
+                Directory.CreateDirectory(PathTo.AppFolder);
                 File.Move(PathTo.OldFingerprint, PathTo.Fingerprint);
                 try
                 {
