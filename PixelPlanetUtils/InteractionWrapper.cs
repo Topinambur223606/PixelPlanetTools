@@ -199,7 +199,7 @@ namespace PixelPlanetUtils
                                         if (json["errors"].Count() > 0)
                                         {
                                             string errors = string.Concat(json["errors"].Select(e => $"{Environment.NewLine}\"{e}\""));
-                                            throw new Exception($"Server responded with errors:{errors}");
+                                            throw new PausingException($"Server responded with errors:{errors}");
                                         }
                                         else
                                         {
@@ -227,7 +227,7 @@ namespace PixelPlanetUtils
                     switch (response.StatusCode)
                     {
                         case HttpStatusCode.Forbidden:
-                            throw new Exception("Action was forbidden by pixelworld; admins could have prevented you from placing pixel or area is protected");
+                            throw new PausingException("Action was forbidden by pixelworld; admins could have prevented you from placing pixel or area is protected");
                         case HttpStatusCode.BadGateway:
                             totalCoolDown = coolDown = multipleServerFails ? 30 : 10;
                             multipleServerFails = true;

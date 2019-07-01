@@ -12,8 +12,9 @@ namespace PixelPlanetUtils
 {
     public class UpdateChecker
     {
-        const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
+        private const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
         private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, "Updater.exe");
+        private const byte updaterVersion = 2;
 
         private readonly string appName;
         private string downloadUrl;
@@ -67,24 +68,28 @@ namespace PixelPlanetUtils
 
         public void StartUpdate()
         {
-            if (!File.Exists(updaterPath))
+            try
+            {
+                var versionInfo = FileVersionInfo.GetVersionInfo(updaterPath);
+                if (string.Compare(versionInfo.FileVersion, updaterVersion.ToString()) < 0)
+                {
+                    throw new Exception();
+                }
+            }
+            catch
             {
                 Directory.CreateDirectory(PathTo.AppFolder);
                 File.WriteAllBytes(updaterPath, Properties.Resources.Updater);
             }
             string args;
-            string location = Assembly.GetEntryAssembly().Location;
-            if (location.Contains(" "))
-            {
-                location = $"\"{location}\"";
-            }
+            int id = Process.GetCurrentProcess().Id;
             if (isCompatible)
             {
-                args = $"{downloadUrl} {location} {GetCompressedArgs()}";
+                args = $"{id} {downloadUrl} {GetCompressedArgs()}";
             }
             else
             {
-                args = $"{downloadUrl} {location}";
+                args = $"{id} {downloadUrl}";
             }
             Process.Start(updaterPath, args);
         }

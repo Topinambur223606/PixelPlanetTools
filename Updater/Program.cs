@@ -13,21 +13,24 @@ namespace Updater
         {
             try
             {
+                var process = Process.GetProcessById(int.Parse(args[0]));
+                var path = process.MainModule.FileName;
+                process.WaitForExit();
                 try
                 {
                     Thread.Sleep(500);
                     byte[] data;
                     using (WebClient wc = new WebClient())
                     {
-                        data = wc.DownloadData(args[0]);
+                        data = wc.DownloadData(args[1]);
                     }
-                    File.WriteAllBytes(args[1], data);
+                    File.WriteAllBytes(path, data);
                 }
                 finally
                 {
                     if (args.Length > 2)
                     {
-                        Process.Start(args[1], Encoding.Default.GetString(Convert.FromBase64String(args[2])));
+                        Process.Start(path, Encoding.Default.GetString(Convert.FromBase64String(args[2])));
                     }
                 }
             }

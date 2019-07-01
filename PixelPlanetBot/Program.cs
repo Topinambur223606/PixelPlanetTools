@@ -60,6 +60,7 @@ namespace PixelPlanetBot
                     return;
                 }
                 UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetBot));
+                Console.WriteLine($"Checking for updates...");
                 if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                 {
                     Console.WriteLine($"Update is available - version {version}");
@@ -76,8 +77,8 @@ namespace PixelPlanetBot
                     {
                         Console.ReadKey(true);
                     }
-                    ConsoleKeyInfo key = Console.ReadKey(true);
-                    if (key.Key == ConsoleKey.Enter)
+                    ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                    if (keyInfo.Key == ConsoleKey.Enter)
                     {
                         checker.StartUpdate();
                         return;
@@ -336,14 +337,14 @@ namespace PixelPlanetBot
                                                     {
                                                         Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     }
-                                                    Thread.Sleep(100);
-                                                    logger.ConsoleLoggingResetEvent.Reset();
+                                                    logger.WaitForAllConsoleMessages();
+                                                    logger.PauseConsoleLogging();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    logger.ConsoleLoggingResetEvent.Set();
+                                                    logger.ResumeConsoleLogging();
                                                     captchaCts?.Cancel();
                                                     captchaCts?.Dispose();
                                                 }
@@ -385,10 +386,22 @@ namespace PixelPlanetBot
                     catch (Exception ex)
                     {
                         logger.LogLine($"Unhandled exception: {ex.Message}", MessageGroup.Error);
-                        int delay = repeatingFails ? 30 : 10;
-                        repeatingFails = true;
-                        logger.LogLine($"Reconnecting in {delay} seconds...", MessageGroup.TechState);
-                        Thread.Sleep(TimeSpan.FromSeconds(delay));
+                        if (ex is PausingException)
+                        {
+                            logger.LogLine($"Check that problem is resolved and press any key to continue", MessageGroup.TechState);
+                            while (Console.KeyAvailable)
+                            {
+                                Console.ReadKey(true);
+                            }
+                            Console.ReadKey(true);
+                        }
+                        else
+                        {
+                            int delay = repeatingFails ? 30 : 10;
+                            repeatingFails = true;
+                            logger.LogLine($"Reconnecting in {delay} seconds...", MessageGroup.TechState);
+                            Thread.Sleep(TimeSpan.FromSeconds(delay));
+                        }
                         continue;
                     }
                 } while (true);
@@ -396,10 +409,12 @@ namespace PixelPlanetBot
             finally
             {
                 finishCTS.Cancel();
+                Thread.Sleep(1000);
                 gotGriefed?.Dispose();
                 mapDownloadedResetEvent?.Dispose();
+                logger.ResumeConsoleLogging();
+                logger.WaitForAllConsoleMessages();
                 logger?.Dispose();
-                Thread.Sleep(1000);
                 finishCTS.Dispose();
                 if (statsThread?.IsAlive ?? false)
                 {

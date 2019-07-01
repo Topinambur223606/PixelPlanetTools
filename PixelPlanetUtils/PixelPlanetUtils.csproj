@@ -62,6 +62,7 @@
     <Compile Include="Logger.cs" />
     <Compile Include="MessageGroup.cs" />
     <Compile Include="PathTo.cs" />
+    <Compile Include="PausingException.cs" />
     <Compile Include="PixelChangedEventArgs.cs" />
     <Compile Include="PixelColor.cs" />
     <Compile Include="PixelMap.cs" />

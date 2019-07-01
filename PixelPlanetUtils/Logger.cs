@@ -15,10 +15,12 @@ namespace PixelPlanetUtils
         private readonly ConcurrentQueue<LogEntry> consoleMessages = new ConcurrentQueue<LogEntry>();
         private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
+        private readonly ManualResetEvent noMessagesInConsoleQueue = new ManualResetEvent(true);
         private readonly CancellationToken finishToken;
         private readonly string logFilePath;
         private readonly bool logToFile;
         bool disposed;
+        bool consolePaused = false;
         private Thread loggingThread, consoleThread;
 
         public Logger(CancellationToken finishToken) : this(finishToken, null)
@@ -37,11 +39,31 @@ namespace PixelPlanetUtils
             }
         }
 
-        public ManualResetEvent ConsoleLoggingResetEvent { get; } = new ManualResetEvent(true);
+        private ManualResetEvent consoleLoggingResetEvent = new ManualResetEvent(true);
 
         public void LogLine(string msg, MessageGroup group)
         {
             LogTimedLine(msg, group, DateTime.Now);
+        }
+
+        public void WaitForAllConsoleMessages()
+        {
+            if (!consolePaused)
+            {
+                noMessagesInConsoleQueue.WaitOne();
+            }
+        }
+        
+        public void PauseConsoleLogging()
+        {
+            consolePaused = true;
+            consoleLoggingResetEvent.Reset();
+        }
+
+        public void ResumeConsoleLogging()
+        {
+            consolePaused = false;
+            consoleLoggingResetEvent.Set();
         }
 
         public void LogTimedLine(string msg, MessageGroup group, DateTime time)
@@ -90,7 +112,7 @@ namespace PixelPlanetUtils
             {
                 while (true)
                 {
-                    ConsoleLoggingResetEvent.WaitOne();
+                    consoleLoggingResetEvent.WaitOne();
                     if (consoleMessages.TryDequeue(out LogEntry msg))
                     {
                         (string line, ConsoleColor color) = msg;
@@ -103,6 +125,7 @@ namespace PixelPlanetUtils
                         {
                             return;
                         }
+                        noMessagesInConsoleQueue.Set();
                         consoleMessagesAvailable.WaitOne();
                     }
                 }
@@ -122,6 +145,7 @@ namespace PixelPlanetUtils
                     if (messages.TryDequeue(out LogEntry msg))
                     {
                         consoleMessages.Enqueue(msg);
+                        noMessagesInConsoleQueue.Reset();
                         consoleMessagesAvailable.Set();
                         if (logToFile)
                         {
@@ -154,11 +178,11 @@ namespace PixelPlanetUtils
                 disposed = true;
                 messagesAvailable.Set();
                 consoleMessagesAvailable.Set();
-                ConsoleLoggingResetEvent.Set();
+                consoleLoggingResetEvent.Set();
                 Thread.Sleep(50);
                 messagesAvailable.Dispose();
                 consoleMessagesAvailable.Dispose();
-                ConsoleLoggingResetEvent.Dispose();
+                consoleLoggingResetEvent.Dispose();
                 if (loggingThread.IsAlive)
                 {
                     loggingThread.Interrupt();
