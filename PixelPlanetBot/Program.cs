@@ -409,11 +409,12 @@ namespace PixelPlanetBot
             finally
             {
                 finishCTS.Cancel();
-                Thread.Sleep(1000);
+                var waitingTask = Task.Delay(TimeSpan.FromSeconds(1));
+                logger?.WaitForAllConsoleMessages();
+                waitingTask.Wait();
                 gotGriefed?.Dispose();
                 mapDownloadedResetEvent?.Dispose();
-                logger.ResumeConsoleLogging();
-                logger.WaitForAllConsoleMessages();
+                logger?.ResumeConsoleLogging();
                 logger?.Dispose();
                 finishCTS.Dispose();
                 if (statsThread?.IsAlive ?? false)
