@@ -12,13 +12,15 @@ namespace PixelPlanetUtils
     {
 
         private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
-        private readonly ConcurrentQueue<LogEntry> consoleMessages = new ConcurrentQueue<LogEntry>();
+        private ConcurrentQueue<LogEntry> incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
+        private ConcurrentQueue<LogEntry> printableConsoleMessages;
         private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
-        private readonly ManualResetEvent noMessagesInConsoleQueue = new ManualResetEvent(true);
+        private readonly AutoResetEvent noPrintableMessages = new AutoResetEvent(true);
         private readonly CancellationToken finishToken;
         private readonly string logFilePath;
         private readonly bool logToFile;
+        private readonly object lockObj = new object();
         bool disposed;
         bool consolePaused = false;
         private Thread loggingThread, consoleThread;
@@ -28,6 +30,7 @@ namespace PixelPlanetUtils
 
         public Logger(CancellationToken finishToken, string logFilePath)
         {
+            printableConsoleMessages = incomingConsoleMessages;
             this.finishToken = finishToken;
             loggingThread = new Thread(LogWriterThreadBody);
             loggingThread.Start();
@@ -39,64 +42,87 @@ namespace PixelPlanetUtils
             }
         }
 
-        private ManualResetEvent consoleLoggingResetEvent = new ManualResetEvent(true);
-
         public void LogLine(string msg, MessageGroup group)
         {
             LogTimedLine(msg, group, DateTime.Now);
         }
 
-        public void WaitForAllConsoleMessages()
+        public void LogAndPause(string msg, MessageGroup group)
         {
             if (!consolePaused)
             {
-                noMessagesInConsoleQueue.WaitOne();
+                string text;
+                lock (lockObj)
+                {
+                    text = FormatLine(msg, group, DateTime.Now);
+                    consolePaused = true;
+                    incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
+                    if (logToFile)
+                    {
+                        using (StreamWriter writer = new StreamWriter(logFilePath, true))
+                        {
+                            writer.WriteLine(text);
+                        }
+                    }
+                }
+                noPrintableMessages.Reset();
+                printableConsoleMessages.Enqueue((text, ColorOf(group)));
+                consoleMessagesAvailable.Set();
+                noPrintableMessages.WaitOne();
+            }
+            else
+            {
+                throw new InvalidOperationException("Already paused");
             }
         }
-        
-        public void PauseConsoleLogging()
+
+        public void ResumeLogging()
         {
-            consolePaused = true;
-            consoleLoggingResetEvent.Reset();
+            if (consolePaused)
+            {
+                lock (lockObj)
+                {
+                    consolePaused = false;
+                    printableConsoleMessages = incomingConsoleMessages;
+                }
+                consoleMessagesAvailable.Set();
+            }
         }
 
-        public void ResumeConsoleLogging()
+        private static ConsoleColor ColorOf(MessageGroup group)
         {
-            consolePaused = false;
-            consoleLoggingResetEvent.Set();
-        }
-
-        public void LogTimedLine(string msg, MessageGroup group, DateTime time)
-        {
-            string line = string.Format("{0}  {1}  {2}", time.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
-            ConsoleColor color;
             switch (group)
             {
                 case MessageGroup.Attack:
                 case MessageGroup.Captcha:
                 case MessageGroup.PixelFail:
                 case MessageGroup.Error:
-                    color = ConsoleColor.Red;
-                    break;
+                    return ConsoleColor.Red;
                 case MessageGroup.Assist:
                 case MessageGroup.Pixel:
-                    color = ConsoleColor.Green;
-                    break;
+                    return ConsoleColor.Green;
                 case MessageGroup.Info:
-                    color = ConsoleColor.Magenta;
-                    break;
+                case MessageGroup.ImageDone:
+                    return ConsoleColor.Magenta;
                 case MessageGroup.TechInfo:
-                    color = ConsoleColor.Blue;
-                    break;
+                    return ConsoleColor.Blue;
                 case MessageGroup.TechState:
-                    color = ConsoleColor.Yellow;
-                    break;
-                default:
+                    return ConsoleColor.Yellow;
                 case MessageGroup.PixelInfo:
-                    color = ConsoleColor.DarkGray;
-                    break;
+                default:
+                    return ConsoleColor.DarkGray;
             }
-            messages.Enqueue((line, color));
+        }
+
+        private static string FormatLine(string msg, MessageGroup group, DateTime time)
+        {
+            return string.Format("{0}  {1}  {2}", time.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
+        }
+
+        public void LogTimedLine(string msg, MessageGroup group, DateTime time)
+        {
+            string line = FormatLine(msg, group, time);
+            messages.Enqueue((line, ColorOf(group)));
             messagesAvailable.Set();
         }
 
@@ -108,44 +134,35 @@ namespace PixelPlanetUtils
 
         private void ConsoleWriterThreadBody()
         {
-            try
+            while (true)
             {
-                while (true)
+                if (printableConsoleMessages.TryDequeue(out LogEntry msg))
                 {
-                    consoleLoggingResetEvent.WaitOne();
-                    if (consoleMessages.TryDequeue(out LogEntry msg))
-                    {
-                        (string line, ConsoleColor color) = msg;
-                        Console.ForegroundColor = color;
-                        Console.WriteLine(line);
-                    }
-                    else
-                    {
-                        if (disposed || finishToken.IsCancellationRequested)
-                        {
-                            return;
-                        }
-                        noMessagesInConsoleQueue.Set();
-                        consoleMessagesAvailable.WaitOne();
-                    }
+                    (string line, ConsoleColor color) = msg;
+                    Console.ForegroundColor = color;
+                    Console.WriteLine(line);
                 }
-            }
-            catch (ThreadInterruptedException)
-            {
-                return;
+                else
+                {
+                    if (disposed || finishToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    noPrintableMessages.Set();
+                    consoleMessagesAvailable.WaitOne();
+                }
             }
         }
 
         private void LogWriterThreadBody()
         {
-            try
+            while (true)
             {
-                while (true)
+                if (messages.TryDequeue(out LogEntry msg))
                 {
-                    if (messages.TryDequeue(out LogEntry msg))
+                    lock (lockObj)
                     {
-                        consoleMessages.Enqueue(msg);
-                        noMessagesInConsoleQueue.Reset();
+                        incomingConsoleMessages.Enqueue(msg);
                         consoleMessagesAvailable.Set();
                         if (logToFile)
                         {
@@ -155,22 +172,18 @@ namespace PixelPlanetUtils
                             }
                         }
                     }
-                    else
+                }
+                else
+                {
+                    if (disposed || finishToken.IsCancellationRequested)
                     {
-                        if (disposed || finishToken.IsCancellationRequested)
-                        {
-                            return;
-                        }
-                        messagesAvailable.WaitOne();
+                        return;
                     }
+                    messagesAvailable.WaitOne();
                 }
             }
-            catch (ThreadInterruptedException)
-            {
-                return;
-            }
         }
-
+    
         public void Dispose()
         {
             if (!disposed)
@@ -178,19 +191,11 @@ namespace PixelPlanetUtils
                 disposed = true;
                 messagesAvailable.Set();
                 consoleMessagesAvailable.Set();
-                consoleLoggingResetEvent.Set();
+                noPrintableMessages.Set();
                 Thread.Sleep(50);
                 messagesAvailable.Dispose();
                 consoleMessagesAvailable.Dispose();
-                consoleLoggingResetEvent.Dispose();
-                if (loggingThread.IsAlive)
-                {
-                    loggingThread.Interrupt();
-                }
-                if (consoleThread.IsAlive)
-                {
-                    consoleThread.Interrupt();
-                }
+                noPrintableMessages.Dispose();
             }
         }
     }

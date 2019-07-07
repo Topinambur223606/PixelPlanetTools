@@ -70,7 +70,7 @@ namespace PixelPlanetUtils
         {
             try
             {
-                var versionInfo = FileVersionInfo.GetVersionInfo(updaterPath);
+                FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(updaterPath);
                 if (string.Compare(versionInfo.FileVersion, updaterVersion.ToString()) < 0)
                 {
                     throw new Exception();

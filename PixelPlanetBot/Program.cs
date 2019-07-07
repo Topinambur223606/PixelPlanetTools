@@ -304,7 +304,7 @@ namespace PixelPlanetBot
                                             {
                                                 if (cd == 0.0)
                                                 {
-                                                    logger.LogLine("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
+                                                    logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     CancellationTokenSource captchaCts = null;
                                                     if (notificationMode.HasFlag(CaptchaNotificationMode.Sound))
                                                     {
@@ -337,14 +337,12 @@ namespace PixelPlanetBot
                                                     {
                                                         Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     }
-                                                    logger.WaitForAllConsoleMessages();
-                                                    logger.PauseConsoleLogging();
                                                     while (Console.KeyAvailable)
                                                     {
                                                         Console.ReadKey(true);
                                                     }
                                                     Console.ReadKey(true);
-                                                    logger.ResumeConsoleLogging();
+                                                    logger.ResumeLogging();
                                                     captchaCts?.Cancel();
                                                     captchaCts?.Dispose();
                                                 }
@@ -379,7 +377,7 @@ namespace PixelPlanetBot
                                 }
                             }
                             while (defendMode || wasChanged);
-                            logger.LogLine("Building is finished, exiting...", MessageGroup.ImageDone);
+                            logger.LogLine("Building is finished", MessageGroup.ImageDone);
                             return;
                         }
                     }
@@ -408,19 +406,14 @@ namespace PixelPlanetBot
             }
             finally
             {
+                logger.LogAndPause("Exiting...", MessageGroup.TechState);
                 finishCTS.Cancel();
-                var waitingTask = Task.Delay(TimeSpan.FromSeconds(1));
-                logger?.WaitForAllConsoleMessages();
+                Task waitingTask = Task.Delay(TimeSpan.FromSeconds(1));
                 waitingTask.Wait();
                 gotGriefed?.Dispose();
                 mapDownloadedResetEvent?.Dispose();
-                logger?.ResumeConsoleLogging();
                 logger?.Dispose();
                 finishCTS.Dispose();
-                if (statsThread?.IsAlive ?? false)
-                {
-                    statsThread.Interrupt(); //fallback, should never work 
-                }
             }
         }
 
@@ -475,101 +468,94 @@ namespace PixelPlanetBot
 
         private static void StatsCollectionThreadBody()
         {
-            try
+            mapDownloadedResetEvent.WaitOne();
+            Task taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+            int done = pixelsToBuild.
+                  Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                  Count();
+            doneInPast.Enqueue(done);
+            do
             {
-                mapDownloadedResetEvent.WaitOne();
-                Task taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
-                int done = pixelsToBuild.
-                      Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                      Count();
-                doneInPast.Enqueue(done);
-                do
+                if (finishCTS.IsCancellationRequested)
                 {
-                    if (finishCTS.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    try
-                    {
-                        taskToWait.Wait();
-                    }
-                    catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                    {
-                        return;
-                    }
-                    if (finishCTS.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    builtInPast.Enqueue(builtInLastMinute);
-                    builtInLastMinute = 0;
-                    if (builtInPast.Count > 5)
-                    {
-                        builtInPast.Dequeue();
-                    }
+                    return;
+                }
+                try
+                {
+                    taskToWait.Wait();
+                }
+                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                {
+                    return;
+                }
+                if (finishCTS.IsCancellationRequested)
+                {
+                    return;
+                }
+                builtInPast.Enqueue(builtInLastMinute);
+                builtInLastMinute = 0;
+                if (builtInPast.Count > 5)
+                {
+                    builtInPast.Dequeue();
+                }
 
-                    griefedInPast.Enqueue(griefedInLastMinute);
-                    griefedInLastMinute = 0;
-                    if (griefedInPast.Count > 5)
-                    {
-                        griefedInPast.Dequeue();
-                    }
+                griefedInPast.Enqueue(griefedInLastMinute);
+                griefedInLastMinute = 0;
+                if (griefedInPast.Count > 5)
+                {
+                    griefedInPast.Dequeue();
+                }
 
-                    double griefedPerMinute = griefedInPast.Average();
-                    double builtPerMinute = builtInPast.Average();
-                    
-                    done = pixelsToBuild.
-                       Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                       Count();
+                double griefedPerMinute = griefedInPast.Average();
+                double builtPerMinute = builtInPast.Average();
 
-                    double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
+                done = pixelsToBuild.
+                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                   Count();
 
-                    doneInPast.Enqueue(done);
-                    if (doneInPast.Count > 5)
-                    {
-                        doneInPast.Dequeue();
-                    }
+                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
 
-                    int total = pixelsToBuild.Count();
-                    double percent = Math.Floor(done * 1000.0 / total) / 10.0;
-                    DateTime time = DateTime.Now;
-                    if (finishCTS.IsCancellationRequested)
+                doneInPast.Enqueue(done);
+                if (doneInPast.Count > 5)
+                {
+                    doneInPast.Dequeue();
+                }
+
+                int total = pixelsToBuild.Count();
+                double percent = Math.Floor(done * 1000.0 / total) / 10.0;
+                DateTime time = DateTime.Now;
+                if (finishCTS.IsCancellationRequested)
+                {
+                    return;
+                }
+                if (defendMode)
+                {
+                    logger.LogTimedLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
+                    lock (waitingGriefLock)
+                    { }
+                }
+                else
+                {
+                    string info = $"Image is {percent:F1}% complete, ";
+                    if (buildSpeed > 0)
                     {
-                        return;
-                    }
-                    if (defendMode)
-                    {
-                        logger.LogTimedLine($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
-                        lock (waitingGriefLock)
-                        { }
+                        int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
+                        int hrsLeft = minsLeft / 60;
+                        info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
                     }
                     else
                     {
-                        string info = $"Image is {percent:F1}% complete, ";
-                        if (buildSpeed > 0)
-                        {
-                            int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
-                            int hrsLeft = minsLeft / 60;
-                            info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
-                        }
-                        else 
-                        {
-                            info += $"no progress in last 5 minutes";
-                        }
-                        logger.LogTimedLine(info, MessageGroup.Info, time);
+                        info += $"no progress in last 5 minutes";
                     }
-                    if (griefedPerMinute > 1)
-                    {
-                        logger.LogTimedLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
-                        logger.LogTimedLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
-                    }
-                    taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
-                } while (true);
-            }
-            catch (ThreadInterruptedException)
-            {
-                return;
-            }
+                    logger.LogTimedLine(info, MessageGroup.Info, time);
+                }
+                if (griefedPerMinute > 1)
+                {
+                    logger.LogTimedLine($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
+                    logger.LogTimedLine($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
+                }
+                taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+            } while (true);
         }
 
         private static string GetFingerprint()

@@ -13,8 +13,8 @@ namespace Updater
         {
             try
             {
-                var process = Process.GetProcessById(int.Parse(args[0]));
-                var path = process.MainModule.FileName;
+                Process process = Process.GetProcessById(int.Parse(args[0]));
+                string path = process.MainModule.FileName;
                 process.WaitForExit();
                 try
                 {
