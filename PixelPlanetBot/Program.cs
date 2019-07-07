@@ -406,7 +406,7 @@ namespace PixelPlanetBot
             }
             finally
             {
-                logger.LogAndPause("Exiting...", MessageGroup.TechState);
+                logger?.LogAndPause("Exiting...", MessageGroup.TechState);
                 finishCTS.Cancel();
                 Task waitingTask = Task.Delay(TimeSpan.FromSeconds(1));
                 waitingTask.Wait();
