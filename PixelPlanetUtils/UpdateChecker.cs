@@ -51,12 +51,7 @@ namespace PixelPlanetUtils
                 version = release["tag_name"].ToString();
                 Version availableVersion = Version.Parse(version.TrimStart('v'));
                 isCompatible = this.isCompatible = availableVersion.Major == appVersion.Major;
-                return 
-                    availableVersion.Major > appVersion.Major
-                    ||
-                    availableVersion.Minor > appVersion.Minor
-                    ||
-                    availableVersion.Build > appVersion.Build;
+                return appVersion < availableVersion;
             }
             catch
             {
