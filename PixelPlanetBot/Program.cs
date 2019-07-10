@@ -206,11 +206,12 @@ namespace PixelPlanetBot
                         relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Outline:
+                        Random rnd = new Random();
                         relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy =>
                         {
                             const double emptyScore = 5.0;
                             const int radius = 3;
-                            double score = 0;
+                            double score = rnd.NextDouble() * 5.0;
                             (short x, short y, PixelColor c) = xy;
                             for (int i = -radius; i <= radius; i++) 
                             {
@@ -236,13 +237,13 @@ namespace PixelPlanetBot
                                 }
                             }
                             return score;
-                        }).ThenBy(e => Guid.NewGuid());
+                        });
                         break;
                     default:
-                        Random rnd = new Random();
+                        Random rand = new Random();
                         for (int i = 0; i < nonEmptyPixels.Length; i++)
                         {
-                            int r = rnd.Next(i, nonEmptyPixels.Length);
+                            int r = rand.Next(i, nonEmptyPixels.Length);
                             Pixel tmp = nonEmptyPixels[r];
                             nonEmptyPixels[r] = nonEmptyPixels[i];
                             nonEmptyPixels[i] = tmp;
