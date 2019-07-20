@@ -24,7 +24,7 @@ namespace PixelPlanetUtils
         private const string webSocketUrlTemplate = "wss://pixelplanet.fun/ws?fingerprint={0}";
 
         private readonly string fingerprint;
-
+        private readonly WebProxy proxy;
         private WebSocket webSocket;
         private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
@@ -42,13 +42,18 @@ namespace PixelPlanetUtils
 
         private readonly Action<string, MessageGroup> logger;
 
-        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, bool listeningMode = false)
+        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, WebProxy proxy) : this (fingerprint, logger, proxy, false)
+        { }
+        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, bool listeningMode) : this(fingerprint, logger, null, listeningMode)
+        { }
+        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, WebProxy proxy, bool listeningMode)
         {
             this.logger = logger;
             if (this.listeningMode = listeningMode)
             {
                 listeningResetEvent = new ManualResetEvent(false);
             }
+            this.proxy = proxy;
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
@@ -271,6 +276,7 @@ namespace PixelPlanetUtils
         {
             HttpWebRequest request = WebRequest.CreateHttp($"{BaseHttpAdress}/{relativeUrl}");
             request.Method = "POST";
+            request.Proxy = proxy;
             using (Stream requestStream = request.GetRequestStream())
             {
                 using (StreamWriter streamWriter = new StreamWriter(requestStream))

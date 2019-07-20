@@ -31,6 +31,7 @@ namespace PixelPlanetBot
         private static IEnumerable<Pixel> pixelsToBuild;
         private static short leftX, topY;
         private static string fingerprint;
+        private static WebProxy proxy;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
 
@@ -63,7 +64,7 @@ namespace PixelPlanetBot
                 Console.WriteLine($"Checking for updates...");
                 if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                 {
-                    Console.WriteLine($"Update is available - version {version}");
+                    Console.WriteLine($"Update is available: {version}");
                     if (isCompatible)
                     {
                         Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
@@ -84,6 +85,13 @@ namespace PixelPlanetBot
                         return;
                     }
                 }
+                else
+                {
+                    if (version == null)
+                    {
+                        Console.WriteLine("Cannot check for updates");
+                    }
+                }
                 ushort width, height;
                 PlacingOrderMode order = PlacingOrderMode.Random;
                 notificationMode = CaptchaNotificationMode.Sound;
@@ -93,7 +101,6 @@ namespace PixelPlanetBot
                     {
                         leftX = short.Parse(args[0]);
                         topY = short.Parse(args[1]);
-                        fingerprint = GetFingerprint();
                         string logFilePath = null;
                         if (args.Length > 3)
                         {
@@ -107,43 +114,71 @@ namespace PixelPlanetBot
                             {
                                 notificationMode |= CaptchaNotificationMode.Sound;
                             }
-                            if (args.Length > 4)
+                        }
+                        if (args.Length > 4)
+                        {
+                            defendMode = args[4].ToUpper() == "Y";
+                        }
+                        if (args.Length > 5)
+                        {
+                            switch (args[5].ToUpper())
                             {
-                                defendMode = args[4].ToUpper() == "Y";
-
-                                if (args.Length > 5)
+                                case "R":
+                                    order = PlacingOrderMode.Right;
+                                    break;
+                                case "L":
+                                    order = PlacingOrderMode.Left;
+                                    break;
+                                case "T":
+                                    order = PlacingOrderMode.Top;
+                                    break;
+                                case "B":
+                                    order = PlacingOrderMode.Bottom;
+                                    break;
+                                case "O":
+                                    order = PlacingOrderMode.Outline;
+                                    break;
+                            }
+                        }
+                        if (args.Length > 6)
+                        {
+                            if (!args[6].Equals("default", StringComparison.CurrentCultureIgnoreCase))
+                            {
+                                if (Guid.TryParse(args[6], out Guid guid))
                                 {
-                                    switch (args[5].ToUpper())
-                                    {
-                                        case "R":
-                                            order = PlacingOrderMode.Right;
-                                            break;
-                                        case "L":
-                                            order = PlacingOrderMode.Left;
-                                            break;
-                                        case "T":
-                                            order = PlacingOrderMode.Top;
-                                            break;
-                                        case "B":
-                                            order = PlacingOrderMode.Bottom;
-                                            break;
-                                        case "O":
-                                            order = PlacingOrderMode.Outline;
-                                            break;
-                                    }
-
-                                    if (args.Length > 6)
-                                    {
-                                        try
-                                        {
-                                            File.OpenWrite(args[6]).Dispose();
-                                            logFilePath = args[6];
-                                        }
-                                        catch
-                                        { }
-                                    }
+                                    fingerprint = guid.ToString("N");
                                 }
                             }
+                        }
+                        if (args.Length > 7)
+                        {
+                            if (!args[7].Equals("none", StringComparison.CurrentCultureIgnoreCase))
+                            {
+                                string[] parts = args[7].Split(':');
+                                if (parts.Length != 2)
+                                {
+                                    throw new Exception();
+                                }
+                                IPAddress.Parse(parts[0]);
+                                proxy = new WebProxy(parts[0], ushort.Parse(parts[1]));
+                            }
+                        }
+                        if (args.Length > 8)
+                        {
+                            if (!args[8].Equals("none", StringComparison.CurrentCultureIgnoreCase))
+                            {
+                                try
+                                {
+                                    File.OpenWrite(args[8]).Dispose();
+                                    logFilePath = args[8];
+                                }
+                                catch
+                                { }
+                            }
+                        }
+                        if (fingerprint == null)
+                        {
+                            fingerprint = GetFingerprint();
                         }
                         logger = new Logger(finishCTS.Token, logFilePath);
                         imagePixels = ImageProcessing.PixelColorsByUri(args[2], logger.LogLine);
@@ -174,7 +209,7 @@ namespace PixelPlanetBot
                     }
                     catch
                     {
-                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [logFileName = none]");
+                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [fingerprint = default] [proxyAddress = none] [logFileName = none]");
                     }
                 }
                 catch (Exception ex)
@@ -269,7 +304,7 @@ namespace PixelPlanetBot
                 {
                     try
                     {
-                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine))
+                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine, proxy))
                         {
                             wrapper.OnConnectionLost += (o, e) => mapDownloadedResetEvent.Reset();
                             cache.Wrapper = wrapper;
