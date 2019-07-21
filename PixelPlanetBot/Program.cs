@@ -144,10 +144,7 @@ namespace PixelPlanetBot
                         {
                             if (!args[6].Equals("default", StringComparison.CurrentCultureIgnoreCase))
                             {
-                                if (Guid.TryParse(args[6], out Guid guid))
-                                {
-                                    fingerprint = guid.ToString("N");
-                                }
+                                fingerprint = Guid.Parse(args[6]).ToString("N");
                             }
                         }
                         if (args.Length > 7)
@@ -201,7 +198,8 @@ namespace PixelPlanetBot
                     }
                     catch (ArgumentException)
                     {
-                        throw new Exception("Cannot convert image");
+                        logger.LogLine("Cannot convert image", MessageGroup.Error);
+                        throw new Exception(string.Empty);
                     }
                     catch (IOException)
                     {
@@ -215,7 +213,6 @@ namespace PixelPlanetBot
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex.Message);
-                    finishCTS.Cancel();
                     return;
                 }
                 logger.LogLine("Calculating pixel placing order...", MessageGroup.TechState);
@@ -444,12 +441,12 @@ namespace PixelPlanetBot
             {
                 logger?.LogAndPause("Exiting...", MessageGroup.TechState);
                 finishCTS.Cancel();
-                Task waitingTask = Task.Delay(TimeSpan.FromSeconds(1));
-                waitingTask.Wait();
+                Thread.Sleep(1000);
                 gotGriefed?.Dispose();
                 mapDownloadedResetEvent?.Dispose();
                 logger?.Dispose();
                 finishCTS.Dispose();
+                Environment.Exit(0);
             }
         }
 
@@ -596,18 +593,6 @@ namespace PixelPlanetBot
 
         private static string GetFingerprint()
         {
-            //for backward compatibility, will be removed soon
-            if (!File.Exists(PathTo.Fingerprint) && File.Exists(PathTo.OldFingerprint))
-            {
-                Directory.CreateDirectory(PathTo.AppFolder);
-                File.Move(PathTo.OldFingerprint, PathTo.Fingerprint);
-                try
-                {
-                    Directory.Delete(PathTo.OldAppFolder);
-                }
-                catch
-                { }
-            }
             byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
             return new Guid(bytes).ToString("N");
         }

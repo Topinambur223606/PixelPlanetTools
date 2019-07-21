@@ -144,11 +144,11 @@ namespace PixelPlanetUtils
                 }
                 else
                 {
+                    noPrintableMessages.Set();
                     if (disposed || finishToken.IsCancellationRequested)
                     {
                         return;
                     }
-                    noPrintableMessages.Set();
                     consoleMessagesAvailable.WaitOne();
                 }
             }

@@ -89,10 +89,12 @@ namespace PixelPlanetUtils
             newWebSocket.Log.Output = (d, s) => { };
             preemptiveWebSocketReplacingResetEvent.Reset();
             newWebSocket.OnOpen += NotifyOpened;
+            newWebSocket.Connect();
             preemptiveWebSocketReplacingResetEvent.WaitOne();
             newWebSocket.OnOpen -= NotifyOpened;
             WebSocket oldWebSocket = webSocket;
             webSocket = newWebSocket;
+            SubscribeToUpdates(TrackedChunks);
             newWebSocket.OnOpen += WebSocket_OnOpen;
             oldWebSocket.OnOpen -= WebSocket_OnOpen;
             newWebSocket.OnMessage += WebSocket_OnMessage;

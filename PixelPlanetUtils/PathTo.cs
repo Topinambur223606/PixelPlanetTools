@@ -9,13 +9,5 @@ namespace PixelPlanetUtils
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetTools");
 
         public static readonly string Fingerprint = Path.Combine(AppFolder, "fingerprint.bin");
-
-
-        //for backward compatibility, will be removed soon
-
-        public static readonly string OldAppFolder =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixelPlanetBot");
-
-        public static readonly string OldFingerprint = Path.Combine(OldAppFolder, "fingerprint.bin");
     }
 }

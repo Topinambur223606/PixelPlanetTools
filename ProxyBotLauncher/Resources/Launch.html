@@ -1,0 +1,26 @@
+<html>
+<head>
+    <title>Multiple Instances Launcher</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/2.0.5/fingerprint2.js"></script>
+    <script>
+        function tryGetFp() {
+            Fingerprint2.get(components => document.getElementById("fp").value = Fingerprint2.x64hash128(components.map(component => component.value).join(''), 31));
+        }
+    </script>
+    <style>
+        input {
+            font-size:1em;
+        }
+    </style>
+</head>
+<body style="font-size:1.5em">
+    <form>
+        <h3>Fingerprint</h3>
+        <input name="fingerprint" id="fp" type="text">
+        <input type="button" value="Set automatically" onclick="tryGetFp()"/> (sometimes doesn't work)
+        <h3>Proxy address (same as in this browser)</h3>
+        <input name="proxyAddress" type="text">
+        <input type="submit" id="btn" value="Launch">
+    </form>
+</body>
+</html>
