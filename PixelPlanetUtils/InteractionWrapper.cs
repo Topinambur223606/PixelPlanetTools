@@ -27,9 +27,11 @@ namespace PixelPlanetUtils
         private readonly WebProxy proxy;
         private WebSocket webSocket;
         private readonly string wsUrl;
-        private readonly Timer wsConnectionDelayTimer = new Timer(5000D);
+        private readonly Timer wsConnectionDelayTimer = new Timer(100);
+        private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29.5 * 60 * 1000);
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
+        private readonly AutoResetEvent preemptiveWebSocketReplacingResetEvent = new AutoResetEvent(false);
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private readonly bool listeningMode;
@@ -57,6 +59,7 @@ namespace PixelPlanetUtils
             this.fingerprint = fingerprint;
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
+            preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
             try
             {
                 using (HttpWebResponse response = SendJsonRequest("api/me", new { fingerprint }))
@@ -77,6 +80,33 @@ namespace PixelPlanetUtils
             webSocket.OnMessage += WebSocket_OnMessage;
             webSocket.OnClose += WebSocket_OnClose;
             Connect();
+        }
+
+        private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            preemptiveWebsocketReplacingTimer.Stop();
+            WebSocket newWebSocket = new WebSocket(wsUrl);
+            newWebSocket.Log.Output = (d, s) => { };
+            preemptiveWebSocketReplacingResetEvent.Reset();
+            newWebSocket.OnOpen += NotifyOpened;
+            preemptiveWebSocketReplacingResetEvent.WaitOne();
+            newWebSocket.OnOpen -= NotifyOpened;
+            WebSocket oldWebSocket = webSocket;
+            webSocket = newWebSocket;
+            newWebSocket.OnOpen += WebSocket_OnOpen;
+            oldWebSocket.OnOpen -= WebSocket_OnOpen;
+            newWebSocket.OnMessage += WebSocket_OnMessage;
+            oldWebSocket.OnMessage -= WebSocket_OnMessage;
+            newWebSocket.OnClose += WebSocket_OnClose;
+            oldWebSocket.OnClose -= WebSocket_OnClose;
+            newWebSocket.OnError += WebSocket_OnError;
+            oldWebSocket.OnError -= WebSocket_OnError;
+            (oldWebSocket as IDisposable).Dispose();
+        }
+
+        private void NotifyOpened(object o, EventArgs e)
+        {
+            preemptiveWebSocketReplacingResetEvent.Set();
         }
 
         public void SubscribeToUpdates(XY chunk)
@@ -315,9 +345,10 @@ namespace PixelPlanetUtils
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
+            preemptiveWebsocketReplacingTimer.Stop();
             OnConnectionLost?.Invoke(this, null);
             websocketResetEvent.Reset();
-            logger?.Invoke("Websocket connection closed, trying to reconnect in 5s", MessageGroup.Error);
+            logger?.Invoke("Websocket connection closed, trying to reconnect...", MessageGroup.Error);
             wsConnectionDelayTimer.Start();
         }
 
@@ -367,6 +398,8 @@ namespace PixelPlanetUtils
                 OnConnectionRestored?.Invoke(this, null);
             }
             initialConnection = false;
+            preemptiveWebsocketReplacingTimer.Stop();
+            preemptiveWebsocketReplacingTimer.Start();
         }
 
         public void Dispose()
@@ -379,9 +412,11 @@ namespace PixelPlanetUtils
                 webSocket.OnError -= WebSocket_OnError;
                 webSocket.OnClose -= WebSocket_OnClose;
                 (webSocket as IDisposable).Dispose();
+                preemptiveWebsocketReplacingTimer.Dispose();
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
                 websocketResetEvent.Dispose();
+                preemptiveWebSocketReplacingResetEvent.Dispose();
                 if (listeningMode) 
                 {
                     listeningResetEvent.Dispose();

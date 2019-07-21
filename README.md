@@ -27,7 +27,7 @@ bot.exe X Y imageURL [notificationMode] [defendMode] [placementOrder] [fingerpri
 ```  
 - **X, Y** - top left coordinates of image, both in range -32768..32767.
 - **imageURL** - URL or path to image file that is built. Transparent parts are ignored. Don't forget to check that image fits into map.  
-- **notificationMode** - defines bot behaviour when captcha appears: "B" - opens default browser in place of last attempt, "S" - produces beep sounds, "BS" - combined; if parameter doesn't contain this two letters, bot waits silently. Non-required, makes sound by default.
+- **notificationMode** - defines bot behaviour when captcha appears: "B" - opens default browser in place of last attempt, doesn't work in proxy mode, "S" - produces beep sounds, "BS" - combined; if parameter doesn't contain this two letters, bot waits silently. Non-required, makes sound by default.
 - **defendMode** - if enabled, bot wouldn't finish its work after first iteration and will provide the integrity of image. Pass "Y" to enable, "N" (or anything else) to disable. Non-required, disabled by default.
 - **placementOrder** - indicates how bot will place pixels: L - from left, R - from right, T - from top, B - from bottom, O - outline first and then random, RND (or anything else) - random order. Non-required, random order by default.
 - **fingerprint** - overrides saved fingerprint, is not saved and used only once. Pass "default" to load saved fingerprint instead of reading new.

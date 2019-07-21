@@ -43,6 +43,23 @@ namespace PixelPlanetUtils
            new Rgba32(130, 0, 128)
         };
 
+        public static Rgba32 ToRgba32(this PixelColor color)
+        {
+            if (color == PixelColor.None)
+            {
+                return Rgba32.Transparent;
+            }
+            if (color == PixelColor.UnsetOcean)
+            {
+                color = PixelColor.SkyBlue;
+            }
+            if (color == PixelColor.UnsetLand)
+            {
+                color = PixelColor.White;
+            }
+            return colors[(byte)color - 2];
+        }
+
         private static PixelColor ClosestAvailable(Rgba32 color)
         {
             if (color.A == 0)

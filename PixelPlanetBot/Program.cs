@@ -369,7 +369,7 @@ namespace PixelPlanetBot
                                                             }
                                                         });
                                                     }
-                                                    if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                                                    if (proxy == null && notificationMode.HasFlag(CaptchaNotificationMode.Browser))
                                                     {
                                                         Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
                                                     }
