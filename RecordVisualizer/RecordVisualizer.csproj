@@ -61,4 +61,10 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if $(ConfigurationName) == Release (
+..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /wildcards /out:..\..\..\executable\RecordVisualizer.exe RecordVisualizer.exe *.dll 
+del ..\..\..\executable\*.config
+)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

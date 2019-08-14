@@ -6,6 +6,11 @@
         function tryGetFp() {
             Fingerprint2.get(components => document.getElementById("fp").value = Fingerprint2.x64hash128(components.map(component => component.value).join(''), 31));
         }
+
+        function replaceSpaces() {
+            const pra = document.getElementById("pra");
+            pra.value = pra.value.replace(new RegExp("^((?:\\d{1,3}\\.){3}\\d{1,3})\\s+(\\d{1,5})$"), "$1:$2");
+        }
     </script>
     <style>
         input {
@@ -19,7 +24,7 @@
         <input name="fingerprint" id="fp" type="text">
         <input type="button" value="Set automatically" onclick="tryGetFp()"/> (sometimes doesn't work)
         <h3>Proxy address (same as in this browser)</h3>
-        <input name="proxyAddress" type="text">
+        <input name="proxyAddress" id="pra" type="text" onfocusout="replaceSpaces()">
         <input type="submit" id="btn" value="Launch">
     </form>
 </body>

@@ -239,18 +239,20 @@ namespace PixelPlanetBot
                         break;
                     case PlacingOrderMode.Outline:
                         Random rnd = new Random();
-                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy =>
+                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(xy =>
                         {
                             const double emptyScore = 5.0;
                             const int radius = 3;
                             double score = rnd.NextDouble() * 5.0;
                             (short x, short y, PixelColor c) = xy;
-                            for (int i = -radius; i <= radius; i++) 
+                            for (int i = -radius; i <= radius; i++)
                             {
-                                for (int j = -radius; j <= radius; j++) 
+                                for (int j = -radius; j <= radius; j++)
                                 {
+                                    var ox = x + i;
+                                    var oy = y + j;
                                     double dist = Math.Sqrt(i * i + j * j);
-                                    try
+                                    if (ox >= 0 && oy >= 0 && ox < width && oy < height)
                                     {
                                         PixelColor c2 = imagePixels[x + i, y + j];
                                         if (c2 == PixelColor.None)
@@ -262,7 +264,7 @@ namespace PixelPlanetBot
                                             score += 1.0 / dist;
                                         }
                                     }
-                                    catch
+                                    else
                                     {
                                         score += emptyScore / dist;
                                     }

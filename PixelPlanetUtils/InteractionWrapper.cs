@@ -136,7 +136,17 @@ namespace PixelPlanetUtils
         {
             if (chunks.Skip(1).Any())
             {
-                SubscribeToUpdatesMany(chunks);
+                if (TrackedChunks.Count == 0)
+                {
+                    SubscribeToUpdatesMany(chunks);
+                }
+                else
+                {
+                    foreach (var chunk in chunks)
+                    {
+                        SubscribeToUpdates(chunk);
+                    }
+                }
             }
             else
             {
