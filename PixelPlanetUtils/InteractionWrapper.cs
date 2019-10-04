@@ -21,17 +21,15 @@ namespace PixelPlanetUtils
         private const byte pixelUpdatedOpcode = 0xC1;
 
         public const string BaseHttpAdress = "https://pixelplanet.fun";
-        private const string webSocketUrlTemplate = "wss://pixelplanet.fun/ws?fingerprint={0}";
+        private const string webSocketUrl = "wss://pixelplanet.fun/ws";
 
         private readonly string fingerprint;
         private readonly WebProxy proxy;
         private WebSocket webSocket;
-        private readonly string wsUrl;
         private readonly Timer wsConnectionDelayTimer = new Timer(100);
         private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29.5 * 60 * 1000);
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
-        private readonly AutoResetEvent preemptiveWebSocketReplacingResetEvent = new AutoResetEvent(false);
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
         private readonly bool listeningMode;
@@ -57,11 +55,10 @@ namespace PixelPlanetUtils
             }
             this.proxy = proxy;
             this.fingerprint = fingerprint;
-            wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
 
-            webSocket = new WebSocket(wsUrl);
+            webSocket = new WebSocket(webSocketUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
@@ -72,13 +69,10 @@ namespace PixelPlanetUtils
         private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             preemptiveWebsocketReplacingTimer.Stop();
-            WebSocket newWebSocket = new WebSocket(wsUrl);
+            WebSocket newWebSocket = new WebSocket(webSocketUrl);
             newWebSocket.Log.Output = (d, s) => { };
-            preemptiveWebSocketReplacingResetEvent.Reset();
-            newWebSocket.OnOpen += NotifyOpened;
             newWebSocket.Connect();
-            preemptiveWebSocketReplacingResetEvent.WaitOne();
-            newWebSocket.OnOpen -= NotifyOpened;
+            preemptiveWebsocketReplacingTimer.Start();
             WebSocket oldWebSocket = webSocket;
             webSocket = newWebSocket;
             SubscribeToUpdates(TrackedChunks);
@@ -91,11 +85,6 @@ namespace PixelPlanetUtils
             newWebSocket.OnError += WebSocket_OnError;
             oldWebSocket.OnError -= WebSocket_OnError;
             (oldWebSocket as IDisposable).Dispose();
-        }
-
-        private void NotifyOpened(object o, EventArgs e)
-        {
-            preemptiveWebSocketReplacingResetEvent.Set();
         }
 
         public void SubscribeToUpdates(XY chunk)
@@ -415,7 +404,6 @@ namespace PixelPlanetUtils
                 wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
                 websocketResetEvent.Dispose();
-                preemptiveWebSocketReplacingResetEvent.Dispose();
                 if (listeningMode) 
                 {
                     listeningResetEvent.Dispose();
