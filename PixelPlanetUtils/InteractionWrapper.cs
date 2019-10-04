@@ -60,20 +60,7 @@ namespace PixelPlanetUtils
             wsUrl = string.Format(webSocketUrlTemplate, fingerprint);
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
-            try
-            {
-                using (HttpWebResponse response = SendJsonRequest("api/me", new { fingerprint }))
-                {
-                    if (response.StatusCode != HttpStatusCode.OK)
-                    {
-                        throw new Exception(response.StatusDescription);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                throw new Exception($"Cannot connect to API. {e.Message}");
-            }
+
             webSocket = new WebSocket(wsUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;

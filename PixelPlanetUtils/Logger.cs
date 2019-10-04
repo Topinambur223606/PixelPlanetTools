@@ -105,7 +105,7 @@ namespace PixelPlanetUtils
                 case MessageGroup.ImageDone:
                     return ConsoleColor.Magenta;
                 case MessageGroup.TechInfo:
-                    return ConsoleColor.Blue;
+                    return ConsoleColor.Cyan;
                 case MessageGroup.TechState:
                     return ConsoleColor.Yellow;
                 case MessageGroup.PixelInfo:
