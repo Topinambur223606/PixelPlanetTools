@@ -9,7 +9,7 @@ Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelp
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) to get image for building.
 - If you place image in the internet, [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
-- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. First, give your default browser fingerprint to the bot. Then, when bot will ask to pass captcha again, you should just open site, place pixel anywhere and then press any key in bot shell window.  
+- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.  
   
 There is two ways to get fingerprint.  
 - First is simple, but not reliable - that fingerprint is often diffent from real one, worked for me only in Chrome. Open [fingerprint.html](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/fingerprint.html) and it will appear; adblock plugins may block fingerprint script - if they did, disable them all and refresh with Shift+F5.  

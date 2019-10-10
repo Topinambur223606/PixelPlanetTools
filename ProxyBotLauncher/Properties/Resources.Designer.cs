@@ -60,24 +60,6 @@ namespace ProxyBotLauncher.Properties {
             }
         }
         
-        /// <summary>
-        ///   Ищет локализованную строку, похожую на &lt;html&gt;
-        ///&lt;head&gt;
-        ///    &lt;title&gt;Proxy bot launcher&lt;/title&gt;
-        ///    &lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/2.0.5/fingerprint2.js&quot;&gt;&lt;/script&gt;
-        ///    &lt;script&gt;
-        ///        function tryGetFp() {
-        ///            Fingerprint2.get(components =&gt; document.getElementById(&quot;fp&quot;).value = Fingerprint2.x64hash128(components.map(component =&gt; component.value).join(&apos;&apos;), 31));
-        ///        }
-        ///    &lt;/script&gt;
-        ///    &lt;style&gt;
-        ///        input {
-        ///            font-size:1em;
-        ///        }
-        ///    &lt;/style&gt;
-        ///&lt;/head&gt;
-        ///&lt;body style=&quot;font-size [остаток строки не уместился]&quot;;.
-        /// </summary>
         internal static string Launch {
             get {
                 return ResourceManager.GetString("Launch", resourceCulture);

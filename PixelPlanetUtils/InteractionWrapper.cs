@@ -23,7 +23,6 @@ namespace PixelPlanetUtils
         public const string BaseHttpAdress = "https://pixelplanet.fun";
         private const string webSocketUrl = "wss://pixelplanet.fun/ws";
 
-        private readonly string fingerprint;
         private readonly WebProxy proxy;
         private WebSocket webSocket;
         private readonly Timer wsConnectionDelayTimer = new Timer(100);
@@ -42,11 +41,11 @@ namespace PixelPlanetUtils
 
         private readonly Action<string, MessageGroup> logger;
 
-        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, WebProxy proxy) : this (fingerprint, logger, proxy, false)
+        public InteractionWrapper(Action<string, MessageGroup> logger, WebProxy proxy) : this (logger, proxy, false)
         { }
-        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, bool listeningMode) : this(fingerprint, logger, null, listeningMode)
+        public InteractionWrapper(Action<string, MessageGroup> logger, bool listeningMode) : this(logger, null, listeningMode)
         { }
-        public InteractionWrapper(string fingerprint, Action<string, MessageGroup> logger, WebProxy proxy, bool listeningMode)
+        public InteractionWrapper(Action<string, MessageGroup> logger, WebProxy proxy, bool listeningMode)
         {
             this.logger = logger;
             if (this.listeningMode = listeningMode)
@@ -54,7 +53,6 @@ namespace PixelPlanetUtils
                 listeningResetEvent = new ManualResetEvent(false);
             }
             this.proxy = proxy;
-            this.fingerprint = fingerprint;
             wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
 
@@ -192,7 +190,6 @@ namespace PixelPlanetUtils
             {
                 a = x + y + 8,
                 color = (byte)color,
-                fingerprint,
                 token = "null",
                 x,
                 y

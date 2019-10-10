@@ -11,7 +11,6 @@ namespace PixelPlanetWatcher
 
     class Program
     {
-
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static ChunkCache cache;
         private static short x1, y1, x2, y2;
@@ -63,7 +62,6 @@ namespace PixelPlanetWatcher
                     return;
                 }
                 logger = new Logger(finishCTS.Token, logFilePath);
-                string fingerprint = Guid.NewGuid().ToString("N");
                 cache = new ChunkCache(x1, y1, x2, y2, logger.LogLine);
                 bool initialMapStateSaved = false;
                 saveThread.Start();
@@ -72,7 +70,7 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine, true))
+                        using (InteractionWrapper wrapper = new InteractionWrapper(logger.LogLine, true))
                         {
                             cache.Wrapper = wrapper;
                             if (!initialMapStateSaved)

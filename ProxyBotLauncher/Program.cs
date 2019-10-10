@@ -25,7 +25,7 @@ namespace ProxyBotLauncher
             }
             catch
             {
-                Console.WriteLine("Parameters: <path to bot> <args string with fields {0} for fingerprint and {1} for proxy address>");
+                Console.WriteLine("Parameters: <path to bot> <args string with field {0} for proxy address>");
                 Environment.Exit(0);
             }
             HttpListener listener = new HttpListener();
@@ -43,7 +43,7 @@ namespace ProxyBotLauncher
                     {
                         try
                         {
-                            Process.Start(args[0], string.Format(args[1], request.QueryString["fingerprint"], request.QueryString["proxyAddress"]));
+                            Process.Start(args[0], string.Format(args[1], request.QueryString["proxyAddress"]));
                             Console.WriteLine($"Launched instance for proxy {request.QueryString["proxyAddress"]}");
                         }
                         finally
@@ -67,14 +67,5 @@ namespace ProxyBotLauncher
                 }
             }
         }
-
-        class LaunchDetails
-        {
-            public string Fingerprint { get; set; }
-
-            public string ProxyAddress { get; set; }
-        }
-
-
     }
 }

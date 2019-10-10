@@ -30,7 +30,6 @@ namespace PixelPlanetBot
         private static PixelColor[,] imagePixels;
         private static IEnumerable<Pixel> pixelsToBuild;
         private static short leftX, topY;
-        private static string fingerprint;
         private static WebProxy proxy;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
@@ -45,21 +44,12 @@ namespace PixelPlanetBot
 
         private static void Main(string[] args)
         {
+            if (File.Exists(PathTo.Fingerprint))
+            {
+                File.Delete(PathTo.Fingerprint);
+            }
             try
             {
-                if (args.Length == 1)
-                {
-                    try
-                    {
-                        SaveFingerprint(Guid.Parse(args[0]));
-                        Console.WriteLine("Fingerprint is saved, now you can relauch bot with needed parameters");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("You should pass correct 128-bit fingerprint (GUID) from your browser");
-                    }
-                    return;
-                }
                 UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetBot));
                 Console.WriteLine($"Checking for updates...");
                 if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
@@ -99,6 +89,10 @@ namespace PixelPlanetBot
                 {
                     try
                     {
+                        if (args.Length < 3)
+                        {
+                            throw new Exception();
+                        }
                         leftX = short.Parse(args[0]);
                         topY = short.Parse(args[1]);
                         string logFilePath = null;
@@ -142,16 +136,9 @@ namespace PixelPlanetBot
                         }
                         if (args.Length > 6)
                         {
-                            if (!args[6].Equals("default", StringComparison.CurrentCultureIgnoreCase))
+                            if (!args[6].Equals("none", StringComparison.CurrentCultureIgnoreCase))
                             {
-                                fingerprint = Guid.Parse(args[6]).ToString("N");
-                            }
-                        }
-                        if (args.Length > 7)
-                        {
-                            if (!args[7].Equals("none", StringComparison.CurrentCultureIgnoreCase))
-                            {
-                                string[] parts = args[7].Split(':');
+                                string[] parts = args[6].Split(':');
                                 if (parts.Length != 2)
                                 {
                                     throw new Exception();
@@ -160,22 +147,18 @@ namespace PixelPlanetBot
                                 proxy = new WebProxy(parts[0], ushort.Parse(parts[1]));
                             }
                         }
-                        if (args.Length > 8)
+                        if (args.Length > 7)
                         {
-                            if (!args[8].Equals("none", StringComparison.CurrentCultureIgnoreCase))
+                            if (!args[7].Equals("none", StringComparison.CurrentCultureIgnoreCase))
                             {
                                 try
                                 {
-                                    File.OpenWrite(args[8]).Dispose();
-                                    logFilePath = args[8];
+                                    File.OpenWrite(args[7]).Dispose();
+                                    logFilePath = args[7];
                                 }
                                 catch
                                 { }
                             }
-                        }
-                        if (fingerprint == null)
-                        {
-                            fingerprint = GetFingerprint();
                         }
                         logger = new Logger(finishCTS.Token, logFilePath);
                         imagePixels = ImageProcessing.PixelColorsByUri(args[2], logger.LogLine);
@@ -201,13 +184,9 @@ namespace PixelPlanetBot
                         logger.LogLine("Cannot convert image", MessageGroup.Error);
                         throw new Exception(string.Empty);
                     }
-                    catch (IOException)
-                    {
-                        throw new Exception("Fingerprint is not saved, pass it from browser as only parameter to app to save before usage");
-                    }
                     catch
                     {
-                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [fingerprint = default] [proxyAddress = none] [logFileName = none]");
+                        throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [proxyAddress = none] [logFileName = none]");
                     }
                 }
                 catch (Exception ex)
@@ -303,7 +282,7 @@ namespace PixelPlanetBot
                 {
                     try
                     {
-                        using (InteractionWrapper wrapper = new InteractionWrapper(fingerprint, logger.LogLine, proxy))
+                        using (InteractionWrapper wrapper = new InteractionWrapper(logger.LogLine, proxy))
                         {
                             wrapper.OnConnectionLost += (o, e) => mapDownloadedResetEvent.Reset();
                             cache.Wrapper = wrapper;
@@ -591,18 +570,6 @@ namespace PixelPlanetBot
                 }
                 taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
             } while (true);
-        }
-
-        private static string GetFingerprint()
-        {
-            byte[] bytes = File.ReadAllBytes(PathTo.Fingerprint);
-            return new Guid(bytes).ToString("N");
-        }
-
-        private static void SaveFingerprint(Guid guid)
-        {
-            Directory.CreateDirectory(PathTo.AppFolder);
-            File.WriteAllBytes(PathTo.Fingerprint, guid.ToByteArray());
         }
     }
 }

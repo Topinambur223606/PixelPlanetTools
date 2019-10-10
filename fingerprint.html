@@ -1,9 +1,0 @@
-<html>
-    <body>
-        <h1 id="fingerprint"></h1>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/2.0.5/fingerprint2.js"></script>
-        <script>
-            Fingerprint2.get(components => document.getElementById("fingerprint").innerText = Fingerprint2.x64hash128(components.map(component => component.value).join(''), 31))
-        </script>
-    </body>
-</html>
