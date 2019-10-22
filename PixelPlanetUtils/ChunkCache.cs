@@ -10,12 +10,13 @@ namespace PixelPlanetUtils
 
     public class ChunkCache
     {
+        private static readonly TimeSpan maxOffline = TimeSpan.FromMinutes(1);
         private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
         private InteractionWrapper wrapper;
         private readonly bool interactiveMode;
         private readonly List<XY> chunks;
 
-        public event EventHandler OnMapDownloaded;
+        public event EventHandler OnMapUpdated;
         private readonly Action<string, MessageGroup> logger;
 
         public InteractionWrapper Wrapper
@@ -72,12 +73,19 @@ namespace PixelPlanetUtils
                 }
             } while (fails == 5);
             logger?.Invoke("Chunk data is downloaded", MessageGroup.TechInfo);
-            OnMapDownloaded?.Invoke(this, null);
+            OnMapUpdated?.Invoke(this, null);
         }
 
-        private void Wrapper_OnConnectionRestored(object sender, EventArgs e)
+        private void Wrapper_OnConnectionRestored(object sender, ConnectionRestoredEventArgs e)
         {
-            DownloadChunks();
+            if (e.OfflinePeriod > maxOffline)
+            {
+                DownloadChunks();
+            }
+            else
+            {
+                OnMapUpdated(this, null);
+            }
         }
 
         public ChunkCache(IEnumerable<Pixel> pixels, Action<string, MessageGroup> logger)

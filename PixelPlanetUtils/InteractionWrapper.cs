@@ -7,9 +7,11 @@ using System.Net;
 using System.Timers;
 using WebSocketSharp;
 using Newtonsoft.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
 using XY = System.ValueTuple<byte, byte>;
 using Timer = System.Timers.Timer;
-using System.Threading;
 
 namespace PixelPlanetUtils
 {
@@ -25,7 +27,6 @@ namespace PixelPlanetUtils
 
         private readonly WebProxy proxy;
         private WebSocket webSocket;
-        private readonly Timer wsConnectionDelayTimer = new Timer(100);
         private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29.5 * 60 * 1000);
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
@@ -33,15 +34,18 @@ namespace PixelPlanetUtils
 
         private readonly bool listeningMode;
         private bool multipleServerFails = false;
+        private DateTime disconnectionTime;
+        private bool isConnectingNow = false;
         private volatile bool disposed = false;
         private bool initialConnection = true;
+        private Task reconnectingDelayTask = Task.CompletedTask;
         public event EventHandler<PixelChangedEventArgs> OnPixelChanged;
-        public event EventHandler OnConnectionRestored;
+        public event EventHandler<ConnectionRestoredEventArgs> OnConnectionRestored;
         public event EventHandler OnConnectionLost;
 
         private readonly Action<string, MessageGroup> logger;
 
-        public InteractionWrapper(Action<string, MessageGroup> logger, WebProxy proxy) : this (logger, proxy, false)
+        public InteractionWrapper(Action<string, MessageGroup> logger, WebProxy proxy) : this(logger, proxy, false)
         { }
         public InteractionWrapper(Action<string, MessageGroup> logger, bool listeningMode) : this(logger, null, listeningMode)
         { }
@@ -53,15 +57,63 @@ namespace PixelPlanetUtils
                 listeningResetEvent = new ManualResetEvent(false);
             }
             this.proxy = proxy;
-            wsConnectionDelayTimer.Elapsed += ConnectionDelayTimer_Elapsed;
             preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
+
+            while (true)
+            {
+                try
+                {
+                    logger?.Invoke("Connecting to API...", MessageGroup.TechState);
+                    using (HttpWebResponse response = SendRequest("api/me"))
+                    {
+                        if (response.StatusCode == HttpStatusCode.OK)
+                        {
+                            using (StreamReader sr = new StreamReader(response.GetResponseStream()))
+                            {
+                                string responseString = sr.ReadToEnd();
+                                JObject json = JObject.Parse(responseString);
+                                if (json["waitSeconds"].ToString() != string.Empty)
+                                {
+                                    logger?.Invoke("This IP is already in use", MessageGroup.TechState);
+                                }
+                            }
+                            break;
+                        }
+                        else
+                        {
+                            throw new Exception($"Error: {response.StatusDescription}");
+                        }
+                    }
+                }
+                catch (WebException ex)
+                {
+                    using (HttpWebResponse response = ex.Response as HttpWebResponse)
+                    {
+                        if (response == null)
+                        {
+                            logger?.Invoke("Cannot connect: internet connection is slow or not available", MessageGroup.Error);
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                        switch (response.StatusCode)
+                        {
+                            case HttpStatusCode.Forbidden:
+                                throw new PausingException("this IP is blocked by CloudFlare from accessing PixelPlanet");
+                            case HttpStatusCode.BadGateway:
+                                throw new Exception("cannot connect, site is overloaded");
+                            default:
+                                throw new Exception(response.StatusDescription);
+                        }
+                    }
+                }
+            }
 
             webSocket = new WebSocket(webSocketUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
             webSocket.OnClose += WebSocket_OnClose;
-            Connect();
+            ConnectWebSocket();
         }
 
         private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
@@ -116,7 +168,7 @@ namespace PixelPlanetUtils
                 }
                 else
                 {
-                    foreach (var chunk in chunks)
+                    foreach (XY chunk in chunks)
                     {
                         SubscribeToUpdates(chunk);
                     }
@@ -196,7 +248,7 @@ namespace PixelPlanetUtils
             };
             try
             {
-                using (HttpWebResponse response = SendJsonRequest("api/pixel", data))
+                using (HttpWebResponse response = SendRequest("api/pixel", data))
                 {
                     switch (response.StatusCode)
                     {
@@ -242,7 +294,9 @@ namespace PixelPlanetUtils
                 {
                     if (response == null)
                     {
-                        throw;
+                        error = "internet connection is slow or not available";
+                        totalCoolDown = coolDown = 1;
+                        return false;
                     }
                     switch (response.StatusCode)
                     {
@@ -251,11 +305,11 @@ namespace PixelPlanetUtils
                         case HttpStatusCode.BadGateway:
                             totalCoolDown = coolDown = multipleServerFails ? 30 : 10;
                             multipleServerFails = true;
-                            error = $"Site is overloaded, delay {coolDown}s before next attempt";
+                            error = $"site is overloaded, delay {coolDown}s before next attempt";
                             return false;
                         case (HttpStatusCode)422:
                             error = null;
-                            totalCoolDown = coolDown = 0;
+                            totalCoolDown = coolDown = -1.0;
                             return false;
                         default:
                             throw new Exception(response.StatusDescription);
@@ -287,54 +341,75 @@ namespace PixelPlanetUtils
             }
         }
 
-        private HttpWebResponse SendJsonRequest(string relativeUrl, object data)
+        private HttpWebResponse SendRequest(string relativeUrl, object data = null, int timeout = 5000)
         {
             HttpWebRequest request = WebRequest.CreateHttp($"{BaseHttpAdress}/{relativeUrl}");
-            request.Method = "POST";
+            request.Timeout = timeout;
             request.Proxy = proxy;
-            using (Stream requestStream = request.GetRequestStream())
-            {
-                using (StreamWriter streamWriter = new StreamWriter(requestStream))
-                {
-                    string jsonText = JsonConvert.SerializeObject(data);
-                    streamWriter.Write(jsonText);
-                }
-            }
-            request.ContentType = "application/json";
             request.Headers["Origin"] = request.Referer = BaseHttpAdress;
             request.UserAgent = "Mozilla / 5.0(X11; Linux x86_64; rv: 57.0) Gecko / 20100101 Firefox / 57.0";
-            return request.GetResponse() as HttpWebResponse;
+            if (data != null)
+            {
+                request.Method = "POST";
+                request.ContentType = "application/json";
+                using (Stream requestStream = request.GetRequestStream())
+                {
+                    using (StreamWriter streamWriter = new StreamWriter(requestStream))
+                    {
+                        string jsonText = JsonConvert.SerializeObject(data);
+                        streamWriter.Write(jsonText);
+                    }
+                }
+            }
+            try
+            {
+                Task<WebResponse> responseTask = request.GetResponseAsync();
+                Task.WhenAny(responseTask, Task.Delay(timeout)).Wait();
+                if (responseTask.IsCompleted)
+                {
+                    return responseTask.Result as HttpWebResponse;
+                }
+                else
+                {
+                    responseTask.ContinueWith(t =>
+                    {
+                        if (t.Status == TaskStatus.RanToCompletion)
+                        {
+                            t.Result.Close();
+                        }
+                    });
+                    throw new WebException();
+                }
+            }
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
+            }
         }
 
-        private void Connect()
+        private void ConnectWebSocket()
         {
             if (!webSocket.IsAlive)
             {
                 logger?.Invoke("Connecting via websocket...", MessageGroup.TechState);
+                reconnectingDelayTask = Task.Delay(3000);
                 webSocket.Connect();
-            }
-        }
-
-        private void ConnectionDelayTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            if (webSocket.ReadyState == WebSocketState.Connecting ||
-                webSocket.ReadyState == WebSocketState.Open)
-            {
-                wsConnectionDelayTimer.Stop();
-            }
-            else
-            {
-                Connect();
             }
         }
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             preemptiveWebsocketReplacingTimer.Stop();
+            if (!isConnectingNow)
+            {
+                disconnectionTime = DateTime.Now;
+                isConnectingNow = true;
+            }
             OnConnectionLost?.Invoke(this, null);
             websocketResetEvent.Reset();
             logger?.Invoke("Websocket connection closed, trying to reconnect...", MessageGroup.Error);
-            wsConnectionDelayTimer.Start();
+            reconnectingDelayTask.Wait();
+            ConnectWebSocket();
         }
 
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
@@ -380,7 +455,8 @@ namespace PixelPlanetUtils
             logger?.Invoke("Listening for changes via websocket", MessageGroup.TechInfo);
             if (!initialConnection)
             {
-                OnConnectionRestored?.Invoke(this, null);
+                isConnectingNow = false;
+                OnConnectionRestored?.Invoke(this, new ConnectionRestoredEventArgs(disconnectionTime));
             }
             initialConnection = false;
             preemptiveWebsocketReplacingTimer.Stop();
@@ -398,10 +474,9 @@ namespace PixelPlanetUtils
                 webSocket.OnClose -= WebSocket_OnClose;
                 (webSocket as IDisposable).Dispose();
                 preemptiveWebsocketReplacingTimer.Dispose();
-                wsConnectionDelayTimer.Dispose();
                 OnPixelChanged = null;
                 websocketResetEvent.Dispose();
-                if (listeningMode) 
+                if (listeningMode)
                 {
                     listeningResetEvent.Dispose();
                 }

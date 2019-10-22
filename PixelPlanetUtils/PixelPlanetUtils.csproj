@@ -57,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChunkCache.cs" />
+    <Compile Include="ConnectionRestoredEventArgs.cs" />
     <Compile Include="ImageProcessing.cs" />
     <Compile Include="InteractionWrapper.cs" />
     <Compile Include="Logger.cs" />

@@ -23,7 +23,7 @@ namespace PixelPlanetBot
         private static bool repeatingFails = false;
 
         private static AutoResetEvent gotGriefed;
-        private static ManualResetEvent mapDownloadedResetEvent;
+        private static ManualResetEvent mapUpdatedResetEvent;
 
         private static object waitingGriefLock;
 
@@ -228,8 +228,8 @@ namespace PixelPlanetBot
                             {
                                 for (int j = -radius; j <= radius; j++)
                                 {
-                                    var ox = x + i;
-                                    var oy = y + j;
+                                    int ox = x + i;
+                                    int oy = y + j;
                                     double dist = Math.Sqrt(i * i + j * j);
                                     if (ox >= 0 && oy >= 0 && ox < width && oy < height)
                                     {
@@ -268,12 +268,12 @@ namespace PixelPlanetBot
                 pixelsToBuild = relativePixelsToBuild.Select(p => ((short)(p.Item1 + leftX), (short)(p.Item2 + topY), p.Item3)).ToList();
                 logger.LogLine("Pixel placing order is calculated", MessageGroup.TechInfo);
                 cache = new ChunkCache(pixelsToBuild, logger.LogLine);
-                mapDownloadedResetEvent = new ManualResetEvent(false);
-                cache.OnMapDownloaded += (o, e) => mapDownloadedResetEvent.Set();
+                mapUpdatedResetEvent = new ManualResetEvent(false);
+                cache.OnMapUpdated += (o, e) => mapUpdatedResetEvent.Set();
                 if (defendMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
-                    cache.OnMapDownloaded += (o, e) => gotGriefed.Set();
+                    cache.OnMapUpdated += (o, e) => gotGriefed.Set();
                     waitingGriefLock = new object();
                 }
                 statsThread = new Thread(StatsCollectionThreadBody);
@@ -284,7 +284,7 @@ namespace PixelPlanetBot
                     {
                         using (InteractionWrapper wrapper = new InteractionWrapper(logger.LogLine, proxy))
                         {
-                            wrapper.OnConnectionLost += (o, e) => mapDownloadedResetEvent.Reset();
+                            wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
                             cache.Wrapper = wrapper;
                             cache.DownloadChunks();
                             wrapper.OnPixelChanged += LogPixelChanged;
@@ -296,7 +296,7 @@ namespace PixelPlanetBot
                                 repeatingFails = false;
                                 foreach (Pixel pixel in pixelsToBuild)
                                 {
-                                    mapDownloadedResetEvent.WaitOne();
+                                    mapUpdatedResetEvent.WaitOne();
                                     (short x, short y, PixelColor color) = pixel;
                                     PixelColor actualColor = cache.GetPixelColor(x, y);
                                     if (!IsCorrectPixelColor(actualColor, color))
@@ -306,7 +306,6 @@ namespace PixelPlanetBot
                                         placed.Add(pixel);
                                         do
                                         {
-                                            byte placingPixelFails = 0;
                                             success = wrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
                                             if (success)
                                             {
@@ -316,7 +315,7 @@ namespace PixelPlanetBot
                                             }
                                             else
                                             {
-                                                if (cd == 0.0)
+                                                if (cd == -1.0)
                                                 {
                                                     logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     CancellationTokenSource captchaCts = null;
@@ -363,15 +362,9 @@ namespace PixelPlanetBot
                                                 else
                                                 {
                                                     logger.LogLine($"Failed to place pixel: {error}", MessageGroup.PixelFail);
-                                                    if (++placingPixelFails == 3)
-                                                    {
-                                                        throw new Exception("Cannot place pixel 3 times");
-                                                    }
-
                                                 }
                                                 Thread.Sleep(TimeSpan.FromSeconds(cd));
                                             }
-
                                         } while (!success);
                                     }
                                 }
@@ -424,7 +417,7 @@ namespace PixelPlanetBot
                 finishCTS.Cancel();
                 Thread.Sleep(1000);
                 gotGriefed?.Dispose();
-                mapDownloadedResetEvent?.Dispose();
+                mapUpdatedResetEvent?.Dispose();
                 logger?.Dispose();
                 finishCTS.Dispose();
                 Environment.Exit(0);
@@ -482,7 +475,7 @@ namespace PixelPlanetBot
 
         private static void StatsCollectionThreadBody()
         {
-            mapDownloadedResetEvent.WaitOne();
+            mapUpdatedResetEvent.WaitOne();
             Task taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
             int done = pixelsToBuild.
                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).

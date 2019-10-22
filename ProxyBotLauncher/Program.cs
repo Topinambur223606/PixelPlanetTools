@@ -15,7 +15,7 @@ namespace ProxyBotLauncher
         {
             try
             {
-                var fi = new FileInfo(args[0]);
+                FileInfo fi = new FileInfo(args[0]);
                 if (!fi.Exists)
                 {
                     throw new Exception();
@@ -55,7 +55,7 @@ namespace ProxyBotLauncher
                     else
                     {
                         HttpListenerResponse response = context.Response;
-                        using (var s = response.OutputStream)
+                        using (Stream s = response.OutputStream)
                         {
                             s.Write(pageBytes, 0, pageBytes.Length);
                         }
