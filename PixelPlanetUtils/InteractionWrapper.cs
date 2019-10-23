@@ -308,8 +308,8 @@ namespace PixelPlanetUtils
                             error = $"site is overloaded, delay {coolDown}s before next attempt";
                             return false;
                         case (HttpStatusCode)422:
-                            error = null;
-                            totalCoolDown = coolDown = -1.0;
+                            error = "captcha";
+                            totalCoolDown = coolDown = 0.0;
                             return false;
                         default:
                             throw new Exception(response.StatusDescription);

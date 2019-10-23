@@ -315,7 +315,7 @@ namespace PixelPlanetBot
                                             }
                                             else
                                             {
-                                                if (cd == -1.0)
+                                                if (error == "captcha")
                                                 {
                                                     logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
                                                     CancellationTokenSource captchaCts = null;
