@@ -125,7 +125,14 @@ namespace PixelPlanetUtils
             preemptiveWebsocketReplacingTimer.Start();
             WebSocket oldWebSocket = webSocket;
             webSocket = newWebSocket;
-            SubscribeToUpdates(TrackedChunks);
+            if (TrackedChunks.Count == 1)
+            {
+                SubscribeToUpdates(TrackedChunks.First());
+            }
+            else
+            {
+                SubscribeToUpdatesMany(TrackedChunks);
+            }
             newWebSocket.OnOpen += WebSocket_OnOpen;
             oldWebSocket.OnOpen -= WebSocket_OnOpen;
             newWebSocket.OnMessage += WebSocket_OnMessage;
@@ -242,7 +249,6 @@ namespace PixelPlanetUtils
             {
                 a = x + y + 8,
                 color = (byte)color,
-                token = "null",
                 x,
                 y
             };
@@ -347,7 +353,7 @@ namespace PixelPlanetUtils
             request.Timeout = timeout;
             request.Proxy = proxy;
             request.Headers["Origin"] = request.Referer = BaseHttpAdress;
-            request.UserAgent = "Mozilla / 5.0(X11; Linux x86_64; rv: 57.0) Gecko / 20100101 Firefox / 57.0";
+            request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:69.0) Gecko/20100101 Firefox/69.0";
             if (data != null)
             {
                 request.Method = "POST";
