@@ -107,5 +107,28 @@ namespace PixelPlanetUtils
                 }
             }
         }
+
+        public const double NoneColorDistance = byte.MaxValue * 2D;
+
+        public static double RgbCubeDistance(PixelColor c1, PixelColor c2)
+        {
+            if (c1 == PixelColor.None || c2 == PixelColor.None)
+            {
+                if (c1 == c2)
+                {
+                    return 0;
+                }
+                else
+                {
+                    return NoneColorDistance;
+                }
+            }
+            Rgba32 rgb1 = c1.ToRgba32();
+            Rgba32 rgb2 = c2.ToRgba32();
+            int dR = rgb1.R - rgb2.R;
+            int dG = rgb1.G - rgb2.G;
+            int dB = rgb2.B - rgb2.B;
+            return Math.Sqrt(dR * dR + dG * dG + dB * dB);
+        }
     }
 }

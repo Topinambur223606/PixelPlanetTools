@@ -220,10 +220,9 @@ namespace PixelPlanetBot
                         Random rnd = new Random();
                         relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(xy =>
                         {
-                            const double emptyScore = 5.0;
                             const int radius = 3;
-                            double score = rnd.NextDouble() * 5.0;
-                            (short x, short y, PixelColor c) = xy;
+                            double score = rnd.NextDouble() * 125D;
+                            (short x, short y, PixelColor c) = p;
                             for (int i = -radius; i <= radius; i++)
                             {
                                 for (int j = -radius; j <= radius; j++)
@@ -236,16 +235,17 @@ namespace PixelPlanetBot
                                         PixelColor c2 = imagePixels[x + i, y + j];
                                         if (c2 == PixelColor.None)
                                         {
-                                            score += emptyScore / dist;
+                                            score += ImageProcessing.NoneColorDistance / dist;
                                         }
                                         else if (c != c2)
                                         {
-                                            score += 1.0 / dist;
+
+                                            score += ImageProcessing.RgbCubeDistance(c, c2) / dist;
                                         }
                                     }
                                     else
                                     {
-                                        score += emptyScore / dist;
+                                        score += ImageProcessing.NoneColorDistance / dist;
                                     }
                                 }
                             }
