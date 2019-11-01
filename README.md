@@ -1,7 +1,9 @@
 # PixelPlanetBot
 Bot for [pixelplanet.fun](https://pixelplanet.fun).
 
-Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/)
+Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/).
+
+You can download executable file [here](https://github.com/Topinambur223606/PixelPlanetTools/releases/latest).
 
 ### Some important stuff
 - PixelPlanet recognizes user by IP, so launching multiple bots on same computer \/ from computers in same LAN wouldn't work.
