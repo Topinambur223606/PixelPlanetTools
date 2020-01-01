@@ -44,42 +44,43 @@ namespace PixelPlanetBot
 
         private static void Main(string[] args)
         {
-            if (File.Exists(PathTo.Fingerprint))
-            {
-                File.Delete(PathTo.Fingerprint);
-            }
             try
             {
-                UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetBot));
-                Console.WriteLine($"Checking for updates...");
-                if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                using (UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetBot)))
                 {
-                    Console.WriteLine($"Update is available: {version}");
-                    if (isCompatible)
+                    if (checker.NeedsToCheckUpdates())
                     {
-                        Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Argument list or order was changed, bot should be relaunched manually after update");
-                    }
-                    Console.WriteLine("Press Enter to update, anything else to skip");
-                    while (Console.KeyAvailable)
-                    {
-                        Console.ReadKey(true);
-                    }
-                    ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-                    if (keyInfo.Key == ConsoleKey.Enter)
-                    {
-                        checker.StartUpdate();
-                        return;
-                    }
-                }
-                else
-                {
-                    if (version == null)
-                    {
-                        Console.WriteLine("Cannot check for updates");
+                        Console.WriteLine("Checking for updates...");
+                        if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                        {
+                            Console.WriteLine($"Update is available: {version}");
+                            if (isCompatible)
+                            {
+                                Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Argument list or order was changed, bot should be relaunched manually after update");
+                            }
+                            Console.WriteLine("Press Enter to update, anything else to skip");
+                            while (Console.KeyAvailable)
+                            {
+                                Console.ReadKey(true);
+                            }
+                            ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                            if (keyInfo.Key == ConsoleKey.Enter)
+                            {
+                                checker.StartUpdate();
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            if (version == null)
+                            {
+                                Console.WriteLine("Cannot check for updates");
+                            }
+                        }
                     }
                 }
                 ushort width, height;
@@ -218,7 +219,7 @@ namespace PixelPlanetBot
                         break;
                     case PlacingOrderMode.Outline:
                         Random rnd = new Random();
-                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(xy =>
+                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(p =>
                         {
                             const int radius = 3;
                             double score = rnd.NextDouble() * 125D;

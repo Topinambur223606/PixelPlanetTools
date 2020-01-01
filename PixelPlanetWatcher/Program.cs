@@ -40,8 +40,8 @@ namespace PixelPlanetWatcher
                         }
                         try
                         {
-                            File.Open(args[5], FileMode.Append, FileAccess.Write).Dispose();
-                            logFilePath = args[5];
+                            File.Open(args[4], FileMode.Append, FileAccess.Write).Dispose();
+                            logFilePath = args[4];
                         }
                         catch
                         { }

@@ -1,7 +1,7 @@
 # PixelPlanetBot
-Bot for [pixelplanet.fun](https://pixelplanet.fun).
+Bot for [pixelplanet.fun](https://pixelplanet.fun) (only big canvas).
 
-Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/).
+Original idea was based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/).
 
 You can download executable file [here](https://github.com/Topinambur223606/PixelPlanetTools/releases/latest).
 
@@ -11,8 +11,9 @@ You can download executable file [here](https://github.com/Topinambur223606/Pixe
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) or Photoshop "to web" export to get image for building.
 - If you place image in the internet, [Imgur](https://imgur.com/upload) would be good choice to store your image.
 - To build EXE with third party DLLs included by yourself, copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
-- After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.  
-  
+- After mass attack of russian griefers with proxies in 2019, May captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.  
+- Small canvas is unavailable for bot and I am not going to implement such functionality. That canvas is created for veteran users who build with their hands a lot, so it is supposed to be a bot-free area.
+
 ### Usage:
 ```batch
 bot.exe X Y imageURL [notificationMode] [defendMode] [placementOrder] [proxyAddress] [logFileName]
@@ -39,8 +40,7 @@ File format:
     - Coordinates: X, Y - signed 16-bit integers;
     - Pixel color: unsigned byte.
 
-File is available to use after program is closed.
-Utility for generating video from binary files is planned to be implemented.
+File is available to use after program is closed. Changes are not written automatically while closing, wait 1 minute for scheduled saving.
 
 ### Usage:
 ```batch
@@ -48,3 +48,12 @@ watcher.exe X1 Y1 X2 Y2 [logFileName]
 ```  
 - **X1, Y1, X2, Y2** - top left and bottom right coordinates of rectangle to track, all in range -32768..32767.
 - **logFileName** - if specified, enables writing logs to file at given path.  
+
+# RecordVisualizer
+Program that creates images from files with updates created by **PixelPlanetWatcher**.
+
+### Usage:
+```batch
+visualizer.exe deltaFileName
+```  
+- **deltaFileName** - path to file with updates.

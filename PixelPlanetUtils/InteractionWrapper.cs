@@ -21,6 +21,8 @@ namespace PixelPlanetUtils
         private const byte unsubscribeOpcode = 0xA2;
         private const byte subscribeManyOpcode = 0xA3;
         private const byte pixelUpdatedOpcode = 0xC1;
+        private const byte cooldownOpcode = 0xC2;
+        private const byte registerCanvasOpcode = 0xA0;
 
         public const string BaseHttpAdress = "https://pixelplanet.fun";
         private const string webSocketUrl = "wss://pixelplanet.fun/ws";
@@ -32,6 +34,7 @@ namespace PixelPlanetUtils
         private readonly ManualResetEvent listeningResetEvent;
         private HashSet<XY> TrackedChunks = new HashSet<XY>();
 
+        private bool subscribedToCanvas = false;
         private readonly bool listeningMode;
         private bool multipleServerFails = false;
         private DateTime disconnectionTime;
@@ -66,23 +69,12 @@ namespace PixelPlanetUtils
                     logger?.Invoke("Connecting to API...", MessageGroup.TechState);
                     using (HttpWebResponse response = SendRequest("api/me"))
                     {
-                        if (response.StatusCode == HttpStatusCode.OK)
-                        {
-                            using (StreamReader sr = new StreamReader(response.GetResponseStream()))
-                            {
-                                string responseString = sr.ReadToEnd();
-                                JObject json = JObject.Parse(responseString);
-                                if (json["waitSeconds"].ToString() != string.Empty)
-                                {
-                                    logger?.Invoke("This IP is already in use", MessageGroup.TechState);
-                                }
-                            }
-                            break;
-                        }
-                        else
+                        if (response.StatusCode != HttpStatusCode.OK)
                         {
                             throw new Exception($"Error: {response.StatusDescription}");
                         }
+                        logger?.Invoke("API is reachable", MessageGroup.TechInfo);
+                        break;
                     }
                 }
                 catch (WebException ex)
@@ -144,7 +136,7 @@ namespace PixelPlanetUtils
             (oldWebSocket as IDisposable).Dispose();
         }
 
-        public void SubscribeToUpdates(XY chunk)
+        private void SubscribeToUpdates(XY chunk)
         {
             websocketResetEvent.WaitOne();
             if (disposed)
@@ -167,6 +159,7 @@ namespace PixelPlanetUtils
 
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
+            EnsureSubscriptionToCanvas();
             if (chunks.Skip(1).Any())
             {
                 if (TrackedChunks.Count == 0)
@@ -187,7 +180,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public void SubscribeToUpdatesMany(IEnumerable<XY> chunks)
+        private void SubscribeToUpdatesMany(IEnumerable<XY> chunks)
         {
             websocketResetEvent.WaitOne();
             if (disposed)
@@ -209,6 +202,33 @@ namespace PixelPlanetUtils
                 }
                 byte[] data = ms.ToArray();
                 webSocket.Send(data);
+            }
+        }
+
+        private void EnsureSubscriptionToCanvas()
+        {
+            if (subscribedToCanvas)
+            {
+                return;
+            }
+            else
+            {
+                websocketResetEvent.WaitOne();
+                if (disposed)
+                {
+                    return;
+                }
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    using (BinaryWriter sw = new BinaryWriter(ms))
+                    {
+                        sw.Write(registerCanvasOpcode);
+                        sw.Write(byte.MinValue);
+                    }
+                    byte[] data = ms.ToArray();
+                    webSocket.Send(data);
+                }
+                subscribedToCanvas = true;
             }
         }
 
@@ -247,10 +267,11 @@ namespace PixelPlanetUtils
             }
             var data = new
             {
-                a = x + y + 8,
-                color = (byte)color,
+                cn = byte.MinValue,
+                clr = (byte)color,
                 x,
-                y
+                y,
+                a = x + y + 8
             };
             try
             {
@@ -326,7 +347,7 @@ namespace PixelPlanetUtils
 
         public PixelColor[,] GetChunk(XY chunk)
         {
-            string url = $"{BaseHttpAdress}/chunks/{chunk.Item1}/{chunk.Item2}.bmp";
+            string url = $"{BaseHttpAdress}/chunks/0/{chunk.Item1}/{chunk.Item2}.bmp";
             using (WebClient wc = new WebClient())
             {
                 byte[] pixelData = wc.DownloadData(url);
@@ -447,6 +468,13 @@ namespace PixelPlanetUtils
                     DateTime = DateTime.Now
                 };
                 OnPixelChanged?.Invoke(this, args);
+            }
+            else if (buffer[0] == cooldownOpcode)
+            {
+                if (buffer[2] > 0)
+                {
+                    logger?.Invoke("This IP is already in use", MessageGroup.Info);
+                }
             }
         }
 

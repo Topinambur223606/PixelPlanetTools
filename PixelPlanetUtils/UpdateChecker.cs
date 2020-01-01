@@ -7,19 +7,22 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 
 namespace PixelPlanetUtils
 {
-    public class UpdateChecker
+    public class UpdateChecker : IDisposable
     {
         private const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
         private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, "Updater.exe");
+        private readonly static string lastCheckFilePath = Path.Combine(PathTo.AppFolder, "lastcheck");
         private const byte updaterVersion = 3;
 
         private readonly string appName;
         private string downloadUrl;
         private bool isCompatible;
-        
+        private FileStream lastCheckFileStream;
+
         public UpdateChecker(string appName)
         {
             this.appName = appName;
@@ -31,6 +34,34 @@ namespace PixelPlanetUtils
                 Skip(1).Select(s => s.Contains(" ") ? $"\"{s}\"" : s);
             byte[] bytes = Encoding.Default.GetBytes(string.Join(" ", modifiedArgs));
             return Convert.ToBase64String(bytes);
+        }
+
+        public bool NeedsToCheckUpdates()
+        {
+            while (lastCheckFileStream == null)
+            {
+                try
+                {
+                    lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(500);
+                }
+            }
+            if (lastCheckFileStream.Length > 0)
+            {
+                using (BinaryReader br = new BinaryReader(lastCheckFileStream, Encoding.Default, true))
+                {
+                    DateTime lastCheck = DateTime.FromBinary(br.ReadInt64());
+                    if (DateTime.Now - lastCheck < TimeSpan.FromHours(1))
+                    {
+                        lastCheckFileStream.Dispose();
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         public bool UpdateIsAvailable(out string version, out bool isCompatible)
@@ -51,6 +82,11 @@ namespace PixelPlanetUtils
                 version = release["tag_name"].ToString();
                 Version availableVersion = Version.Parse(version.TrimStart('v'));
                 isCompatible = this.isCompatible = availableVersion.Major == appVersion.Major;
+                lastCheckFileStream.Seek(0, SeekOrigin.Begin);
+                using (BinaryWriter br = new BinaryWriter(lastCheckFileStream))
+                {
+                    br.Write(DateTime.Now.ToBinary());
+                }
                 return appVersion < availableVersion;
             }
             catch
@@ -59,7 +95,11 @@ namespace PixelPlanetUtils
                 version = null;
                 return false;
             }
+
         }
+            
+        
+        
 
         public void StartUpdate()
         {
@@ -87,6 +127,11 @@ namespace PixelPlanetUtils
                 args = $"{id} {downloadUrl}";
             }
             Process.Start(updaterPath, args);
+        }
+
+        public void Dispose()
+        {
+            lastCheckFileStream?.Dispose();
         }
     }
 }
