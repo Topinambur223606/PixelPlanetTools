@@ -1,14 +1,16 @@
 # PixelPlanetBot
 Bot for [pixelplanet.fun](https://pixelplanet.fun).
 
-Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/)
+Partially based on [woyken/pixelplanet.fun-bot](https://github.com/Woyken/pixelplanet.fun-bot/).
+
+You can download executable file [here](https://github.com/Topinambur223606/PixelPlanetTools/releases/latest).
 
 ### Some important stuff
 - PixelPlanet recognizes user by IP, so launching multiple bots on same computer \/ from computers in same LAN wouldn't work.
 - Admins allow bots only if they don't bother anyone and if it's not about super huge art in the center of active map segment.
 - Dithering or something similar is not provided yet, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) or Photoshop "to web" export to get image for building.
 - If you place image in the internet, [Imgur](https://imgur.com/upload) would be good choice to store your image.
-- There is [executable file](https://raw.githubusercontent.com/Topinambur223606/PixelPlanetTools/master/executable/PixelPlanetBot.exe) available with third party DLLs included. You can make it by yourself - copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
+- To build EXE with third party DLLs included by yourself, copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to ```executable``` directory, launch "release" profile compilation and combined EXE will appear in that folder.
 - After mass attack of russian griefers with proxies captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.  
   
 ### Usage:
