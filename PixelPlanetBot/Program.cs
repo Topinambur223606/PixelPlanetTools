@@ -14,7 +14,6 @@ namespace PixelPlanetBot
 
     static partial class Program
     {
-        
         private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static bool defendMode;

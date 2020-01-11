@@ -32,9 +32,8 @@ namespace PixelPlanetUtils
         private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29.5 * 60 * 1000);
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
-        private HashSet<XY> TrackedChunks = new HashSet<XY>();
+        private readonly HashSet<XY> trackedChunks = new HashSet<XY>();
 
-        private bool subscribedToCanvas = false;
         private readonly bool listeningMode;
         private bool multipleServerFails = false;
         private DateTime disconnectionTime;
@@ -117,13 +116,14 @@ namespace PixelPlanetUtils
             preemptiveWebsocketReplacingTimer.Start();
             WebSocket oldWebSocket = webSocket;
             webSocket = newWebSocket;
-            if (TrackedChunks.Count == 1)
+            SubscribeToCanvas();
+            if (trackedChunks.Count == 1)
             {
-                SubscribeToUpdates(TrackedChunks.First());
+                SubscribeToUpdates(trackedChunks.First());
             }
             else
             {
-                SubscribeToUpdatesMany(TrackedChunks);
+                SubscribeToUpdatesMany(trackedChunks);
             }
             newWebSocket.OnOpen += WebSocket_OnOpen;
             oldWebSocket.OnOpen -= WebSocket_OnOpen;
@@ -143,7 +143,7 @@ namespace PixelPlanetUtils
             {
                 return;
             }
-            TrackedChunks.Add(chunk);
+            trackedChunks.Add(chunk);
             using (MemoryStream ms = new MemoryStream())
             {
                 using (BinaryWriter sw = new BinaryWriter(ms))
@@ -159,10 +159,9 @@ namespace PixelPlanetUtils
 
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
-            EnsureSubscriptionToCanvas();
             if (chunks.Skip(1).Any())
             {
-                if (TrackedChunks.Count == 0)
+                if (trackedChunks.Count == 0)
                 {
                     SubscribeToUpdatesMany(chunks);
                 }
@@ -187,7 +186,7 @@ namespace PixelPlanetUtils
             {
                 return;
             }
-            TrackedChunks.UnionWith(chunks);
+            trackedChunks.UnionWith(chunks);
             using (MemoryStream ms = new MemoryStream())
             {
                 using (BinaryWriter sw = new BinaryWriter(ms))
@@ -205,30 +204,22 @@ namespace PixelPlanetUtils
             }
         }
 
-        private void EnsureSubscriptionToCanvas()
+        private void SubscribeToCanvas()
         {
-            if (subscribedToCanvas)
+            websocketResetEvent.WaitOne();
+            if (disposed)
             {
                 return;
             }
-            else
+            using (MemoryStream ms = new MemoryStream())
             {
-                websocketResetEvent.WaitOne();
-                if (disposed)
+                using (BinaryWriter sw = new BinaryWriter(ms))
                 {
-                    return;
+                    sw.Write(registerCanvasOpcode);
+                    sw.Write(byte.MinValue);
                 }
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    using (BinaryWriter sw = new BinaryWriter(ms))
-                    {
-                        sw.Write(registerCanvasOpcode);
-                        sw.Write(byte.MinValue);
-                    }
-                    byte[] data = ms.ToArray();
-                    webSocket.Send(data);
-                }
-                subscribedToCanvas = true;
+                byte[] data = ms.ToArray();
+                webSocket.Send(data);
             }
         }
 
@@ -482,9 +473,10 @@ namespace PixelPlanetUtils
         {
             webSocket.OnError += WebSocket_OnError;
             websocketResetEvent.Set();
-            if (TrackedChunks.Count > 0)
+            SubscribeToCanvas();
+            if (trackedChunks.Count > 0)
             {
-                SubscribeToUpdates(TrackedChunks);
+                SubscribeToUpdates(trackedChunks);
             }
             logger?.Invoke("Listening for changes via websocket", MessageGroup.TechInfo);
             if (!initialConnection)
