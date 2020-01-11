@@ -35,9 +35,10 @@ namespace PixelPlanetUtils
             byte[] bytes = Encoding.Default.GetBytes(string.Join(" ", modifiedArgs));
             return Convert.ToBase64String(bytes);
         }
-
+        
         public bool NeedsToCheckUpdates()
         {
+            Directory.CreateDirectory(PathTo.AppFolder);
             while (lastCheckFileStream == null)
             {
                 try
@@ -72,7 +73,7 @@ namespace PixelPlanetUtils
                 using (WebClient wc = new WebClient())
                 {
                     wc.Headers[HttpRequestHeader.UserAgent] = "PixelPlanetTools";
-                    json = wc.DownloadString("https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest");
+                    json = wc.DownloadString(latestReleaseUrl);
                 }
                 JObject release = JObject.Parse(json);
                 downloadUrl = release["assets"].
@@ -97,9 +98,6 @@ namespace PixelPlanetUtils
             }
 
         }
-            
-        
-        
 
         public void StartUpdate()
         {
