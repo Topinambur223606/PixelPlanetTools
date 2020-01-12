@@ -17,6 +17,31 @@ namespace PixelPlanetUtils
 {
     public class InteractionWrapper : IDisposable
     {
+        public static bool MirrorMode
+        {
+            get => mirrorMode;
+            set
+            {
+                mirrorMode = value;
+                BaseUrl = mirrorMode ? mirrorUrl : mainUrl;
+            }
+        }
+
+        static InteractionWrapper()
+        {
+            MirrorMode = false;
+        }
+
+        private const string mainUrl = "pixelplanet.fun";
+        private const string mirrorUrl = "fuckyouarkeros.fun";
+        private static bool mirrorMode = false;
+        private static int apiConnectionFails = 0;
+
+        public static string BaseUrl { get; private set; }
+
+        private static string BaseHttpAdress => $"https://{BaseUrl}";
+        private static string WebSocketUrl => $"wss://{BaseUrl}/ws";
+
         private const byte subscribeOpcode = 0xA1;
         private const byte unsubscribeOpcode = 0xA2;
         private const byte subscribeManyOpcode = 0xA3;
@@ -24,12 +49,9 @@ namespace PixelPlanetUtils
         private const byte cooldownOpcode = 0xC2;
         private const byte registerCanvasOpcode = 0xA0;
 
-        public const string BaseHttpAdress = "https://pixelplanet.fun";
-        private const string webSocketUrl = "wss://pixelplanet.fun/ws";
-
         private readonly WebProxy proxy;
         private WebSocket webSocket;
-        private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29.5 * 60 * 1000);
+        private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29 * 60 * 1000);
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
         private readonly HashSet<XY> trackedChunks = new HashSet<XY>();
@@ -78,6 +100,11 @@ namespace PixelPlanetUtils
                 }
                 catch (WebException ex)
                 {
+                    if (++apiConnectionFails == 5)
+                    {
+                        MirrorMode = true;
+                        logger?.Invoke("Connecting to mirror", MessageGroup.TechInfo);  
+                    }
                     using (HttpWebResponse response = ex.Response as HttpWebResponse)
                     {
                         if (response == null)
@@ -99,7 +126,7 @@ namespace PixelPlanetUtils
                 }
             }
 
-            webSocket = new WebSocket(webSocketUrl);
+            webSocket = new WebSocket(WebSocketUrl);
             webSocket.Log.Output = (d, s) => { };
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
@@ -110,7 +137,7 @@ namespace PixelPlanetUtils
         private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             preemptiveWebsocketReplacingTimer.Stop();
-            WebSocket newWebSocket = new WebSocket(webSocketUrl);
+            WebSocket newWebSocket = new WebSocket(WebSocketUrl);
             newWebSocket.Log.Output = (d, s) => { };
             newWebSocket.Connect();
             preemptiveWebsocketReplacingTimer.Start();
@@ -464,7 +491,7 @@ namespace PixelPlanetUtils
             {
                 if (buffer[2] > 0)
                 {
-                    logger?.Invoke("This IP is already in use", MessageGroup.Info);
+                    logger?.Invoke($"Current cooldown: {buffer[2]}", MessageGroup.Info);
                 }
             }
         }

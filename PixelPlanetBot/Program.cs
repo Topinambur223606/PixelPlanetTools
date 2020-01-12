@@ -348,7 +348,7 @@ namespace PixelPlanetBot
                                                     }
                                                     if (proxy == null && notificationMode.HasFlag(CaptchaNotificationMode.Browser))
                                                     {
-                                                        Process.Start($"{InteractionWrapper.BaseHttpAdress}/#{x},{y},30");
+                                                        Process.Start($"https://{InteractionWrapper.BaseUrl}/#{x},{y},30");
                                                     }
                                                     while (Console.KeyAvailable)
                                                     {
