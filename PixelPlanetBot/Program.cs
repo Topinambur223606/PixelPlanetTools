@@ -52,7 +52,7 @@ namespace PixelPlanetBot
                         Console.WriteLine("Checking for updates...");
                         if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                         {
-                            Console.WriteLine($"Update is available: {version}");
+                            Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
                             if (isCompatible)
                             {
                                 Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");

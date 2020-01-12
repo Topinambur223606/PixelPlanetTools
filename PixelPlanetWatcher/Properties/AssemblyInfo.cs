@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 // набора атрибутов. Измените значения этих атрибутов, чтобы изменить сведения,
 // связанные со сборкой.
 [assembly: AssemblyTitle("PixelPlanetWatcher")]
-[assembly: AssemblyProduct("PixelPlanetWatcher")]
+[assembly: AssemblyProduct("PixelPlanetTools")]
 
 // Следующий GUID служит для идентификации библиотеки типов, если этот проект будет видимым для COM
 [assembly: Guid("5eb46fc8-7ed5-48e7-b7d8-5f9dcdd54631")]

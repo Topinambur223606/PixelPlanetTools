@@ -15,7 +15,7 @@ namespace PixelPlanetUtils
     {
         private const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
         private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, "Updater.exe");
-        private readonly static string lastCheckFilePath = Path.Combine(PathTo.AppFolder, "lastcheck");
+        private readonly string lastCheckFilePath;
         private const byte updaterVersion = 3;
 
         private readonly string appName;
@@ -26,6 +26,7 @@ namespace PixelPlanetUtils
         public UpdateChecker(string appName)
         {
             this.appName = appName;
+            lastCheckFilePath = Path.Combine(PathTo.AppFolder, appName + ".lastcheck");
         }
 
         private static string GetCompressedArgs()
@@ -65,38 +66,44 @@ namespace PixelPlanetUtils
             return true;
         }
 
-        public bool UpdateIsAvailable(out string version, out bool isCompatible)
+        public static Version CurrentAppVersion => Assembly.GetEntryAssembly().GetName().Version;
+
+        public bool UpdateIsAvailable(out string availableVersion, out bool isCompatible)
         {
             try
             {
-                string json;
+                JObject release, versions;
                 using (WebClient wc = new WebClient())
                 {
                     wc.Headers[HttpRequestHeader.UserAgent] = "PixelPlanetTools";
-                    json = wc.DownloadString(latestReleaseUrl);
+                    release = JObject.Parse(wc.DownloadString(latestReleaseUrl));
+                    var versionsJsonUrl = release["assets"].
+                        Single(t => t["name"].ToString().StartsWith("versions", StringComparison.InvariantCultureIgnoreCase))
+                        ["browser_download_url"].ToString();
+                    versions = JObject.Parse(wc.DownloadString(versionsJsonUrl));
                 }
-                JObject release = JObject.Parse(json);
+
                 downloadUrl = release["assets"].
                     Single(t => t["name"].ToString().StartsWith(appName, StringComparison.InvariantCultureIgnoreCase))
                     ["browser_download_url"].ToString();
-                Version appVersion = Assembly.GetEntryAssembly().GetName().Version;
-                version = release["tag_name"].ToString();
-                Version availableVersion = Version.Parse(version.TrimStart('v'));
-                isCompatible = this.isCompatible = availableVersion.Major == appVersion.Major;
+
+                Version appVersion = CurrentAppVersion;
+                availableVersion = versions[appName].ToString();
+                Version upToDateVersion = Version.Parse(availableVersion);
+                isCompatible = this.isCompatible = upToDateVersion.Major == appVersion.Major;
                 lastCheckFileStream.Seek(0, SeekOrigin.Begin);
                 using (BinaryWriter br = new BinaryWriter(lastCheckFileStream))
                 {
                     br.Write(DateTime.Now.ToBinary());
                 }
-                return appVersion < availableVersion;
+                return appVersion < upToDateVersion;
             }
             catch
             {
                 isCompatible = true;
-                version = null;
+                availableVersion = null;
                 return false;
             }
-
         }
 
         public void StartUpdate()

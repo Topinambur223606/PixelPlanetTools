@@ -26,6 +26,44 @@ namespace PixelPlanetWatcher
         {
             try
             {
+                using (UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetWatcher)))
+                {
+                    if (checker.NeedsToCheckUpdates())
+                    {
+                        Console.WriteLine("Checking for updates...");
+                        if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                        {
+                            Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
+                            if (isCompatible)
+                            {
+                                Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Argument list or order was changed, app should be relaunched manually after update");
+                            }
+                            Console.WriteLine("Press Enter to update, anything else to skip");
+                            while (Console.KeyAvailable)
+                            {
+                                Console.ReadKey(true);
+                            }
+                            ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                            if (keyInfo.Key == ConsoleKey.Enter)
+                            {
+                                checker.StartUpdate();
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            if (version == null)
+                            {
+                                Console.WriteLine("Cannot check for updates");
+                            }
+                        }
+                    }
+                }
+
                 try
                 {
                     try
