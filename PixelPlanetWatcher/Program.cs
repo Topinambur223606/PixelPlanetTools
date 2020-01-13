@@ -126,11 +126,11 @@ namespace PixelPlanetWatcher
                                             writer.Write(x2);
                                             writer.Write(y2);
                                             writer.Write(DateTime.Now.ToBinary());
-                                            for (short y = y1; y <= y2; y++)
+                                            for (int y = y1; y <= y2; y++)
                                             {
-                                                for (short x = x1; x <= x2; x++)
+                                                for (int x = x1; x <= x2; x++)
                                                 {
-                                                    writer.Write((byte)cache.GetPixelColor(x, y));
+                                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
                                                 }
                                             }
                                         }

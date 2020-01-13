@@ -63,8 +63,7 @@ namespace PixelPlanetUtils
                             }
                             Thread.Sleep(TimeSpan.FromSeconds(5));
                         }
-                    }
-                    while (!success);
+                    } while (!success);
                 }
                 if (fails == 5)
                 {
@@ -111,11 +110,11 @@ namespace PixelPlanetUtils
             PixelMap.ConvertToRelative(x2, out byte chunkX2, out _);
             PixelMap.ConvertToRelative(y2, out byte chunkY2, out _);
             chunks = new List<XY>();
-            for (byte i = chunkX1; i <= chunkX2; i++)
+            for (ushort i = chunkX1; i <= chunkX2; i++)
             {
-                for (byte j = chunkY1; j <= chunkY2; j++)
+                for (ushort j = chunkY1; j <= chunkY2; j++)
                 {
-                    chunks.Add((i, j));
+                    chunks.Add(((byte)i, (byte)j));
                 }
             }
         }
