@@ -38,7 +38,7 @@ namespace PixelPlanetUtils
         private static int apiConnectionFails = 0;
 
         public static string BaseUrl { get; private set; }
-        
+
         private static string BaseHttpAdress => $"https://{BaseUrl}";
         private static string WebSocketUrl => $"wss://{BaseUrl}/ws";
 
@@ -480,11 +480,11 @@ namespace PixelPlanetUtils
             }
             if (buffer[0] == pixelUpdatedOpcode)
             {
-                byte chunkX = buffer[2];
-                byte chunkY = buffer[4];
-                byte relativeY = buffer[5];
-                byte relativeX = buffer[6];
-                byte color = buffer[7];
+                byte chunkX = buffer[1];
+                byte chunkY = buffer[2];
+                byte relativeY = buffer[4];
+                byte relativeX = buffer[5];
+                byte color = buffer[6];
                 PixelChangedEventArgs args = new PixelChangedEventArgs
                 {
                     Chunk = (chunkX, chunkY),
@@ -494,7 +494,7 @@ namespace PixelPlanetUtils
                 };
                 OnPixelChanged?.Invoke(this, args);
             }
-            else if (buffer[0] == cooldownOpcode)
+            else if (!listeningMode && buffer[0] == cooldownOpcode)
             {
                 if (buffer[2] > 0)
                 {
