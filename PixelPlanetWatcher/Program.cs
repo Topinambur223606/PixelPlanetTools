@@ -18,7 +18,7 @@ namespace PixelPlanetWatcher
         private static string filename;
         private static Logger logger;
         private static List<Pixel> updates = new List<Pixel>();
-        private static FileStream lockingStream;
+        private static Task<FileStream> lockingStreamTask;
         private static readonly object listLockObj = new object();
         private static readonly Thread saveThread = new Thread(SaveChangesThreadBody);
 
@@ -101,7 +101,7 @@ namespace PixelPlanetWatcher
                 }
                 logger = new Logger(finishCTS.Token, logFilePath);
                 cache = new ChunkCache(x1, y1, x2, y2, logger.LogLine);
-                bool initialMapStateSaved = false;
+                bool initialMapSavingStarted = false;
                 saveThread.Start();
                 filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
                 do
@@ -111,11 +111,12 @@ namespace PixelPlanetWatcher
                         using (InteractionWrapper wrapper = new InteractionWrapper(logger.LogLine, true))
                         {
                             cache.Wrapper = wrapper;
-                            if (!initialMapStateSaved)
+                            if (!initialMapSavingStarted)
                             {
-                                Task.Run(() =>
+                                lockingStreamTask = Task.Run(() =>
                                 {
-                                    initialMapStateSaved = true;
+                                    var now = DateTime.Now;
+                                    initialMapSavingStarted = true;
                                     cache.DownloadChunks();
                                     using (FileStream fileStream = File.Open(filename, FileMode.Create, FileAccess.Write))
                                     {
@@ -125,7 +126,7 @@ namespace PixelPlanetWatcher
                                             writer.Write(y1);
                                             writer.Write(x2);
                                             writer.Write(y2);
-                                            writer.Write(DateTime.Now.ToBinary());
+                                            writer.Write(now.ToBinary());
                                             for (int y = y1; y <= y2; y++)
                                             {
                                                 for (int x = x1; x <= x2; x++)
@@ -136,7 +137,7 @@ namespace PixelPlanetWatcher
                                         }
                                     }
                                     logger.LogLine("Chunk data is saved to file", MessageGroup.TechInfo);
-                                    lockingStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+                                    return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
                                 });
                             }
 
@@ -201,30 +202,35 @@ namespace PixelPlanetWatcher
                         saved = updates;
                         updates = new List<Pixel>();
                     }
-                    lockingStream.Close();
-                    using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
+                    DateTime now = DateTime.Now;
+                    lockingStreamTask = lockingStreamTask.ContinueWith(t =>
                     {
-                        using (BinaryWriter writer = new BinaryWriter(fileStream))
+                        t.Result.Close();
+                        using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
                         {
-                            writer.Write(DateTime.Now.ToBinary());
-                            writer.Write((uint)saved.Count);
-                            foreach ((short, short, PixelColor) pixel in saved)
+                            using (BinaryWriter writer = new BinaryWriter(fileStream))
                             {
-                                writer.Write(pixel.Item1);
-                                writer.Write(pixel.Item2);
-                                writer.Write((byte)pixel.Item3);
+                                writer.Write(now.ToBinary());
+                                writer.Write((uint)saved.Count);
+                                foreach ((short, short, PixelColor) pixel in saved)
+                                {
+                                    writer.Write(pixel.Item1);
+                                    writer.Write(pixel.Item2);
+                                    writer.Write((byte)pixel.Item3);
+                                }
                             }
                         }
-                    }
-                    logger.LogLine($"{saved.Count} pixel updates are saved to file", MessageGroup.TechInfo);
-                    lockingStream  = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+                        logger.LogLine($"{saved.Count} pixel updates are saved to file", MessageGroup.TechInfo);
+                        return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+                    });
                 } while (true);
             }
             catch (ThreadInterruptedException)
             {
                 using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
                 {
-                    lockingStream.Close();
+                    lockingStreamTask.Wait();
+                    lockingStreamTask.Result.Close();
                     using (BinaryWriter writer = new BinaryWriter(fileStream))
                     {
                         writer.Write(DateTime.Now.ToBinary());
