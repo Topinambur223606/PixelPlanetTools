@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Updater
 {
@@ -15,7 +16,7 @@ namespace Updater
                 using (WebClient wc = new WebClient())
                 {
                     Console.WriteLine("Downloading...");
-                    System.Threading.Tasks.Task<byte[]> dataTask = wc.DownloadDataTaskAsync(args[1]);
+                    Task<byte[]> dataTask = wc.DownloadDataTaskAsync(args[1]);
                     Process process = Process.GetProcessById(int.Parse(args[0]));
                     string path = process.MainModule.FileName;
                     Console.WriteLine("Waiting for bot to finish...");

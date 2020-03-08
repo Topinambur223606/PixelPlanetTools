@@ -1,10 +1,13 @@
-﻿using System;
+﻿using PixelPlanetUtils.Eventing;
+using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.NetworkInteraction;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelPlanetUtils
+namespace PixelPlanetUtils.CanvasInteraction
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
 
@@ -12,14 +15,14 @@ namespace PixelPlanetUtils
     {
         private static readonly TimeSpan maxOffline = TimeSpan.FromMinutes(1);
         private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
-        private InteractionWrapper wrapper;
+        private WebsocketWrapper wrapper;
         private readonly bool interactiveMode;
         private readonly List<XY> chunks;
 
         public event EventHandler OnMapUpdated;
-        private readonly Action<string, MessageGroup> logger;
+        private readonly Logger logger;
 
-        public InteractionWrapper Wrapper
+        public WebsocketWrapper Wrapper
         {
             get
             {
@@ -39,7 +42,7 @@ namespace PixelPlanetUtils
 
         public void DownloadChunks()
         {
-            logger?.Invoke("Downloading chunk data...", MessageGroup.TechState);
+            logger.Log("Downloading chunk data...", MessageGroup.TechState);
             int fails;
             do
             {
@@ -51,12 +54,12 @@ namespace PixelPlanetUtils
                     {
                         try
                         {
-                            CachedChunks[chunkXY] = wrapper.GetChunk(chunkXY);
+                            CachedChunks[chunkXY] = HttpWrapper.GetChunk(chunkXY);
                             success = true;
                         }
                         catch
                         {
-                            logger?.Invoke("Cannot download chunk data, waiting 5s before next attempt", MessageGroup.Error);
+                            logger.LogError("Cannot download chunk data, waiting 5s before next attempt");
                             if (++fails == 5)
                             {
                                 break;
@@ -67,11 +70,11 @@ namespace PixelPlanetUtils
                 }
                 if (fails == 5)
                 {
-                    logger?.Invoke("Waiting 30s before next attempt", MessageGroup.TechState);
+                    logger.Log("Waiting 30s before next attempt", MessageGroup.TechState);
                     Thread.Sleep(TimeSpan.FromSeconds(30));
                 }
             } while (fails == 5);
-            logger?.Invoke("Chunk data is downloaded", MessageGroup.TechInfo);
+            logger.Log("Chunk data is downloaded", MessageGroup.TechInfo);
             OnMapUpdated?.Invoke(this, null);
         }
 
@@ -87,21 +90,21 @@ namespace PixelPlanetUtils
             }
         }
 
-        public ChunkCache(IEnumerable<Pixel> pixels, Action<string, MessageGroup> logger)
+        public ChunkCache(IEnumerable<Pixel> pixels, Logger logger)
         {
             interactiveMode = true;
             this.logger = logger;
-            logger?.Invoke("Calculating list of chunks...", MessageGroup.TechState);
+            logger.Log("Calculating list of chunks...", MessageGroup.TechState);
             chunks = pixels.Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
                 return (chunkX, chunkY);
             }).Distinct().ToList();
-            logger?.Invoke("Chunk list is calculated", MessageGroup.TechInfo);
+            logger.Log("Chunk list is calculated", MessageGroup.TechInfo);
         }
 
-        public ChunkCache(short x1, short y1, short x2, short y2, Action<string, MessageGroup> logger)
+        public ChunkCache(short x1, short y1, short x2, short y2, Logger logger)
         {
             interactiveMode = false;
             this.logger = logger;

@@ -1,4 +1,4 @@
-﻿namespace PixelPlanetUtils
+﻿namespace PixelPlanetUtils.Logging
 {
     public enum MessageGroup
     {
@@ -12,6 +12,7 @@
         Error,
         TechState,
         Captcha,
-        ImageDone
+        Debug,
+        Warning
     }
 }

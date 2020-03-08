@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PixelPlanetUtils
+namespace PixelPlanetUtils.Eventing
 {
     public class ConnectionRestoredEventArgs : EventArgs
     {

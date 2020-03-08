@@ -1,4 +1,4 @@
-﻿namespace PixelPlanetUtils
+﻿namespace PixelPlanetUtils.CanvasInteraction
 {
     public static class PixelMap
     {

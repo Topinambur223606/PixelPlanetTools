@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -14,29 +13,32 @@ namespace PixelPlanetUtils
     public class UpdateChecker : IDisposable
     {
         private const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
-        private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, "Updater.exe");
+        private const string updaterFileName = "Updater.exe";
+        
+        private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, updaterFileName);
         private readonly string lastCheckFilePath;
-        private const byte updaterVersion = 3;
+        private static readonly Version updaterVersion = new Version(3, 1);
 
         private readonly string appName;
         private string downloadUrl;
         private bool isCompatible;
         private FileStream lastCheckFileStream;
 
-        public UpdateChecker(string appName)
+        public UpdateChecker()
         {
-            this.appName = appName;
+            appName = Assembly.GetEntryAssembly().GetName().Name;
             lastCheckFilePath = Path.Combine(PathTo.AppFolder, appName + ".lastcheck");
         }
 
         private static string GetCompressedArgs()
         {
-            IEnumerable<string> modifiedArgs = Environment.GetCommandLineArgs().
-                Skip(1).Select(s => s.Contains(" ") ? $"\"{s}\"" : s);
-            byte[] bytes = Encoding.Default.GetBytes(string.Join(" ", modifiedArgs));
+            string commandLine = Environment.CommandLine;
+            char searched = commandLine.StartsWith("\"") ? '"' : ' ';
+            string argsString = commandLine.Substring(commandLine.IndexOf(searched, 1) + 1).Trim();
+            byte[] bytes = Encoding.Default.GetBytes(argsString);
             return Convert.ToBase64String(bytes);
         }
-        
+
         public bool NeedsToCheckUpdates()
         {
             Directory.CreateDirectory(PathTo.AppFolder);
@@ -48,7 +50,7 @@ namespace PixelPlanetUtils
                 }
                 catch (IOException)
                 {
-                    Thread.Sleep(500);
+                    Thread.Sleep(300);
                 }
             }
             if (lastCheckFileStream.Length > 0)
@@ -77,7 +79,7 @@ namespace PixelPlanetUtils
                 {
                     wc.Headers[HttpRequestHeader.UserAgent] = "PixelPlanetTools";
                     release = JObject.Parse(wc.DownloadString(latestReleaseUrl));
-                    var versionsJsonUrl = release["assets"].
+                    string versionsJsonUrl = release["assets"].
                         Single(t => t["name"].ToString().StartsWith("versions", StringComparison.InvariantCultureIgnoreCase))
                         ["browser_download_url"].ToString();
                     versions = JObject.Parse(wc.DownloadString(versionsJsonUrl));
@@ -106,21 +108,23 @@ namespace PixelPlanetUtils
             }
         }
 
-        public void StartUpdate()
+        public static void UnpackUpdater()
         {
-            try
-            {
-                FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(updaterPath);
-                if (string.Compare(versionInfo.FileVersion, updaterVersion.ToString()) < 0)
-                {
-                    throw new Exception();
-                }
-            }
-            catch
+            if (!File.Exists(updaterPath) ||
+                Version.Parse(FileVersionInfo.GetVersionInfo(updaterPath).FileVersion) < updaterVersion)
             {
                 Directory.CreateDirectory(PathTo.AppFolder);
-                File.WriteAllBytes(updaterPath, Properties.Resources.Updater);
+                using (FileStream fileStream = File.Create(updaterPath))
+                using (Stream updaterStream = typeof(UpdateChecker).Assembly.GetManifestResourceStream(typeof(UpdateChecker), updaterFileName))
+                {
+                    updaterStream.CopyTo(fileStream);
+                }
             }
+        }
+
+        public void StartUpdate()
+        {
+            UnpackUpdater();
             string args;
             int id = Process.GetCurrentProcess().Id;
             if (isCompatible)

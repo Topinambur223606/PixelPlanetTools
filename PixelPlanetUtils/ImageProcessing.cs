@@ -1,9 +1,9 @@
-﻿using System;
-using System.Net;
-using System.Threading.Tasks;
-
+﻿using PixelPlanetUtils.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace PixelPlanetUtils
 {
@@ -83,15 +83,15 @@ namespace PixelPlanetUtils
             return (PixelColor)(index + 2);
         }
 
-        public static PixelColor[,] PixelColorsByUri(string imageUri, Action<string, MessageGroup> logger)
+        public static PixelColor[,] PixelColorsByUri(string imageUri, Logger logger)
         {
-            logger?.Invoke("Downloading image...", MessageGroup.TechState);
+            logger.Log("Downloading image...", MessageGroup.TechState);
             using (WebClient wc = new WebClient())
             {
                 using (Image<Rgba32> image = Image.Load(wc.DownloadData(imageUri)))
                 {
-                    logger?.Invoke("Image is downloaded", MessageGroup.TechInfo);
-                    logger?.Invoke("Converting image...", MessageGroup.TechState);
+                    logger.Log("Image is downloaded", MessageGroup.TechInfo);
+                    logger.Log("Converting image...", MessageGroup.TechState);
                     int w = image.Width;
                     int h = image.Height;
                     PixelColor[,] res = new PixelColor[w, h];
@@ -102,7 +102,7 @@ namespace PixelPlanetUtils
                             res[x, y] = ClosestAvailable(image[x, y]);
                         }
                     });
-                    logger?.Invoke("Image is converted", MessageGroup.TechInfo);
+                    logger.Log("Image is converted", MessageGroup.TechInfo);
                     return res;
                 }
             }

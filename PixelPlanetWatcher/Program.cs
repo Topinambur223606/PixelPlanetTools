@@ -1,4 +1,8 @@
 ﻿using PixelPlanetUtils;
+using PixelPlanetUtils.CanvasInteraction;
+using PixelPlanetUtils.Eventing;
+using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.NetworkInteraction;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -26,81 +30,23 @@ namespace PixelPlanetWatcher
         {
             try
             {
-                using (UpdateChecker checker = new UpdateChecker(nameof(PixelPlanetWatcher)))
+                if (CheckForUpdates())
                 {
-                    if (checker.NeedsToCheckUpdates())
-                    {
-                        Console.WriteLine("Checking for updates...");
-                        if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
-                        {
-                            Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
-                            if (isCompatible)
-                            {
-                                Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
-                            }
-                            else
-                            {
-                                Console.WriteLine("Argument list or order was changed, app should be relaunched manually after update");
-                            }
-                            Console.WriteLine("Press Enter to update, anything else to skip");
-                            while (Console.KeyAvailable)
-                            {
-                                Console.ReadKey(true);
-                            }
-                            ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-                            if (keyInfo.Key == ConsoleKey.Enter)
-                            {
-                                checker.StartUpdate();
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            if (version == null)
-                            {
-                                Console.WriteLine("Cannot check for updates");
-                            }
-                        }
-                    }
+                    return;
                 }
 
                 try
                 {
-                    try
-                    {
-                        x1 = short.Parse(args[0]);
-                        y1 = short.Parse(args[1]);
-                        x2 = short.Parse(args[2]);
-                        y2 = short.Parse(args[3]);
-                        if (x1 > x2 || y1 > y2)
-                        {
-                            throw new Exception();
-                        }
-                        try
-                        {
-                            File.Open(args[4], FileMode.Append, FileAccess.Write).Dispose();
-                            logFilePath = args[4];
-                        }
-                        catch
-                        { }
-                    }
-                    catch (OverflowException)
-                    {
-                        throw new Exception("Entire watched zone should be inside the map");
-                    }
-                    catch
-                    {
-                        throw new Exception("Parameters: <leftX> <topY> <rightX> <bottomY> [logFilePath] ; all in range -32768..32767");
-                    }
+                    ParseArguments(args);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
-                    finishCTS.Cancel();
+                    Console.WriteLine($"Error while parsing arguments: {ex.Message}");
                     return;
                 }
+
                 logger = new Logger(finishCTS.Token, logFilePath);
-                cache = new ChunkCache(x1, y1, x2, y2, logger.LogLine);
+                cache = new ChunkCache(x1, y1, x2, y2, logger);
                 bool initialMapSavingStarted = false;
                 saveThread.Start();
                 filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
@@ -108,58 +54,22 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        using (InteractionWrapper wrapper = new InteractionWrapper(logger.LogLine, true))
+                        HttpWrapper.ConnectToApi();
+                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true))
                         {
                             cache.Wrapper = wrapper;
                             if (!initialMapSavingStarted)
                             {
-                                lockingStreamTask = Task.Run(() =>
-                                {
-                                    var now = DateTime.Now;
-                                    initialMapSavingStarted = true;
-                                    cache.DownloadChunks();
-                                    using (FileStream fileStream = File.Open(filename, FileMode.Create, FileAccess.Write))
-                                    {
-                                        using (BinaryWriter writer = new BinaryWriter(fileStream))
-                                        {
-                                            writer.Write(x1);
-                                            writer.Write(y1);
-                                            writer.Write(x2);
-                                            writer.Write(y2);
-                                            writer.Write(now.ToBinary());
-                                            for (int y = y1; y <= y2; y++)
-                                            {
-                                                for (int x = x1; x <= x2; x++)
-                                                {
-                                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
-                                                }
-                                            }
-                                        }
-                                    }
-                                    logger.LogLine("Chunk data is saved to file", MessageGroup.TechInfo);
-                                    return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
-                                });
+                                initialMapSavingStarted = true;
+                                lockingStreamTask = Task.Run(SaveInitialMapState);
                             }
-
-                            wrapper.OnPixelChanged += (o, e) =>
-                            {
-                                short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
-                                short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
-                                if (x <= x2 && x >= x1 && y <= y2 && y >= y1)
-                                {
-                                    logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
-                                    lock (listLockObj)
-                                    {
-                                        updates.Add((x, y, e.Color));
-                                    }
-                                }
-                            };
+                            wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
                             wrapper.StartListening();
                         }
                     }
                     catch (Exception ex)
                     {
-                        logger.LogLine($"Unhandled exception: {ex.Message}", MessageGroup.Error);
+                        logger.LogError($"Unhandled exception: {ex.Message}");
                     }
                 } while (true);
             }
@@ -176,9 +86,123 @@ namespace PixelPlanetWatcher
             }
         }
 
+        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
+        {
+            short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
+            short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
+            if (x <= x2 && x >= x1 && y <= y2 && y >= y1)
+            {
+                logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
+                lock (listLockObj)
+                {
+                    updates.Add((x, y, e.Color));
+                }
+            }
+        }
+
+        private static FileStream SaveInitialMapState()
+        {
+            DateTime now = DateTime.Now;
+            cache.DownloadChunks();
+            using (FileStream fileStream = File.Open(filename, FileMode.Create, FileAccess.Write))
+            {
+                using (BinaryWriter writer = new BinaryWriter(fileStream))
+                {
+                    writer.Write(x1);
+                    writer.Write(y1);
+                    writer.Write(x2);
+                    writer.Write(y2);
+                    writer.Write(now.ToBinary());
+                    for (int y = y1; y <= y2; y++)
+                    {
+                        for (int x = x1; x <= x2; x++)
+                        {
+                            writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                        }
+                    }
+                }
+            }
+            logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
+            return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+        }
+
+        private static void ParseArguments(string[] args)
+        {
+            try
+            {
+                x1 = short.Parse(args[0]);
+                y1 = short.Parse(args[1]);
+                x2 = short.Parse(args[2]);
+                y2 = short.Parse(args[3]);
+                if (x1 > x2 || y1 > y2)
+                {
+                    throw new Exception();
+                }
+                try
+                {
+                    File.Open(args[4], FileMode.Append, FileAccess.Write).Dispose();
+                    logFilePath = args[4];
+                }
+                catch
+                { }
+            }
+            catch (OverflowException)
+            {
+                throw new Exception("Entire watched zone should be inside the map");
+            }
+            catch
+            {
+                throw new Exception("Parameters: <leftX> <topY> <rightX> <bottomY> [logFilePath] ; all in range -32768..32767");
+            }
+        }
+
+        static bool CheckForUpdates()
+        {
+            using (UpdateChecker checker = new UpdateChecker())
+            {
+                if (checker.NeedsToCheckUpdates())
+                {
+                    Console.WriteLine("Checking for updates...");
+                    if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                    {
+                        Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
+                        if (isCompatible)
+                        {
+                            Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Argument list or order was changed, app should be relaunched manually after update");
+                        }
+                        Console.WriteLine("Press Enter to update, anything else to skip");
+                        while (Console.KeyAvailable)
+                        {
+                            Console.ReadKey(true);
+                        }
+                        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                        if (keyInfo.Key == ConsoleKey.Enter)
+                        {
+                            checker.StartUpdate();
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        if (version == null)
+                        {
+                            Console.WriteLine("Cannot check for updates");
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         static void SaveChangesThreadBody()
         {
-            Task delayTask = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+            Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+
+            Task delayTask = GetDelayTask();
             try
             {
                 do
@@ -190,7 +214,7 @@ namespace PixelPlanetWatcher
                     try
                     {
                         delayTask.Wait();
-                        delayTask = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+                        delayTask = GetDelayTask();
                     }
                     catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
                     {
@@ -208,19 +232,10 @@ namespace PixelPlanetWatcher
                         t.Result.Close();
                         using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
                         {
-                            using (BinaryWriter writer = new BinaryWriter(fileStream))
-                            {
-                                writer.Write(now.ToBinary());
-                                writer.Write((uint)saved.Count);
-                                foreach ((short, short, PixelColor) pixel in saved)
-                                {
-                                    writer.Write(pixel.Item1);
-                                    writer.Write(pixel.Item2);
-                                    writer.Write((byte)pixel.Item3);
-                                }
-                            }
+
+                            WriteChanges(fileStream, saved);
+
                         }
-                        logger.LogLine($"{saved.Count} pixel updates are saved to file", MessageGroup.TechInfo);
                         return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
                     });
                 } while (true);
@@ -231,18 +246,30 @@ namespace PixelPlanetWatcher
                 {
                     lockingStreamTask.Wait();
                     lockingStreamTask.Result.Close();
+                    WriteChanges(fileStream, updates);
+                }
+            }
+
+            void WriteChanges(FileStream fileStream, List<Pixel> pixels)
+            {
+                if (pixels.Count > 0)
+                {
                     using (BinaryWriter writer = new BinaryWriter(fileStream))
                     {
                         writer.Write(DateTime.Now.ToBinary());
-                        writer.Write((uint)updates.Count);
-                        foreach ((short, short, PixelColor) pixel in updates)
+                        writer.Write((uint)pixels.Count);
+                        foreach ((short, short, PixelColor) pixel in pixels)
                         {
                             writer.Write(pixel.Item1);
                             writer.Write(pixel.Item2);
                             writer.Write((byte)pixel.Item3);
                         }
-                        logger.LogLine($"{updates.Count} pixel updates are saved to file", MessageGroup.TechInfo);
                     }
+                    logger.Log($"{pixels.Count} pixel updates are saved to file", MessageGroup.TechInfo);
+                }
+                else
+                {
+                    logger.Log($"No pixel updates to save", MessageGroup.TechInfo);
                 }
             }
         }

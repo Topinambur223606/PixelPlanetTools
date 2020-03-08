@@ -1,29 +1,29 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Reflection;
 using System.Threading;
+using System.Linq;
 
-namespace PixelPlanetUtils
+namespace PixelPlanetUtils.Logging
 {
 
     using LogEntry = ValueTuple<string, ConsoleColor>;
 
     public class Logger : IDisposable
     {
-
         private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
         private ConcurrentQueue<LogEntry> incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
         private ConcurrentQueue<LogEntry> printableConsoleMessages;
         private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent noPrintableMessages = new AutoResetEvent(true);
+        private readonly StreamWriter logFileWriter;
         private readonly CancellationToken finishToken;
-        private readonly string logFilePath;
-        private readonly bool logToFile;
         private readonly object lockObj = new object();
         bool disposed;
         bool consolePaused = false;
-        private Thread loggingThread, consoleThread;
+        private readonly Thread loggingThread, consoleThread;
 
         public Logger(CancellationToken finishToken) : this(finishToken, null)
         { }
@@ -36,16 +36,22 @@ namespace PixelPlanetUtils
             loggingThread.Start();
             consoleThread = new Thread(ConsoleWriterThreadBody);
             consoleThread.Start();
-            if (logToFile = !string.IsNullOrWhiteSpace(logFilePath))
+            if (string.IsNullOrWhiteSpace(logFilePath))
             {
-                this.logFilePath = logFilePath;
+                logFilePath = Path.Combine(PathTo.LogsFolder,
+                                            Assembly.GetEntryAssembly().GetName().Name,
+                                            $"{DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}_{Guid.NewGuid().ToString("N")}.log");
+            }
+            try
+            {
+                logFileWriter = new StreamWriter(logFilePath, true);
+            }
+            catch
+            {
+                throw new Exception("Cannot init file logging");
             }
         }
 
-        public void LogLine(string msg, MessageGroup group)
-        {
-            LogTimedLine(msg, group, DateTime.Now);
-        }
 
         public void LogAndPause(string msg, MessageGroup group)
         {
@@ -55,15 +61,9 @@ namespace PixelPlanetUtils
                 lock (lockObj)
                 {
                     text = FormatLine(msg, group, DateTime.Now);
+                    logFileWriter.WriteLine(text);
                     consolePaused = true;
                     incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
-                    if (logToFile)
-                    {
-                        using (StreamWriter writer = new StreamWriter(logFilePath, true))
-                        {
-                            writer.WriteLine(text);
-                        }
-                    }
                 }
                 noPrintableMessages.Reset();
                 printableConsoleMessages.Enqueue((text, ColorOf(group)));
@@ -102,13 +102,14 @@ namespace PixelPlanetUtils
                 case MessageGroup.Pixel:
                     return ConsoleColor.Green;
                 case MessageGroup.Info:
-                case MessageGroup.ImageDone:
                     return ConsoleColor.Magenta;
                 case MessageGroup.TechInfo:
                     return ConsoleColor.Cyan;
                 case MessageGroup.TechState:
+                case MessageGroup.Warning:
                     return ConsoleColor.Yellow;
                 case MessageGroup.PixelInfo:
+                case MessageGroup.Debug:
                 default:
                     return ConsoleColor.DarkGray;
             }
@@ -119,17 +120,11 @@ namespace PixelPlanetUtils
             return string.Format("{0}  {1}  {2}", time.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
         }
 
-        public void LogTimedLine(string msg, MessageGroup group, DateTime time)
+        public void Log(string msg, MessageGroup group, DateTime time)
         {
             string line = FormatLine(msg, group, time);
             messages.Enqueue((line, ColorOf(group)));
             messagesAvailable.Set();
-        }
-
-        public void LogPixel(string msg, DateTime time, MessageGroup group, int x, int y, PixelColor color)
-        {
-            string text = $"{msg.PadRight(22)} {color.ToString().PadRight(13)} at ({x.ToString().PadLeft(6)};{y.ToString().PadLeft(6)})";
-            LogTimedLine(text, group, time);
         }
 
         private void ConsoleWriterThreadBody()
@@ -162,15 +157,9 @@ namespace PixelPlanetUtils
                 {
                     lock (lockObj)
                     {
+                        logFileWriter.WriteLine(msg.Item1);
                         incomingConsoleMessages.Enqueue(msg);
                         consoleMessagesAvailable.Set();
-                        if (logToFile)
-                        {
-                            using (StreamWriter writer = new StreamWriter(logFilePath, true))
-                            {
-                                writer.WriteLine(msg.Item1);
-                            }
-                        }
                     }
                 }
                 else
@@ -183,7 +172,7 @@ namespace PixelPlanetUtils
                 }
             }
         }
-    
+
         public void Dispose()
         {
             if (!disposed)
@@ -193,10 +182,28 @@ namespace PixelPlanetUtils
                 consoleMessagesAvailable.Set();
                 noPrintableMessages.Set();
                 Thread.Sleep(50);
+                logFileWriter.Close();
                 messagesAvailable.Dispose();
                 consoleMessagesAvailable.Dispose();
                 noPrintableMessages.Dispose();
             }
         }
+
+        static Logger()
+        {
+            ClearOldLogs();
+        }
+
+        static void ClearOldLogs()
+        {
+            TimeSpan maxLogAge = TimeSpan.FromDays(7);
+            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
+            foreach (FileInfo logFile in di.EnumerateFiles("*.log")
+                                           .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
+            {
+                logFile.Delete();
+            }
+        }
     }
+
 }

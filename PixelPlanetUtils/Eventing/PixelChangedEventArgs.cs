@@ -1,7 +1,7 @@
 ﻿using System;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelPlanetUtils
+namespace PixelPlanetUtils.Eventing
 {
     public class PixelChangedEventArgs : EventArgs
     {
@@ -13,6 +13,4 @@ namespace PixelPlanetUtils
 
         public PixelColor Color { get; set; }
     }
-
-
 }

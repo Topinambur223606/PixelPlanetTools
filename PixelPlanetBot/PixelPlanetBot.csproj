@@ -1,65 +1,25 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{A02B190E-6626-4597-ACE1-213F1C572132}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <PackageId>PixelPlanetBot</PackageId>
+    <Product>PixelPlanetTools</Product>
+    <FileVersion>3.5.0.1</FileVersion>
+    <AssemblyVersion>3.5.0.1</AssemblyVersion>
+    <Version>3.5</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
-    <AssemblyName>PixelPlanetBot</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <Deterministic>false</Deterministic>
+    <Authors>Topinambur223606</Authors>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <LangVersion>7.2</LangVersion>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <LangVersion>7.2</LangVersion>
-  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PixelPlanetUtils\PixelPlanetUtils.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
-    <StartupObject />
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="System" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="CaptchaNotificationMode.cs" />
-    <Compile Include="PlacingOrderMode.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\PixelPlanetUtils\PixelPlanetUtils.csproj">
-      <Project>{c45f32ab-c5f1-4761-b677-4d1afaf86fd0}</Project>
-      <Name>PixelPlanetUtils</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>if $(ConfigurationName) == Release (
-..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /wildcards /out:..\..\..\executable\PixelPlanetBot.exe PixelPlanetBot.exe *.dll 
-del ..\..\..\executable\*.config
-)</PostBuildEvent>
+    <PostBuildEvent>if $(Configuration) == Release (
+..\..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /wildcards /out:..\..\..\..\executable\PixelPlanetBot.exe PixelPlanetBot.exe *.dll
+del ..\..\..\..\executable\*.config
+)
+</PostBuildEvent>
   </PropertyGroup>
 </Project>
