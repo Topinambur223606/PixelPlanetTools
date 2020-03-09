@@ -1,6 +1,6 @@
 ﻿namespace PixelPlanetUtils
 {
-    public enum Canvas
+    public enum Canvas : byte
     {
         Earth,
         Moon,

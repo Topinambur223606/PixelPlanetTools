@@ -13,6 +13,6 @@
         TechState,
         Captcha,
         Debug,
-        Warning
+        Update
     }
 }

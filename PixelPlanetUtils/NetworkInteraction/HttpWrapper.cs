@@ -25,14 +25,14 @@ namespace PixelPlanetUtils.NetworkInteraction
             {
                 try
                 {
-                    Logger.Log("Connecting to API...", MessageGroup.TechState);
+                    Logger?.LogTechState("Connecting to API...");
                     using (HttpWebResponse response = SendRequest("api/me"))
                     {
                         if (response.StatusCode != HttpStatusCode.OK)
                         {
-                            throw new Exception($"Error: {response.StatusDescription}");
+                            throw new WebException(null, null, WebExceptionStatus.UnknownError, response);
                         }
-                        Logger.Log("API is reachable", MessageGroup.TechInfo);
+                        Logger?.LogTechInfo("API is reachable");
                         break;
                     }
                 }
@@ -42,10 +42,11 @@ namespace PixelPlanetUtils.NetworkInteraction
                     {
                         if (response == null)
                         {
-                            Logger.Log("Cannot connect: internet connection is slow or not available", MessageGroup.Error);
+                            Logger?.LogError("Cannot connect: internet connection is slow or not available");
                             Thread.Sleep(1000);
                             continue;
                         }
+                        Logger?.LogDebug($"Response status: {(int)response.StatusCode} {response.StatusCode}: {response.StatusDescription}");
                         switch (response.StatusCode)
                         {
                             case HttpStatusCode.Forbidden:
@@ -80,6 +81,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                                 using (StreamReader sr = new StreamReader(response.GetResponseStream()))
                                 {
                                     string responseString = sr.ReadToEnd();
+                                    Logger.LogDebug($"Placing pixel response: {responseString}");
                                     JObject json = JObject.Parse(responseString);
                                     if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                                     {
@@ -94,7 +96,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                                         if (json["errors"].Count() > 0)
                                         {
                                             string errors = string.Concat(json["errors"].Select(e => $"{Environment.NewLine}\"{e}\""));
-                                            throw new PausingException($"Server responded with errors:{errors}");
+                                            throw new PausingException($"Server responded with errors: {errors}");
                                         }
                                         else
                                         {
@@ -180,6 +182,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                     using (StreamWriter streamWriter = new StreamWriter(requestStream))
                     {
                         string jsonText = JsonConvert.SerializeObject(data);
+                        Logger?.LogDebug($"Data to send: {jsonText}");
                         streamWriter.Write(jsonText);
                     }
                 }
@@ -194,10 +197,12 @@ namespace PixelPlanetUtils.NetworkInteraction
                 }
                 else
                 {
+                    Logger?.LogDebug($"No response from server for {timeout} ms");
                     responseTask.ContinueWith(t =>
                     {
                         if (t.Status == TaskStatus.RanToCompletion)
                         {
+                            Logger?.LogDebug("Got response after timeout, ignoring");
                             t.Result.Close();
                         }
                     });
@@ -206,7 +211,8 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             catch (AggregateException ex)
             {
-                throw ex.InnerException;
+                Logger.LogDebug($"Aggregate exception while sending request, {ex.InnerExceptions.Count} exceptions: {string.Join("; ", ex.InnerExceptions.Select(e => e.Message))}");
+                throw ex.GetBaseException();
             }
         }
     }

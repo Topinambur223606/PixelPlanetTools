@@ -7,6 +7,7 @@ using PixelPlanetUtils.NetworkInteraction;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,6 +28,7 @@ namespace PixelPlanetWatcher
         private static readonly object listLockObj = new object();
         private static readonly Thread saveThread = new Thread(SaveChangesThreadBody);
         private static bool disableUpdates;
+        private static Action stopListening;
 
         private static void Main(string[] args)
         {
@@ -41,7 +43,9 @@ namespace PixelPlanetWatcher
                     }
                 }
 
-                logger = new Logger(finishCTS.Token, logFilePath);
+                logger = new Logger(logFilePath, finishCTS.Token);
+                logger.LogDebug("Command line: " + Environment.CommandLine);
+                HttpWrapper.Logger = logger;
                 cache = new ChunkCache(x1, y1, x2, y2, logger);
                 bool initialMapSavingStarted = false;
                 saveThread.Start();
@@ -49,7 +53,7 @@ namespace PixelPlanetWatcher
                 {
                     filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
                 }
-                Directory.CreateDirectory(Path.GetDirectoryName(filename));
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filename)));
                 do
                 {
                     try
@@ -60,28 +64,43 @@ namespace PixelPlanetWatcher
                             cache.Wrapper = wrapper;
                             if (!initialMapSavingStarted)
                             {
+                                logger.LogDebug("Main(): initiating map saving");
                                 initialMapSavingStarted = true;
                                 lockingStreamTask = Task.Run(SaveInitialMapState);
                             }
                             wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
+                            stopListening = wrapper.StopListening;
+                            Console.CancelKeyPress += (o, e) =>
+                            {
+                                logger.LogDebug("Console.CancelKeyPress received");
+                                e.Cancel = true;
+                                wrapper.StopListening();
+                            };
+                            logger.LogInfo("Press Ctrl+C to stop");
                             wrapper.StartListening();
                         }
                     }
                     catch (Exception ex)
                     {
                         logger.LogError($"Unhandled exception: {ex.Message}");
+                        Thread.Sleep(1000);
                     }
                 } while (true);
             }
             finally
             {
+                logger?.LogInfo("Exiting...");
                 finishCTS.Cancel();
                 Thread.Sleep(1000);
                 finishCTS.Dispose();
                 logger?.Dispose();
-                if (saveThread.IsAlive)
+                if (!saveThread.Join(10000))
                 {
-                    saveThread.Interrupt();
+                    Console.WriteLine("Save thread can't finish, aborting. Please contact developer");
+                    if (saveThread.IsAlive)
+                    {
+                        saveThread.Interrupt();
+                    }
                 }
             }
         }
@@ -106,18 +125,21 @@ namespace PixelPlanetWatcher
             cache.DownloadChunks();
             using (FileStream fileStream = File.Open(filename, FileMode.Create, FileAccess.Write))
             {
-                using (BinaryWriter writer = new BinaryWriter(fileStream))
+                using (GZipStream compressionStream = new GZipStream(fileStream, CompressionLevel.Fastest))
                 {
-                    writer.Write(x1);
-                    writer.Write(y1);
-                    writer.Write(x2);
-                    writer.Write(y2);
-                    writer.Write(now.ToBinary());
-                    for (int y = y1; y <= y2; y++)
+                    using (BinaryWriter writer = new BinaryWriter(compressionStream))
                     {
-                        for (int x = x1; x <= x2; x++)
+                        writer.Write(x1);
+                        writer.Write(y1);
+                        writer.Write(x2);
+                        writer.Write(y2);
+                        writer.Write(now.ToBinary());
+                        for (int y = y1; y <= y2; y++)
                         {
-                            writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                            for (int x = x1; x <= x2; x++)
+                            {
+                                writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                            }
                         }
                     }
                 }
@@ -173,23 +195,23 @@ namespace PixelPlanetWatcher
 
         private static bool CheckForUpdates()
         {
-            using (UpdateChecker checker = new UpdateChecker())
+            using (UpdateChecker checker = new UpdateChecker(logger))
             {
                 if (checker.NeedsToCheckUpdates())
                 {
-                    Console.WriteLine("Checking for updates...");
+                    logger.Log("Checking for updates...", MessageGroup.Update);
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                     {
-                        Console.WriteLine($"Update is available: {version} (current version is {App.Version})");
+                        logger.Log($"Update is available: {version} (current version is {App.Version})", MessageGroup.Update);
                         if (isCompatible)
                         {
-                            Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                            logger.Log("New version is backwards compatible, it will be relaunched with same arguments", MessageGroup.Update);
                         }
                         else
                         {
-                            Console.WriteLine("Argument list or order was changed, app should be relaunched manually after update");
+                            logger.Log("Argument list was changed, check it and relaunch bot manually after update", MessageGroup.Update);
                         }
-                        Console.WriteLine("Press Enter to update, anything else to skip");
+                        logger.Log("Press Enter to update, anything else to skip", MessageGroup.Update);
                         while (Console.KeyAvailable)
                         {
                             Console.ReadKey(true);
@@ -197,6 +219,7 @@ namespace PixelPlanetWatcher
                         ConsoleKeyInfo keyInfo = Console.ReadKey(true);
                         if (keyInfo.Key == ConsoleKey.Enter)
                         {
+                            logger.Log("Starting update...", MessageGroup.Update);
                             checker.StartUpdate();
                             return true;
                         }
@@ -205,7 +228,7 @@ namespace PixelPlanetWatcher
                     {
                         if (version == null)
                         {
-                            Console.WriteLine("Cannot check for updates");
+                            logger.LogError("Cannot check for updates");
                         }
                     }
                 }
@@ -220,71 +243,78 @@ namespace PixelPlanetWatcher
             Task delayTask = GetDelayTask();
             try
             {
-                do
+                try
                 {
-                    if (finishCTS.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    try
+                    do
                     {
                         delayTask.Wait();
                         delayTask = GetDelayTask();
-                    }
-                    catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                    {
-                        return;
-                    }
-                    List<Pixel> saved;
-                    lock (listLockObj)
-                    {
-                        saved = updates;
-                        updates = new List<Pixel>();
-                    }
-                    DateTime now = DateTime.Now;
-                    lockingStreamTask = lockingStreamTask.ContinueWith(t =>
-                    {
-                        t.Result.Close();
-                        using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
+                        List<Pixel> saved;
+                        lock (listLockObj)
                         {
-
-                            WriteChanges(fileStream, saved);
-
+                            saved = updates;
+                            updates = new List<Pixel>();
                         }
-                        return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
-                    });
-                } while (true);
-            }
-            catch (ThreadInterruptedException)
-            {
-                using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
-                {
-                    lockingStreamTask.Wait();
-                    lockingStreamTask.Result.Close();
-                    WriteChanges(fileStream, updates);
+                        DateTime now = DateTime.Now;
+                        if (lockingStreamTask.IsFaulted)
+                        {
+                            throw lockingStreamTask.Exception.GetBaseException();
+                        }
+                        lockingStreamTask = lockingStreamTask.ContinueWith(t =>
+                        {
+                            t.Result.Close();
+                            WriteChangesToFile(saved);
+                            return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+                        });
+                    } while (true);
                 }
+                catch (ThreadInterruptedException)
+                {
+                    logger.LogDebug("SaveChangesThreadBody(): cancelling (1)");
+                }
+                catch (TaskCanceledException)
+                {
+                    logger.LogDebug("SaveChangesThreadBody(): cancelling (2)");
+                }
+                catch (AggregateException ae) when (ae.GetBaseException() is TaskCanceledException)
+                {
+                    logger.LogDebug("SaveChangesThreadBody(): cancelling (3)");
+                }
+                lockingStreamTask.Result.Close();
+                WriteChangesToFile(updates);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Unhandled exception during saving: {ex.GetBaseException().Message}");
+                stopListening();
             }
 
-            void WriteChanges(FileStream fileStream, List<Pixel> pixels)
+            void WriteChangesToFile(List<Pixel> pixels)
             {
                 if (pixels.Count > 0)
                 {
-                    using (BinaryWriter writer = new BinaryWriter(fileStream))
+                    using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
                     {
-                        writer.Write(DateTime.Now.ToBinary());
-                        writer.Write((uint)pixels.Count);
-                        foreach ((short, short, PixelColor) pixel in pixels)
+                        using (GZipStream compressionStream = new GZipStream(fileStream, CompressionLevel.Fastest))
                         {
-                            writer.Write(pixel.Item1);
-                            writer.Write(pixel.Item2);
-                            writer.Write((byte)pixel.Item3);
+                            using (BinaryWriter writer = new BinaryWriter(compressionStream))
+                            {
+                                writer.Write(DateTime.Now.ToBinary());
+                                writer.Write((uint)pixels.Count);
+                                foreach ((short, short, PixelColor) pixel in pixels)
+                                {
+                                    writer.Write(pixel.Item1);
+                                    writer.Write(pixel.Item2);
+                                    writer.Write((byte)pixel.Item3);
+                                }
+                            }
                         }
                     }
-                    logger.Log($"{pixels.Count} pixel updates are saved to file", MessageGroup.TechInfo);
+                    logger.LogInfo($"{pixels.Count} pixel updates are saved to file");
                 }
                 else
                 {
-                    logger.Log($"No pixel updates to save", MessageGroup.TechInfo);
+                    logger.LogInfo($"No pixel updates to save");
                 }
             }
         }

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Threading;
 
 namespace PixelPlanetUtils.Logging
 {
@@ -9,24 +11,29 @@ namespace PixelPlanetUtils.Logging
             logger.Log(msg, group, DateTime.Now);
         }
 
+        private static readonly int maxColorLength = Enum.GetValues(typeof(PixelColor)).Cast<PixelColor>().Max(c => c.ToString().Length);
+
         public static void LogPixel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, PixelColor color)
         {
-            string text = $"{msg.PadRight(22)} {color.ToString().PadRight(13)} at ({x.ToString().PadLeft(6)};{y.ToString().PadLeft(6)})";
+            const int maxMsgLength = 22;
+            const int maxCoordLength = 6;
+            string text = string.Format("{0} {1} at ({2};{3})",
+                                    msg.PadRight(maxMsgLength),
+                                    color.ToString().PadRight(maxColorLength),
+                                    x.ToString().PadLeft(maxCoordLength),
+                                    y.ToString().PadLeft(maxCoordLength));
             logger.Log(text, group, time);
         }
 
         public static void LogDebug(this Logger logger, string msg)
         {
-            logger.Log(msg, MessageGroup.Debug);
+            string threadId = Thread.CurrentThread.ManagedThreadId.ToString().PadRight(3, ' ');
+            logger.Log($"T{threadId} | {msg}", MessageGroup.Debug);
         }
 
         public static void LogError(this Logger logger, string msg)
         {
             logger.Log(msg, MessageGroup.Error);
-        }
-        public static void LogWarning(this Logger logger, string msg)
-        {
-            logger.Log(msg, MessageGroup.Warning);
         }
 
         public static void LogInfo(this Logger logger, string msg)

@@ -24,11 +24,13 @@ namespace PixelPlanetUtils.Logging
         private bool disposed;
         private bool consolePaused = false;
         private readonly Thread loggingThread, consoleThread;
+        
+        public string LogFilePath { get; }
 
-        public Logger(CancellationToken finishToken) : this(finishToken, null)
+        public Logger(CancellationToken finishToken) : this(null, finishToken)
         { }
 
-        public Logger(CancellationToken finishToken, string logFilePath)
+        public Logger(string logFilePath, CancellationToken finishToken)
         {
             printableConsoleMessages = incomingConsoleMessages;
             this.finishToken = finishToken;
@@ -44,15 +46,15 @@ namespace PixelPlanetUtils.Logging
             }
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(logFilePath));
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(logFilePath)));
                 logFileWriter = new StreamWriter(logFilePath, true);
+                LogFilePath = logFilePath;
             }
             catch
             {
                 throw new Exception("Cannot init file logging");
             }
         }
-
 
         public void LogAndPause(string msg, MessageGroup group)
         {
@@ -107,7 +109,6 @@ namespace PixelPlanetUtils.Logging
                 case MessageGroup.TechInfo:
                     return ConsoleColor.Cyan;
                 case MessageGroup.TechState:
-                case MessageGroup.Warning:
                     return ConsoleColor.Yellow;
                 case MessageGroup.PixelInfo:
                 case MessageGroup.Debug:
@@ -116,9 +117,15 @@ namespace PixelPlanetUtils.Logging
             }
         }
 
+        private readonly static int padLength = 2 + //brackets
+            Enum.GetValues(typeof(MessageGroup)).Cast<MessageGroup>().Max(mg => mg.ToString().Length);
+
         private static string FormatLine(string msg, MessageGroup group, DateTime time)
         {
-            return string.Format("{0}  {1}  {2}", time.ToString("HH:mm:ss"), $"[{group.ToString().ToUpper()}]".PadRight(11), msg);
+            const string space = "  ";
+            return string.Concat(time.ToString("HH:mm:ss.fff"), space,
+                                    $"[{group.ToString().ToUpper()}]".PadRight(padLength), space,
+                                    msg);
         }
 
         public void Log(string msg, MessageGroup group, DateTime time)
@@ -126,28 +133,6 @@ namespace PixelPlanetUtils.Logging
             string line = FormatLine(msg, group, time);
             messages.Enqueue((line, ColorOf(group)));
             messagesAvailable.Set();
-        }
-
-        private void ConsoleWriterThreadBody()
-        {
-            while (true)
-            {
-                if (printableConsoleMessages.TryDequeue(out LogEntry msg))
-                {
-                    (string line, ConsoleColor color) = msg;
-                    Console.ForegroundColor = color;
-                    Console.WriteLine(line);
-                }
-                else
-                {
-                    noPrintableMessages.Set();
-                    if (disposed || finishToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    consoleMessagesAvailable.WaitOne();
-                }
-            }
         }
 
         private void LogWriterThreadBody()
@@ -170,6 +155,28 @@ namespace PixelPlanetUtils.Logging
                         return;
                     }
                     messagesAvailable.WaitOne();
+                }
+            }
+        }
+
+        private void ConsoleWriterThreadBody()
+        {
+            while (true)
+            {
+                if (printableConsoleMessages.TryDequeue(out LogEntry msg))
+                {
+                    (string line, ConsoleColor color) = msg;
+                    Console.ForegroundColor = color;
+                    Console.WriteLine(line);
+                }
+                else
+                {
+                    noPrintableMessages.Set();
+                    if (disposed || finishToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    consoleMessagesAvailable.WaitOne();
                 }
             }
         }

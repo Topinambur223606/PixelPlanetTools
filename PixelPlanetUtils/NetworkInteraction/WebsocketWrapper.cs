@@ -50,33 +50,44 @@ namespace PixelPlanetUtils.NetworkInteraction
             this.logger = logger;
             preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
             webSocket = new WebSocket(UrlManager.WebSocketUrl);
-            webSocket.Log.Output = (d, s) => { };
+            webSocket.Log.Output = LogWebsocketOutput;
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
             webSocket.OnClose += WebSocket_OnClose;
             ConnectWebSocket();
         }
+        void LogWebsocketOutput(LogData d, string s)
+        {
+            logger.LogDebug($"Websocket message: {s}, {d.Message}");
+        }
 
-        public void WaitWebsocketConnected() => websocketResetEvent.WaitOne();
+        public void WaitWebsocketConnected()
+        {
+            logger.LogDebug("WaitWebsocketConnected(): waiting websocket connection");
+            websocketResetEvent.WaitOne();
+        }
 
         private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed() started");
             preemptiveWebsocketReplacingTimer.Stop();
             WebSocket newWebSocket = new WebSocket(UrlManager.WebSocketUrl);
-            newWebSocket.Log.Output = (d, s) => { };
+            newWebSocket.Log.Output = LogWebsocketOutput;
             newWebSocket.Connect();
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): new websocket connected");
             preemptiveWebsocketReplacingTimer.Start();
             WebSocket oldWebSocket = webSocket;
             webSocket = newWebSocket;
             SubscribeToCanvas();
             if (trackedChunks.Count == 1)
             {
-                SubscribeToUpdates(trackedChunks.First());
+                SubscribeToUpdates(trackedChunks.Single());
             }
             else
             {
                 SubscribeToUpdatesMany(trackedChunks);
             }
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): event resubscribing");
             newWebSocket.OnOpen += WebSocket_OnOpen;
             oldWebSocket.OnOpen -= WebSocket_OnOpen;
             newWebSocket.OnMessage += WebSocket_OnMessage;
@@ -88,54 +99,47 @@ namespace PixelPlanetUtils.NetworkInteraction
             (oldWebSocket as IDisposable).Dispose();
         }
 
-        private void SubscribeToUpdates(XY chunk)
-        {
-            WaitWebsocketConnected();
-            if (disposed)
-            {
-                return;
-            }
-            trackedChunks.Add(chunk);
-            using (MemoryStream ms = new MemoryStream())
-            {
-                using (BinaryWriter sw = new BinaryWriter(ms))
-                {
-                    sw.Write(subscribeOpcode);
-                    sw.Write(chunk.Item1);
-                    sw.Write(chunk.Item2);
-                }
-                byte[] data = ms.ToArray();
-                webSocket.Send(data);
-            }
-        }
-
         public void SubscribeToUpdates(IEnumerable<XY> chunks)
         {
-            if (chunks.Skip(1).Any())
+            if (trackedChunks.Count == 0 && chunks.Skip(1).Any())
             {
-                if (trackedChunks.Count == 0)
-                {
-                    SubscribeToUpdatesMany(chunks);
-                }
-                else
-                {
-                    foreach (XY chunk in chunks)
-                    {
-                        SubscribeToUpdates(chunk);
-                    }
-                }
+                SubscribeToUpdatesMany(chunks);
             }
             else
             {
-                SubscribeToUpdates(chunks.First());
+                foreach (XY chunk in chunks)
+                {
+                    SubscribeToUpdates(chunk);
+                }
             }
+        }
+
+        private void SubscribeToUpdates(XY chunk)
+        {
+            logger.LogDebug($"SubscribeToUpdates(): chunk {chunk}");
+            WaitWebsocketConnected();
+            if (disposed)
+            {
+                logger.LogDebug($"SubscribeToUpdates(): already disposed");
+                return;
+            }
+            trackedChunks.Add(chunk);
+            byte[] data = new byte[3]
+            {
+                subscribeOpcode,
+                chunk.Item1,
+                chunk.Item2
+            };
+            webSocket.Send(data);
         }
 
         private void SubscribeToUpdatesMany(IEnumerable<XY> chunks)
         {
+            logger.LogDebug($"SubscribeToUpdatesMany(): chunks {string.Join(" ", chunks)}");
             WaitWebsocketConnected();
             if (disposed)
             {
+                logger.LogDebug($"SubscribeToUpdatesMany(): already disposed");
                 return;
             }
             trackedChunks.UnionWith(chunks);
@@ -156,11 +160,13 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
-        private void SubscribeToCanvas()
+        private void SubscribeToCanvas(Canvas canvas = Canvas.Earth)
         {
+            logger.LogDebug($"SubscribeToCanvas(): canvas {canvas}");
             WaitWebsocketConnected();
             if (disposed)
             {
+                logger.LogDebug($"SubscribeToCanvas(): already disposed");
                 return;
             }
             using (MemoryStream ms = new MemoryStream())
@@ -168,7 +174,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                 using (BinaryWriter sw = new BinaryWriter(ms))
                 {
                     sw.Write(registerCanvasOpcode);
-                    sw.Write(byte.MinValue);
+                    sw.Write((byte)canvas);
                 }
                 byte[] data = ms.ToArray();
                 webSocket.Send(data);
@@ -177,18 +183,22 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         public void StartListening()
         {
+            logger.LogDebug($"StartListening(): started");
             if (!listeningMode)
             {
+                logger.LogDebug($"StartListening(): not listening mode");
                 throw new InvalidOperationException();
             }
             listeningResetEvent.Reset();
             listeningResetEvent.WaitOne();
+            logger.LogDebug($"StartListening(): ended");
         }
 
         public void StopListening()
         {
             if (!listeningMode)
             {
+                logger.LogDebug($"StopListening(): not listening mode");
                 throw new InvalidOperationException();
             }
             listeningResetEvent.Set();
@@ -198,23 +208,29 @@ namespace PixelPlanetUtils.NetworkInteraction
         {
             if (!webSocket.IsAlive)
             {
-                logger.Log("Connecting via websocket...", MessageGroup.TechState);
+                logger.LogTechState("Connecting via websocket...");
                 reconnectingDelayTask = Task.Delay(3000);
                 webSocket.Connect();
+            }
+            else
+            {
+                logger.LogDebug("ConnectWebSocket(): socket is already alive");
             }
         }
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
+            logger.LogDebug("WebSocket_OnClose(): start");
             preemptiveWebsocketReplacingTimer.Stop();
             if (!isConnectingNow)
             {
                 disconnectionTime = DateTime.Now;
                 isConnectingNow = true;
             }
+            logger.LogDebug("WebSocket_OnClose(): invoking OnConnectionLost");
             OnConnectionLost?.Invoke(this, null);
             websocketResetEvent.Reset();
-            logger.Log("Websocket connection closed, trying to reconnect...", MessageGroup.Error);
+            logger.LogError("Websocket connection closed, trying to reconnect...");
             reconnectingDelayTask.Wait();
             ConnectWebSocket();
         }
@@ -222,7 +238,7 @@ namespace PixelPlanetUtils.NetworkInteraction
         private void WebSocket_OnError(object sender, WebSocketSharp.ErrorEventArgs e)
         {
             webSocket.OnError -= WebSocket_OnError;
-            logger.Log($"Error on websocket: {e.Message}", MessageGroup.Error);
+            logger.LogError($"Error on websocket: {e.Message}");
             webSocket.Close();
         }
 
@@ -235,6 +251,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             if (buffer[0] == pixelUpdatedOpcode)
             {
+                logger.LogDebug($"WebSocket_OnMessage(): got pixel update {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
                 byte chunkX = buffer[1];
                 byte chunkY = buffer[2];
                 byte relativeY = buffer[4];
@@ -247,19 +264,26 @@ namespace PixelPlanetUtils.NetworkInteraction
                     Color = (PixelColor)color,
                     DateTime = DateTime.Now
                 };
+                logger.LogDebug($"WebSocket_OnMessage(): pixel update: {args.Color} at {args.Chunk}:{args.Pixel}");
                 OnPixelChanged?.Invoke(this, args);
             }
             else if (!listeningMode && buffer[0] == cooldownOpcode)
             {
+                logger.LogDebug($"WebSocket_OnMessage(): got cooldown {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
                 if (buffer[2] > 0)
                 {
-                    logger.Log($"Current cooldown: {buffer[2]}", MessageGroup.Info);
+                    logger.LogInfo($"Current cooldown: {buffer[2]}");
                 }
+            }
+            else
+            {
+                logger.LogDebug($"WebSocket_OnMessage(): opcode {buffer[0]}, length {buffer.Length}, ignoring");
             }
         }
 
         private void WebSocket_OnOpen(object sender, EventArgs e)
         {
+            logger.LogDebug($"WebSocket_OnOpen(): start");
             webSocket.OnError += WebSocket_OnError;
             websocketResetEvent.Set();
             SubscribeToCanvas();
@@ -267,13 +291,15 @@ namespace PixelPlanetUtils.NetworkInteraction
             {
                 SubscribeToUpdates(trackedChunks);
             }
-            logger.Log("Listening for changes via websocket", MessageGroup.TechInfo);
+            logger.LogTechInfo("Listening for changes via websocket");
             if (!initialConnection)
             {
                 isConnectingNow = false;
+                logger.LogDebug("WebSocket_OnOpen(): invoking OnConnectionResored");
                 OnConnectionRestored?.Invoke(this, new ConnectionRestoredEventArgs(disconnectionTime));
             }
             initialConnection = false;
+            logger.LogDebug($"WebSocket_OnOpen(): preemptive reconnection timer reset");
             preemptiveWebsocketReplacingTimer.Stop();
             preemptiveWebsocketReplacingTimer.Start();
         }

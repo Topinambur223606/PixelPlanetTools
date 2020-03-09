@@ -28,6 +28,7 @@ namespace PixelPlanetBot
 
         private static AutoResetEvent gotGriefed;
         private static ManualResetEvent mapUpdatedResetEvent;
+        private static CancellationTokenSource captchaCts;
 
         private static object waitingGriefLock;
 
@@ -66,22 +67,23 @@ namespace PixelPlanetBot
                     }
                 }
 
-                
-
-                logger = new Logger(finishCTS.Token, logFilePath);
+                logger = new Logger(logFilePath, finishCTS.Token);
+                logger.LogDebug("Command line: " + Environment.CommandLine);
                 HttpWrapper.Logger = logger;
                 try
                 {
                     imagePixels = ImageProcessing.PixelColorsByUri(imagePath, logger);
                 }
-                catch (WebException)
+                catch (WebException ex)
                 {
                     logger.LogError("Cannot download image");
+                    logger.LogDebug($"Error: {ex.Message}");
                     return;
                 }
-                catch (ArgumentException)
+                catch (ArgumentException ex)
                 {
                     logger.LogError("Cannot convert image");
+                    logger.LogDebug($"Error: {ex.Message}");
                     return;
                 }
 
@@ -97,13 +99,12 @@ namespace PixelPlanetBot
                     }
 
                 }
-                catch (OverflowException)
+                catch (OverflowException ex)
                 {
                     logger.LogError("Entire image should be inside the map");
+                    logger.LogDebug($"Error: {ex.Message}");
                     return;
                 }
-
-
 
                 logger.LogTechState("Calculating pixel placing order...");
                 CalculatePixelOrder();
@@ -111,7 +112,11 @@ namespace PixelPlanetBot
 
                 cache = new ChunkCache(pixelsToBuild, logger);
                 mapUpdatedResetEvent = new ManualResetEvent(false);
-                cache.OnMapUpdated += (o, e) => mapUpdatedResetEvent.Set();
+                cache.OnMapUpdated += (o, e) =>
+                {
+                    logger.LogDebug("Map updated event received");
+                    mapUpdatedResetEvent.Set();
+                };
                 if (defenseMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
@@ -151,7 +156,7 @@ namespace PixelPlanetBot
             }
             finally
             {
-                logger?.Log("Exiting...", MessageGroup.Info);
+                logger?.LogInfo("Exiting...");
                 finishCTS.Cancel();
                 Thread.Sleep(500);
                 gotGriefed?.Dispose();
@@ -168,12 +173,14 @@ namespace PixelPlanetBot
             {
                 wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
                 cache.Wrapper = wrapper;
+                logger.LogDebug("MainWorkingBody(): downloading chunks");
                 cache.DownloadChunks();
                 wrapper.OnPixelChanged += LogPixelChanged;
                 placed.Clear();
                 bool wasChanged;
                 do
                 {
+                    logger.LogDebug("MainWorkingBody(): main body cycle started");
                     wasChanged = false;
                     repeatingFails = false;
                     foreach (Pixel pixel in pixelsToBuild)
@@ -183,6 +190,7 @@ namespace PixelPlanetBot
                         PixelColor actualColor = cache.GetPixelColor(x, y);
                         if (!IsCorrectPixelColor(actualColor, color))
                         {
+                            logger.LogDebug($"MainWorkingBody(): {pixel} - wrong color ({actualColor})");
                             wasChanged = true;
                             bool success;
                             placed.Add(pixel);
@@ -197,6 +205,7 @@ namespace PixelPlanetBot
                                 }
                                 else
                                 {
+                                    logger.LogDebug($"MainWorkingBody(): pixel placing handled error {error}");
                                     if (error == "captcha")
                                     {
                                         ProcessCaptcha();
@@ -205,6 +214,7 @@ namespace PixelPlanetBot
                                     {
                                         logger.Log($"Failed to place pixel: {error}", MessageGroup.PixelFail);
                                     }
+                                    logger.LogDebug($"MainWorkingBody(): sleep {cd:F2} seconds");
                                     Thread.Sleep(TimeSpan.FromSeconds(cd));
                                 }
                             } while (!success);
@@ -214,13 +224,14 @@ namespace PixelPlanetBot
                     {
                         if (!wasChanged)
                         {
-
                             logger.Log("Image is intact, waiting...", MessageGroup.Info);
                             lock (waitingGriefLock)
                             {
+                                logger.LogDebug("MainWorkingBody(): acquiring grief waiting lock");
                                 gotGriefed.Reset();
                                 gotGriefed.WaitOne();
                             }
+                            logger.LogDebug("MainWorkingBody(): got griefed");
                             Thread.Sleep(new Random().Next(500, 3000));
                         }
                     }
@@ -230,46 +241,59 @@ namespace PixelPlanetBot
             }
         }
 
+        private static void BeepThreadBody()
+        {
+            logger.LogDebug("BeepThreadBody() started");
+            CancellationToken token = captchaCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                logger.LogDebug("BeepThreadBody(): beeping");
+                for (int j = 0; j < 7; j++)
+                {
+                    Console.Beep(1000, 100);
+                }
+                try
+                {
+                    Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
+                }
+                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                {
+                    logger.LogDebug("BeepThreadBody(): canceled (1)");
+                    return;
+                }
+                catch (TaskCanceledException)
+                {
+                    logger.LogDebug("BeepThreadBody(): canceled (2)");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"BeepThreadBody(): unhandled exception {ex.GetBaseException().Message}");
+                }
+            }
+        }
+
         private static void ProcessCaptcha()
         {
             logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
-            CancellationTokenSource captchaCts = null;
+            captchaCts = null;
             if (notificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
+                logger.LogDebug("ProcessCaptcha(): starting beep thread");
                 captchaCts = new CancellationTokenSource();
-                new Thread(() =>
-                {
-                    CancellationToken token = captchaCts.Token;
-                    while (!token.IsCancellationRequested)
-                    {
-                        for (int j = 0; j < 7; j++)
-                        {
-                            Console.Beep(1000, 100);
-                        }
-                        try
-                        {
-                            Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
-                        }
-                        catch (AggregateException e) when (e.InnerException is TaskCanceledException)
-                        {
-                            return;
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            return;
-                        }
-                    }
-                }).Start();
+                new Thread(BeepThreadBody).Start();
             }
             if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
             {
-                Process.Start($"https://{UrlManager.BaseUrl}");
+                logger.LogDebug("ProcessCaptcha(): starting browser");
+                Process.Start(UrlManager.BaseHttpAdress);
             }
             while (Console.KeyAvailable)
             {
                 Console.ReadKey(true);
             }
             Console.ReadKey(true);
+            logger.LogDebug("ProcessCaptcha(): got keypress");
             logger.ResumeLogging();
             captchaCts?.Cancel();
             captchaCts?.Dispose();
@@ -280,10 +304,10 @@ namespace PixelPlanetBot
             IEnumerable<Pixel> relativePixelsToBuild;
             IEnumerable<int> allY = Enumerable.Range(0, height);
             IEnumerable<int> allX = Enumerable.Range(0, width);
-            Pixel[] nonEmptyPixels = allX.
+            IList<Pixel> nonEmptyPixels = allX.
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
-                Where(xyc => xyc.C != PixelColor.None).ToArray();
+                Where(xyc => xyc.C != PixelColor.None).ToList();
             switch (placingOrder)
             {
                 case PlacingOrderMode.Left:
@@ -336,9 +360,9 @@ namespace PixelPlanetBot
                     break;
                 default:
                     Random rand = new Random();
-                    for (int i = 0; i < nonEmptyPixels.Length; i++)
+                    for (int i = 0; i < nonEmptyPixels.Count; i++)
                     {
-                        int r = rand.Next(i, nonEmptyPixels.Length);
+                        int r = rand.Next(i, nonEmptyPixels.Count);
                         Pixel tmp = nonEmptyPixels[r];
                         nonEmptyPixels[r] = nonEmptyPixels[i];
                         nonEmptyPixels[i] = tmp;
@@ -437,37 +461,44 @@ namespace PixelPlanetBot
                         }
                     }
                 }
-                catch
+                catch (IndexOutOfRangeException)
                 {
+                    logger.LogDebug("LogPixelChanged(): pixel update beyond rectangle");
+                    msgGroup = MessageGroup.PixelInfo;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"LogPixelChanged(): unhandled exception - {ex.Message}");
                     msgGroup = MessageGroup.PixelInfo;
                 }
                 logger.LogPixel($"Received pixel update:", e.DateTime, msgGroup, x, y, e.Color);
             }
             else
             {
+                logger.LogDebug($"LogPixelChanged(): self-placed pixel");
                 builtInLastMinute++;
             }
         }
 
         private static bool CheckForUpdates()
         {
-            using (UpdateChecker checker = new UpdateChecker())
+            using (UpdateChecker checker = new UpdateChecker(logger))
             {
                 if (checker.NeedsToCheckUpdates())
                 {
-                    Console.WriteLine("Checking for updates...");
+                    logger.Log("Checking for updates...", MessageGroup.Update);
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                     {
-                        Console.WriteLine($"Update is available: {version} (current version is {App.Version})");
+                        logger.Log($"Update is available: {version} (current version is {App.Version})", MessageGroup.Update);
                         if (isCompatible)
                         {
-                            Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
+                            logger.Log("New version is backwards compatible, it will be relaunched with same arguments", MessageGroup.Update);
                         }
                         else
                         {
-                            Console.WriteLine("Argument list or order was changed, bot should be relaunched manually after update");
+                            logger.Log("Argument list was changed, check it and relaunch bot manually after update", MessageGroup.Update);
                         }
-                        Console.WriteLine("Press Enter to update, anything else to skip");
+                        logger.Log("Press Enter to update, anything else to skip", MessageGroup.Update);
                         while (Console.KeyAvailable)
                         {
                             Console.ReadKey(true);
@@ -475,6 +506,7 @@ namespace PixelPlanetBot
                         ConsoleKeyInfo keyInfo = Console.ReadKey(true);
                         if (keyInfo.Key == ConsoleKey.Enter)
                         {
+                            logger.Log("Starting update...", MessageGroup.Update);
                             checker.StartUpdate();
                             return true;
                         }
@@ -483,7 +515,7 @@ namespace PixelPlanetBot
                     {
                         if (version == null)
                         {
-                            Console.WriteLine("Cannot check for updates");
+                            logger.LogError("Cannot check for updates");
                         }
                     }
                 }
@@ -493,71 +525,79 @@ namespace PixelPlanetBot
 
         private static void StatsCollectionThreadBody()
         {
+            int CountDone() => pixelsToBuild.
+                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                   Count();
+
+            void AddToQueue(Queue<int> queue, int value)
+            {
+                const int maxCount = 5;
+                queue.Enqueue(value);
+                if (queue.Count > maxCount)
+                {
+                    queue.Dequeue();
+                }
+            }
+
+            Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+
+            logger.LogDebug("Stats collection thread started");
+            int total = pixelsToBuild.Count();
             mapUpdatedResetEvent.WaitOne();
-            Task taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
-            int done = pixelsToBuild.
-                  Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                  Count();
+            logger.LogDebug("Map updated, stats collection started");
+            Task taskToWait = GetDelayTask();
+            int done = CountDone();
+            logger.LogDebug($"{done} pixels are done at start");
             doneInPast.Enqueue(done);
             do
             {
                 if (finishCTS.IsCancellationRequested)
                 {
+                    logger.LogDebug($"cancellation requested (S1), finishing");
                     return;
                 }
                 try
                 {
+                    logger.LogDebug($"waiting");
                     taskToWait.Wait();
                 }
                 catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
                 {
+                    logger.LogDebug($"cancellation requested (S2), finishing");
                     return;
                 }
                 if (finishCTS.IsCancellationRequested)
                 {
+                    logger.LogDebug($"cancellation requested (S3), finishing");
                     return;
                 }
-                builtInPast.Enqueue(builtInLastMinute);
-                builtInLastMinute = 0;
-                if (builtInPast.Count > 5)
-                {
-                    builtInPast.Dequeue();
-                }
 
-                griefedInPast.Enqueue(griefedInLastMinute);
+                AddToQueue(builtInPast, builtInLastMinute);
+                builtInLastMinute = 0;
+                AddToQueue(griefedInPast, griefedInLastMinute);
                 griefedInLastMinute = 0;
-                if (griefedInPast.Count > 5)
-                {
-                    griefedInPast.Dequeue();
-                }
+                done = CountDone(); //time consuming => cancellation check again later
+                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
+                AddToQueue(doneInPast, done);
+                logger.LogDebug($"last minute: {builtInPast} built, {griefedInPast} griefed; {done} total done");
 
                 double griefedPerMinute = griefedInPast.Average();
                 double builtPerMinute = builtInPast.Average();
-
-                done = pixelsToBuild.
-                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                   Count();
-
-                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
-
-                doneInPast.Enqueue(done);
-                if (doneInPast.Count > 5)
-                {
-                    doneInPast.Dequeue();
-                }
-
-                int total = pixelsToBuild.Count();
-                double percent = Math.Floor(done * 1000.0 / total) / 10.0;
+                double percent = Math.Floor(done * 1000D / total) / 10D;
                 DateTime time = DateTime.Now;
+
                 if (finishCTS.IsCancellationRequested)
                 {
+                    logger.LogDebug($"cancellation requested (S4), finishing");
                     return;
                 }
                 if (defenseMode)
                 {
                     logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
+                    logger.LogDebug($"grief lock start");
                     lock (waitingGriefLock)
                     { }
+                    logger.LogDebug($"grief lock end");
                 }
                 else
                 {
@@ -579,7 +619,8 @@ namespace PixelPlanetBot
                     logger.Log($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
                     logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
                 }
-                taskToWait = Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+                taskToWait = GetDelayTask();
+                logger.LogDebug("cycle ended");
             } while (true);
         }
     }

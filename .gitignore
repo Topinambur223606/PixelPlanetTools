@@ -264,3 +264,4 @@ __pycache__/
 /executable/
 /executable-mobile
 */Properties/launchSettings.json
+/PixelPlanetUtils/Resources/Updater.exe

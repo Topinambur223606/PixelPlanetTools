@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
+using PixelPlanetUtils.Logging;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -18,7 +19,7 @@ namespace PixelPlanetUtils
         private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, updaterFileName);
         private readonly string lastCheckFilePath;
         private static readonly Version updaterVersion = new Version(3, 1);
-
+        private readonly Logger logger;
         private readonly string appName;
         private string downloadUrl;
         private bool isCompatible;
@@ -27,19 +28,20 @@ namespace PixelPlanetUtils
         static UpdateChecker()
         {
             DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
-            foreach (var fi in di.EnumerateFiles("*.lastcheck"))
+            foreach (FileInfo fi in di.EnumerateFiles("*.lastcheck"))
             {
                 fi.Delete();
             }
         }
 
-        public UpdateChecker()
+        public UpdateChecker(Logger logger)
         {
+            this.logger = logger;
             appName = Assembly.GetEntryAssembly().GetName().Name;
             lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, appName + ".lastcheck");
         }
 
-        private static string GetCompressedArgs()
+        private static string GetPackedArgs()
         {
             string commandLine = Environment.CommandLine;
             char searched = commandLine.StartsWith("\"") ? '"' : ' ';
@@ -50,31 +52,41 @@ namespace PixelPlanetUtils
 
         public bool NeedsToCheckUpdates()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(lastCheckFilePath));
-            while (lastCheckFileStream == null)
+            try
             {
-                try
+                Directory.CreateDirectory(Path.GetDirectoryName(lastCheckFilePath));
+                while (lastCheckFileStream == null)
                 {
-                    lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                }
-                catch (IOException)
-                {
-                    Thread.Sleep(300);
-                }
-            }
-            if (lastCheckFileStream.Length > 0)
-            {
-                using (BinaryReader br = new BinaryReader(lastCheckFileStream, Encoding.Default, true))
-                {
-                    DateTime lastCheck = DateTime.FromBinary(br.ReadInt64());
-                    if (DateTime.Now - lastCheck < TimeSpan.FromHours(1))
+                    try
                     {
-                        lastCheckFileStream.Dispose();
-                        return false;
+                        logger.LogDebug("Trying to access last check file");
+                        lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    }
+                    catch (IOException ex)
+                    {
+                        logger.LogDebug($"Cannot access last check file: {ex.Message}");
+                        Thread.Sleep(300);
                     }
                 }
+                if (lastCheckFileStream.Length > 0)
+                {
+                    using (BinaryReader br = new BinaryReader(lastCheckFileStream, Encoding.Default, true))
+                    {
+                        DateTime lastCheck = DateTime.FromBinary(br.ReadInt64());
+                        if (DateTime.Now - lastCheck < TimeSpan.FromHours(1))
+                        {
+                            lastCheckFileStream.Dispose();
+                            return false;
+                        }
+                    }
+                }
+                return true;
             }
-            return true;
+            catch (Exception ex)
+            {
+                logger.LogError($"Error while retrieving last check time: {ex.Message}");
+                return false;
+            }
         }
 
         public bool UpdateIsAvailable(out string availableVersion, out bool isCompatible)
@@ -107,8 +119,9 @@ namespace PixelPlanetUtils
                 }
                 return appVersion < upToDateVersion;
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogError($"Error while checking for updates: {ex.Message}");
                 isCompatible = true;
                 availableVersion = null;
                 return false;
@@ -127,18 +140,26 @@ namespace PixelPlanetUtils
 
         public void StartUpdate()
         {
-            UnpackUpdater();
-            string args;
-            int id = Process.GetCurrentProcess().Id;
-            if (isCompatible)
+            try
             {
-                args = $"{id} {downloadUrl} {GetCompressedArgs()}";
+                logger.LogDebug("Unpacking updater if needed");
+                UnpackUpdater();
+                string args;
+                int id = Process.GetCurrentProcess().Id;
+                if (isCompatible)
+                {
+                    args = $"{id} {downloadUrl} {GetPackedArgs()}";
+                }
+                else
+                {
+                    args = $"{id} {downloadUrl}";
+                }
+                Process.Start(updaterPath, args);
             }
-            else
+            catch (Exception ex)
             {
-                args = $"{id} {downloadUrl}";
+                logger.LogDebug($"Exception during update start: {ex.Message}");
             }
-            Process.Start(updaterPath, args);
         }
 
         public void Dispose()

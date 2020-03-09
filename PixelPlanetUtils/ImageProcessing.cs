@@ -85,13 +85,15 @@ namespace PixelPlanetUtils
 
         public static PixelColor[,] PixelColorsByUri(string imageUri, Logger logger)
         {
-            logger.Log("Downloading image...", MessageGroup.TechState);
+            logger.LogTechState("Downloading image...");
             using (WebClient wc = new WebClient())
             {
-                using (Image<Rgba32> image = Image.Load(wc.DownloadData(imageUri)))
+                logger.LogDebug($"URI: {imageUri}");
+                byte[] data = wc.DownloadData(imageUri);
+                using (Image<Rgba32> image = Image.Load(data))
                 {
-                    logger.Log("Image is downloaded", MessageGroup.TechInfo);
-                    logger.Log("Converting image...", MessageGroup.TechState);
+                    logger.LogTechInfo("Image is downloaded");
+                    logger.LogTechState("Converting image...");
                     int w = image.Width;
                     int h = image.Height;
                     PixelColor[,] res = new PixelColor[w, h];
@@ -102,7 +104,7 @@ namespace PixelPlanetUtils
                             res[x, y] = ClosestAvailable(image[x, y]);
                         }
                     });
-                    logger.Log("Image is converted", MessageGroup.TechInfo);
+                    logger.LogTechInfo("Image is converted");
                     return res;
                 }
             }

@@ -30,10 +30,12 @@ namespace PixelPlanetUtils.CanvasInteraction
             }
             set
             {
+                logger.LogDebug("ChunkCache.Wrapper set started");
                 wrapper = value;
                 wrapper.SubscribeToUpdates(chunks);
                 if (interactiveMode)
                 {
+                    logger.LogDebug("ChunkCache.Wrapper event subscription");
                     wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
                     wrapper.OnConnectionRestored += Wrapper_OnConnectionRestored;
                 }
@@ -42,7 +44,8 @@ namespace PixelPlanetUtils.CanvasInteraction
 
         public void DownloadChunks()
         {
-            logger.Log("Downloading chunk data...", MessageGroup.TechState);
+            logger.LogTechState("Downloading chunk data...");
+            const int maxFails = 5;
             int fails;
             do
             {
@@ -54,14 +57,16 @@ namespace PixelPlanetUtils.CanvasInteraction
                     {
                         try
                         {
+                            logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
                             CachedChunks[chunkXY] = HttpWrapper.GetChunk(chunkXY);
                             success = true;
                         }
                         catch
                         {
                             logger.LogError("Cannot download chunk data, waiting 5s before next attempt");
-                            if (++fails == 5)
+                            if (++fails == maxFails)
                             {
+                                logger.LogDebug($"DownloadChunks(): {fails} fails in row, aborting");
                                 break;
                             }
                             Thread.Sleep(TimeSpan.FromSeconds(5));
@@ -70,11 +75,11 @@ namespace PixelPlanetUtils.CanvasInteraction
                 }
                 if (fails == 5)
                 {
-                    logger.Log("Waiting 30s before next attempt", MessageGroup.TechState);
+                    logger.LogTechState("Waiting 30s before next attempt");
                     Thread.Sleep(TimeSpan.FromSeconds(30));
                 }
             } while (fails == 5);
-            logger.Log("Chunk data is downloaded", MessageGroup.TechInfo);
+            logger.LogTechInfo("Chunk data is downloaded");
             OnMapUpdated?.Invoke(this, null);
         }
 
@@ -82,10 +87,12 @@ namespace PixelPlanetUtils.CanvasInteraction
         {
             if (e.OfflinePeriod > maxOffline)
             {
+                logger.LogDebug($"Wrapper_OnConnectionRestored(): too long offline, downloading chunks again");
                 DownloadChunks();
             }
             else
             {
+                logger.LogDebug($"Wrapper_OnConnectionRestored(): {e.OfflinePeriod.TotalSeconds.ToString("F2")} seconds offline");
                 OnMapUpdated(this, null);
             }
         }
@@ -94,20 +101,21 @@ namespace PixelPlanetUtils.CanvasInteraction
         {
             interactiveMode = true;
             this.logger = logger;
-            logger.Log("Calculating list of chunks...", MessageGroup.TechState);
+            logger.LogTechState("Calculating list of chunks...");
             chunks = pixels.Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
                 return (chunkX, chunkY);
             }).Distinct().ToList();
-            logger.Log("Chunk list is calculated", MessageGroup.TechInfo);
+            logger.LogTechInfo("Chunk list is calculated");
         }
 
         public ChunkCache(short x1, short y1, short x2, short y2, Logger logger)
         {
             interactiveMode = false;
             this.logger = logger;
+            logger.LogTechState("Calculating list of chunks...");
             PixelMap.ConvertToRelative(x1, out byte chunkX1, out _);
             PixelMap.ConvertToRelative(y1, out byte chunkY1, out _);
             PixelMap.ConvertToRelative(x2, out byte chunkX2, out _);
@@ -120,6 +128,7 @@ namespace PixelPlanetUtils.CanvasInteraction
                     chunks.Add(((byte)i, (byte)j));
                 }
             }
+            logger.LogTechInfo("Chunk list is calculated");
         }
 
         public PixelColor GetPixelColor(short x, short y)
@@ -134,8 +143,13 @@ namespace PixelPlanetUtils.CanvasInteraction
         {
             if (CachedChunks.TryGetValue(e.Chunk, out PixelColor[,] chunkMap))
             {
+                logger.LogDebug("Wrapper_OnPixelChanged(): writing update to map");
                 (byte rX, byte rY) = e.Pixel;
                 chunkMap[rX, rY] = e.Color;
+            }
+            else
+            {
+                logger.LogDebug("Wrapper_OnPixelChanged(): pixel is not in loaded area");
             }
         }
     }
