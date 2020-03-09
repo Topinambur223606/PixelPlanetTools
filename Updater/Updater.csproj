@@ -10,4 +10,11 @@
     <Authors>Topinambur223606</Authors>
     <OutputType>WinExe</OutputType>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <PostBuildEvent>if $(Configuration) == Release (
+copy /y Updater.exe ..\..\..\..\PixelPlanetUtils\Resources\Updater.exe
+)
+    </PostBuildEvent>
+  </PropertyGroup>
 </Project>

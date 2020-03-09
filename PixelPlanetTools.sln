@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PixelPlanetBot", "PixelPlanetBot\PixelPlanetBot.csproj", "{A02B190E-6626-4597-ACE1-213F1C572132}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PixelPlanetUtils", "PixelPlanetUtils\PixelPlanetUtils.csproj", "{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D0F13AD2-1835-48D8-88CD-823182E3D4C5} = {D0F13AD2-1835-48D8-88CD-823182E3D4C5}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PixelPlanetWatcher", "PixelPlanetWatcher\PixelPlanetWatcher.csproj", "{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}"
 EndProject
@@ -31,14 +34,10 @@ Global
 		{A02B190E-6626-4597-ACE1-213F1C572132}.Release|x64.Build.0 = Release|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|x64.ActiveCfg = Debug|x64
-		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|x64.Build.0 = Debug|x64
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|x64.ActiveCfg = Debug|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Debug|x64.Build.0 = Debug|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|x64.ActiveCfg = Release|x64
-		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|x64.Build.0 = Release|x64
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|x64.ActiveCfg = Release|Any CPU
 		{C45F32AB-C5F1-4761-B677-4D1AFAF86FD0}.Release|x64.Build.0 = Release|Any CPU
 		{5EB46FC8-7ED5-48E7-B7D8-5F9DCDD54631}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -65,14 +64,6 @@ Global
 		{5AD9BF0F-5BC5-4FE4-B603-09134938A0CE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5AD9BF0F-5BC5-4FE4-B603-09134938A0CE}.Release|x64.ActiveCfg = Release|Any CPU
 		{5AD9BF0F-5BC5-4FE4-B603-09134938A0CE}.Release|x64.Build.0 = Release|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Debug|x64.Build.0 = Debug|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Release|x64.ActiveCfg = Release|Any CPU
-		{5F4948CD-8F15-4185-8027-C38B1FCE194C}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

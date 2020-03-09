@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils;
+﻿using CommandLine;
+using PixelPlanetUtils;
 using PixelPlanetUtils.CanvasInteraction;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
@@ -6,7 +7,6 @@ using PixelPlanetUtils.NetworkInteraction;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -20,9 +20,9 @@ namespace PixelPlanetBot
     {
         private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
-        private static bool defendMode;
+        private static bool defenseMode;
         private static CaptchaNotificationMode notificationMode;
-        private static PlacingOrderMode order;
+        private static PlacingOrderMode placingOrder;
         private static ChunkCache cache;
         private static bool repeatingFails = false;
 
@@ -31,11 +31,13 @@ namespace PixelPlanetBot
 
         private static object waitingGriefLock;
 
+        private static string imagePath;
         private static PixelColor[,] imagePixels;
         private static IEnumerable<Pixel> pixelsToBuild;
         private static short leftX, topY;
         private static ushort width, height;
         private static WebProxy proxy;
+        private static bool disableUpdates;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
 
@@ -51,23 +53,57 @@ namespace PixelPlanetBot
         {
             try
             {
-                if (CheckForUpdates())
+                if (!ParseArguments(args))
                 {
                     return;
                 }
 
-                InitParseArguments(args);
+                if (!disableUpdates)
+                {
+                    if (CheckForUpdates())
+                    {
+                        return;
+                    }
+                }
+
+                
+
                 logger = new Logger(finishCTS.Token, logFilePath);
                 HttpWrapper.Logger = logger;
-                imagePixels = ImageProcessing.PixelColorsByUri(args[2], logger);
-                checked
+                try
                 {
-                    width = (ushort)imagePixels.GetLength(0);
-                    height = (ushort)imagePixels.GetLength(1);
-                    short check;
-                    check = (short)(leftX + width);
-                    check = (short)(topY + height);
+                    imagePixels = ImageProcessing.PixelColorsByUri(imagePath, logger);
                 }
+                catch (WebException)
+                {
+                    logger.LogError("Cannot download image");
+                    return;
+                }
+                catch (ArgumentException)
+                {
+                    logger.LogError("Cannot convert image");
+                    return;
+                }
+
+                try
+                {
+                    checked
+                    {
+                        width = (ushort)imagePixels.GetLength(0);
+                        height = (ushort)imagePixels.GetLength(1);
+                        short check;
+                        check = (short)(leftX + width);
+                        check = (short)(topY + height);
+                    }
+
+                }
+                catch (OverflowException)
+                {
+                    logger.LogError("Entire image should be inside the map");
+                    return;
+                }
+
+
 
                 logger.LogTechState("Calculating pixel placing order...");
                 CalculatePixelOrder();
@@ -76,7 +112,7 @@ namespace PixelPlanetBot
                 cache = new ChunkCache(pixelsToBuild, logger);
                 mapUpdatedResetEvent = new ManualResetEvent(false);
                 cache.OnMapUpdated += (o, e) => mapUpdatedResetEvent.Set();
-                if (defendMode)
+                if (defenseMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
                     cache.OnMapUpdated += (o, e) => gotGriefed.Set();
@@ -115,9 +151,9 @@ namespace PixelPlanetBot
             }
             finally
             {
-                Console.WriteLine("Exiting...");
+                logger?.Log("Exiting...", MessageGroup.Info);
                 finishCTS.Cancel();
-                Thread.Sleep(300);
+                Thread.Sleep(500);
                 gotGriefed?.Dispose();
                 mapUpdatedResetEvent?.Dispose();
                 logger?.Dispose();
@@ -174,7 +210,7 @@ namespace PixelPlanetBot
                             } while (!success);
                         }
                     }
-                    if (defendMode)
+                    if (defenseMode)
                     {
                         if (!wasChanged)
                         {
@@ -188,7 +224,7 @@ namespace PixelPlanetBot
                             Thread.Sleep(new Random().Next(500, 3000));
                         }
                     }
-                } while (defendMode || wasChanged);
+                } while (defenseMode || wasChanged);
                 logger.Log("Building is finished", MessageGroup.Info);
                 return;
             }
@@ -248,7 +284,7 @@ namespace PixelPlanetBot
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
                 Where(xyc => xyc.C != PixelColor.None).ToArray();
-            switch (order)
+            switch (placingOrder)
             {
                 case PlacingOrderMode.Left:
                     relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
@@ -313,68 +349,28 @@ namespace PixelPlanetBot
             pixelsToBuild = relativePixelsToBuild.Select(p => ((short)(p.Item1 + leftX), (short)(p.Item2 + topY), p.Item3)).ToList();
         }
 
-        private static void InitParseArguments(string[] args)
+        private static bool ParseArguments(string[] args)
         {
-            notificationMode = CaptchaNotificationMode.Sound;
-            try
+            using (Parser parser = new Parser(cfg =>
             {
-                try
-                {
-                    if (args.Length < 3)
+                cfg.CaseInsensitiveEnumValues = true;
+                cfg.HelpWriter = Console.Out;
+            }))
+            {
+                bool success = true;
+                parser.ParseArguments<Options>(args)
+                    .WithNotParsed(e => success = false)
+                    .WithParsed(o =>
                     {
-                        throw new Exception();
-                    }
-                    leftX = short.Parse(args[0]);
-                    topY = short.Parse(args[1]);
-                    if (args.Length > 3)
-                    {
-                        notificationMode = CaptchaNotificationMode.None;
-                        string upper = args[3].ToUpper();
-                        if (upper.Contains('B'))
+                        leftX = o.LeftX;
+                        topY = o.TopY;
+
+                        notificationMode = o.CaptchaNotificationMode;
+                        defenseMode = o.DefenseMode;
+                        placingOrder = o.PlacingOrderMode;
+                        if (!string.IsNullOrWhiteSpace(o.Proxy))
                         {
-                            notificationMode |= CaptchaNotificationMode.Browser;
-                        }
-                        if (upper.Contains('S'))
-                        {
-                            notificationMode |= CaptchaNotificationMode.Sound;
-                        }
-                    }
-                    if (args.Length > 4)
-                    {
-                        defendMode = args[4].ToUpper() == "Y";
-                    }
-                    if (args.Length > 5)
-                    {
-                        switch (args[5].ToUpper())
-                        {
-                            case "R":
-                                order = PlacingOrderMode.Right;
-                                break;
-                            case "L":
-                                order = PlacingOrderMode.Left;
-                                break;
-                            case "T":
-                                order = PlacingOrderMode.Top;
-                                break;
-                            case "B":
-                                order = PlacingOrderMode.Bottom;
-                                break;
-                            case "O":
-                                order = PlacingOrderMode.Outline;
-                                break;
-                        }
-                    }
-                    if (args.Length > 6)
-                    {
-                        if (!args[6].Equals("none", StringComparison.CurrentCultureIgnoreCase))
-                        {
-                            string[] parts = args[6].Split(':');
-                            if (parts.Length != 2)
-                            {
-                                throw new Exception();
-                            }
-                            IPAddress.Parse(parts[0]);
-                            proxy = new WebProxy(parts[0], ushort.Parse(parts[1]));
+                            proxy = new WebProxy(o.Proxy);
                             HttpWrapper.Proxy = proxy;
                             if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
@@ -382,43 +378,25 @@ namespace PixelPlanetBot
                                     "Ensure that same proxy settings are set in your default browser");
                             }
                         }
-                    }
-                    if (args.Length > 7)
-                    {
-                        if (!args[7].Equals("none", StringComparison.CurrentCultureIgnoreCase))
+                        logFilePath = o.LogFilePath;
+                        imagePath = o.ImagePath;
+                        disableUpdates = o.DisableUpdates;
+                        if (o.UseMirror)
                         {
-                            try
+                            if (o.ServerUrl != null)
                             {
-                                File.OpenWrite(args[7]).Dispose();
-                                logFilePath = args[7];
+                                Console.WriteLine("Invalid args: mirror usage and custom server address are specified");
+                                success = false;
+                                return;
                             }
-                            catch
-                            { }
+                            UrlManager.MirrorMode = true;
                         }
-                    }
-                }
-                catch (OverflowException)
-                {
-                    throw new Exception("Entire image should be inside the map");
-                }
-                catch (WebException)
-                {
-                    throw new Exception("Cannot download image");
-                }
-                catch (ArgumentException)
-                {
-                    logger.Log("Cannot convert image", MessageGroup.Error);
-                    throw new Exception(string.Empty);
-                }
-                catch
-                {
-                    throw new Exception("Parameters: <leftX> <topY> <imageURI> [notificationMode: N/B/S/BS = S] [defendMode: Y/N = N] [buildFrom L/R/T/B/O/RND = RND] [proxyAddress = none] [logFileName = none]");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return;
+                        if (o.ServerUrl != null)
+                        {
+                            UrlManager.BaseUrl = o.ServerUrl;
+                        }
+                    });
+                return success;
             }
         }
 
@@ -480,7 +458,7 @@ namespace PixelPlanetBot
                     Console.WriteLine("Checking for updates...");
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                     {
-                        Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
+                        Console.WriteLine($"Update is available: {version} (current version is {App.Version})");
                         if (isCompatible)
                         {
                             Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
@@ -575,7 +553,7 @@ namespace PixelPlanetBot
                 {
                     return;
                 }
-                if (defendMode)
+                if (defenseMode)
                 {
                     logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
                     lock (waitingGriefLock)

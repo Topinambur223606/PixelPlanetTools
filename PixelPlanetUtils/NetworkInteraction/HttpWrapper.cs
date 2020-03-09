@@ -14,7 +14,6 @@ namespace PixelPlanetUtils.NetworkInteraction
 {
     public static class HttpWrapper
     {
-        private static int apiConnectionFails = 0;
         private static bool multiplePlacingFails = false;
 
         public static WebProxy Proxy { get; set; }
@@ -34,39 +33,27 @@ namespace PixelPlanetUtils.NetworkInteraction
                             throw new Exception($"Error: {response.StatusDescription}");
                         }
                         Logger.Log("API is reachable", MessageGroup.TechInfo);
-                        apiConnectionFails = 0;
                         break;
                     }
                 }
                 catch (WebException ex)
                 {
-                    try
+                    using (HttpWebResponse response = ex.Response as HttpWebResponse)
                     {
-                        using (HttpWebResponse response = ex.Response as HttpWebResponse)
+                        if (response == null)
                         {
-                            if (response == null)
-                            {
-                                Logger.Log("Cannot connect: internet connection is slow or not available", MessageGroup.Error);
-                                Thread.Sleep(1000);
-                                continue;
-                            }
-                            switch (response.StatusCode)
-                            {
-                                case HttpStatusCode.Forbidden:
-                                    throw new PausingException("this IP is blocked by CloudFlare from accessing PixelPlanet");
-                                case HttpStatusCode.BadGateway:
-                                    throw new Exception("cannot connect, site is overloaded");
-                                default:
-                                    throw new Exception(response.StatusDescription);
-                            }
+                            Logger.Log("Cannot connect: internet connection is slow or not available", MessageGroup.Error);
+                            Thread.Sleep(1000);
+                            continue;
                         }
-                    }
-                    finally
-                    {
-                        if (++apiConnectionFails == 3)
+                        switch (response.StatusCode)
                         {
-                            UrlManager.MirrorMode = true;
-                            Logger.Log("Switching to the mirror site", MessageGroup.TechInfo);
+                            case HttpStatusCode.Forbidden:
+                                throw new PausingException("this IP is blocked by CloudFlare from accessing PixelPlanet");
+                            case HttpStatusCode.BadGateway:
+                                throw new Exception("cannot connect, site is overloaded");
+                            default:
+                                throw new Exception(response.StatusDescription);
                         }
                     }
                 }

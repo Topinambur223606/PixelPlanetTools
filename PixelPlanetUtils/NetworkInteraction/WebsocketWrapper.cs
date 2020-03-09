@@ -57,7 +57,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             ConnectWebSocket();
         }
 
-        public void WaitWebsocketConnected() => WaitWebsocketConnected();
+        public void WaitWebsocketConnected() => websocketResetEvent.WaitOne();
 
         private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
         {

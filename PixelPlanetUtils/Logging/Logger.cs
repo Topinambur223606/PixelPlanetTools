@@ -21,8 +21,8 @@ namespace PixelPlanetUtils.Logging
         private readonly StreamWriter logFileWriter;
         private readonly CancellationToken finishToken;
         private readonly object lockObj = new object();
-        bool disposed;
-        bool consolePaused = false;
+        private bool disposed;
+        private bool consolePaused = false;
         private readonly Thread loggingThread, consoleThread;
 
         public Logger(CancellationToken finishToken) : this(finishToken, null)
@@ -44,6 +44,7 @@ namespace PixelPlanetUtils.Logging
             }
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(logFilePath));
                 logFileWriter = new StreamWriter(logFilePath, true);
             }
             catch
@@ -194,7 +195,7 @@ namespace PixelPlanetUtils.Logging
             ClearOldLogs();
         }
 
-        static void ClearOldLogs()
+        private static void ClearOldLogs()
         {
             TimeSpan maxLogAge = TimeSpan.FromDays(7);
             DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);

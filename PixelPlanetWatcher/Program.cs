@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils;
+﻿using CommandLine;
+using PixelPlanetUtils;
 using PixelPlanetUtils.CanvasInteraction;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
@@ -25,31 +26,30 @@ namespace PixelPlanetWatcher
         private static Task<FileStream> lockingStreamTask;
         private static readonly object listLockObj = new object();
         private static readonly Thread saveThread = new Thread(SaveChangesThreadBody);
+        private static bool disableUpdates;
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             try
             {
-                if (CheckForUpdates())
+                ParseArguments(args);
+                if (!disableUpdates)
                 {
-                    return;
-                }
-
-                try
-                {
-                    ParseArguments(args);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error while parsing arguments: {ex.Message}");
-                    return;
+                    if (CheckForUpdates())
+                    {
+                        return;
+                    }
                 }
 
                 logger = new Logger(finishCTS.Token, logFilePath);
                 cache = new ChunkCache(x1, y1, x2, y2, logger);
                 bool initialMapSavingStarted = false;
                 saveThread.Start();
-                filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
+                if (string.IsNullOrWhiteSpace(filename))
+                {
+                    filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(filename));
                 do
                 {
                     try
@@ -126,37 +126,52 @@ namespace PixelPlanetWatcher
             return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
         }
 
-        private static void ParseArguments(string[] args)
+        private static bool ParseArguments(string[] args)
         {
-            try
+            using (Parser parser = new Parser(cfg =>
             {
-                x1 = short.Parse(args[0]);
-                y1 = short.Parse(args[1]);
-                x2 = short.Parse(args[2]);
-                y2 = short.Parse(args[3]);
-                if (x1 > x2 || y1 > y2)
-                {
-                    throw new Exception();
-                }
-                try
-                {
-                    File.Open(args[4], FileMode.Append, FileAccess.Write).Dispose();
-                    logFilePath = args[4];
-                }
-                catch
-                { }
-            }
-            catch (OverflowException)
+                cfg.CaseInsensitiveEnumValues = true;
+                cfg.HelpWriter = Console.Out;
+            }))
             {
-                throw new Exception("Entire watched zone should be inside the map");
-            }
-            catch
-            {
-                throw new Exception("Parameters: <leftX> <topY> <rightX> <bottomY> [logFilePath] ; all in range -32768..32767");
+                bool success = true;
+                parser.ParseArguments<Options>(args)
+                    .WithNotParsed(e => success = false)
+                    .WithParsed(o =>
+                    {
+                        x1 = o.LeftX;
+                        y1 = o.TopY;
+                        x2 = o.RightX;
+                        y2 = o.BottomY;
+                        if (x1 > x2 || y1 > y2)
+                        {
+                            Console.WriteLine("Invalid args: check rectangle borders");
+                            success = false;
+                            return;
+                        }
+                        logFilePath = o.LogFilePath;
+                        disableUpdates = o.DisableUpdates;
+                        filename = o.FileName;
+                        if (o.UseMirror)
+                        {
+                            if (o.ServerUrl != null)
+                            {
+                                Console.WriteLine("Invalid args: mirror usage and custom server address are specified");
+                                success = false;
+                                return;
+                            }
+                            UrlManager.MirrorMode = true;
+                        }
+                        if (o.ServerUrl != null)
+                        {
+                            UrlManager.BaseUrl = o.ServerUrl;
+                        }
+                    });
+                return success;
             }
         }
 
-        static bool CheckForUpdates()
+        private static bool CheckForUpdates()
         {
             using (UpdateChecker checker = new UpdateChecker())
             {
@@ -165,7 +180,7 @@ namespace PixelPlanetWatcher
                     Console.WriteLine("Checking for updates...");
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                     {
-                        Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
+                        Console.WriteLine($"Update is available: {version} (current version is {App.Version})");
                         if (isCompatible)
                         {
                             Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
@@ -198,7 +213,7 @@ namespace PixelPlanetWatcher
             return false;
         }
 
-        static void SaveChangesThreadBody()
+        private static void SaveChangesThreadBody()
         {
             Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
 

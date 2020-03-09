@@ -24,10 +24,19 @@ namespace PixelPlanetUtils
         private bool isCompatible;
         private FileStream lastCheckFileStream;
 
+        static UpdateChecker()
+        {
+            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
+            foreach (var fi in di.EnumerateFiles("*.lastcheck"))
+            {
+                fi.Delete();
+            }
+        }
+
         public UpdateChecker()
         {
             appName = Assembly.GetEntryAssembly().GetName().Name;
-            lastCheckFilePath = Path.Combine(PathTo.AppFolder, appName + ".lastcheck");
+            lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, appName + ".lastcheck");
         }
 
         private static string GetCompressedArgs()
@@ -41,7 +50,7 @@ namespace PixelPlanetUtils
 
         public bool NeedsToCheckUpdates()
         {
-            Directory.CreateDirectory(PathTo.AppFolder);
+            Directory.CreateDirectory(Path.GetDirectoryName(lastCheckFilePath));
             while (lastCheckFileStream == null)
             {
                 try
@@ -68,8 +77,6 @@ namespace PixelPlanetUtils
             return true;
         }
 
-        public static Version CurrentAppVersion => Assembly.GetEntryAssembly().GetName().Version;
-
         public bool UpdateIsAvailable(out string availableVersion, out bool isCompatible)
         {
             try
@@ -89,7 +96,7 @@ namespace PixelPlanetUtils
                     Single(t => t["name"].ToString().StartsWith(appName, StringComparison.InvariantCultureIgnoreCase))
                     ["browser_download_url"].ToString();
 
-                Version appVersion = CurrentAppVersion;
+                Version appVersion = App.Version;
                 availableVersion = versions[appName].ToString();
                 Version upToDateVersion = Version.Parse(availableVersion);
                 isCompatible = this.isCompatible = upToDateVersion.Major == appVersion.Major;
@@ -113,12 +120,8 @@ namespace PixelPlanetUtils
             if (!File.Exists(updaterPath) ||
                 Version.Parse(FileVersionInfo.GetVersionInfo(updaterPath).FileVersion) < updaterVersion)
             {
-                Directory.CreateDirectory(PathTo.AppFolder);
-                using (FileStream fileStream = File.Create(updaterPath))
-                using (Stream updaterStream = typeof(UpdateChecker).Assembly.GetManifestResourceStream(typeof(UpdateChecker), updaterFileName))
-                {
-                    updaterStream.CopyTo(fileStream);
-                }
+                Directory.CreateDirectory(Path.GetDirectoryName(updaterPath));
+                File.WriteAllBytes(updaterPath, Properties.Resources.Updater);
             }
         }
 

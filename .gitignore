@@ -263,3 +263,4 @@ __pycache__/
 # executable folder
 /executable/
 /executable-mobile
+*/Properties/launchSettings.json

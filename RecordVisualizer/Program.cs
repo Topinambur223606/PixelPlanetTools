@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils;
+﻿using CommandLine;
+using PixelPlanetUtils;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
@@ -11,29 +12,53 @@ namespace RecordVisualizer
 
     class Program
     {
-        static short x1, y1, x2, y2;
-        static int w, h;
-        static DateTime startTime;
-        static PixelColor[,] initialMapState;
-        static List<Delta> deltas;
+        private static short x1, y1, x2, y2;
+        private static int w, h;
+        private static DateTime startTime;
+        private static PixelColor[,] initialMapState;
+        private static List<Delta> deltas;
+        private static string fileName;
+        private static bool disableUpdates;
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
-            if (CheckForUpdates())
+            using (Parser parser = new Parser(cfg =>
             {
-                return;
+                cfg.CaseInsensitiveEnumValues = true;
+                cfg.HelpWriter = Console.Out;
+            }))
+            {
+                bool success = true;
+                parser.ParseArguments<Options>(args)
+                    .WithNotParsed(e => success = false)
+                    .WithParsed(o =>
+                    {
+                        disableUpdates = o.DisableUpdates;
+                        fileName = o.FileName;
+                        if (!File.Exists(fileName))
+                        {
+                            Console.WriteLine("File does not exist");
+                            success = false;
+                        }
+                    });
+                if (!success)
+                {
+                    return;
+                }
             }
 
-            if (!File.Exists(args[0]))
+            if (!disableUpdates)
             {
-                Console.WriteLine("File does not exist");
-                return;
+                if (CheckForUpdates())
+                {
+                    return;
+                }
             }
             
             Console.WriteLine("Loading data from file...");
             try
             {
-                LoadFile(args[0]);
+                LoadFile(fileName);
             }
             catch (Exception ex)
             {
@@ -53,7 +78,7 @@ namespace RecordVisualizer
             }
         }
 
-        static void SaveLoadedData(string filePathTemplate)
+        private static void SaveLoadedData(string filePathTemplate)
         {
             int padLength = 1 + (int)Math.Log10(deltas.Count);
             
@@ -85,7 +110,7 @@ namespace RecordVisualizer
             }
         }
 
-        static void LoadFile(string path)
+        private static void LoadFile(string path)
         {
             using (FileStream f = File.OpenRead(path))
             {
@@ -129,7 +154,7 @@ namespace RecordVisualizer
             }
         }
 
-        static bool CheckForUpdates()
+        private static bool CheckForUpdates()
         {
             using (UpdateChecker checker = new UpdateChecker())
             {
@@ -138,7 +163,7 @@ namespace RecordVisualizer
                     Console.WriteLine("Checking for updates...");
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
                     {
-                        Console.WriteLine($"Update is available: {version} (current version is {UpdateChecker.CurrentAppVersion})");
+                        Console.WriteLine($"Update is available: {version} (current version is {App.Version})");
                         if (isCompatible)
                         {
                             Console.WriteLine("New version is backwards compatible, it will be relaunched with same arguments");
