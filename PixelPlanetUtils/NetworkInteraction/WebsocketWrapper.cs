@@ -239,19 +239,19 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         private void WebSocket_OnMessage(object sender, MessageEventArgs e)
         {
-            byte[] buffer = e.RawData;
-            if (buffer.Length == 0)
+            byte[] data = e.RawData;
+            if (data.Length == 0)
             {
                 return;
             }
-            if (buffer[0] == (byte)Opcode.PixelUpdated)
+            if (data[0] == (byte)Opcode.PixelUpdated)
             {
-                logger.LogDebug($"WebSocket_OnMessage(): got pixel update {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
-                byte chunkX = buffer[1];
-                byte chunkY = buffer[2];
-                byte relativeY = buffer[4];
-                byte relativeX = buffer[5];
-                byte color = buffer[6];
+                logger.LogDebug($"WebSocket_OnMessage(): got pixel update {DataToString(data)}");
+                byte chunkX = data[1];
+                byte chunkY = data[2];
+                byte relativeY = data[4];
+                byte relativeX = data[5];
+                byte color = data[6];
                 PixelChangedEventArgs args = new PixelChangedEventArgs
                 {
                     Chunk = (chunkX, chunkY),
@@ -262,17 +262,17 @@ namespace PixelPlanetUtils.NetworkInteraction
                 logger.LogDebug($"WebSocket_OnMessage(): pixel update: {args.Color} at {args.Chunk}:{args.Pixel}");
                 OnPixelChanged?.Invoke(this, args);
             }
-            else if (!listeningMode && buffer[0] == (byte)Opcode.Cooldown)
+            else if (!listeningMode && data[0] == (byte)Opcode.Cooldown)
             {
-                logger.LogDebug($"WebSocket_OnMessage(): got cooldown {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
-                if (buffer[2] > 0)
+                logger.LogDebug($"WebSocket_OnMessage(): got cooldown {DataToString(data)}");
+                if (data[1] + data[2] > 0)
                 {
-                    logger.LogInfo($"Current cooldown: {buffer[2]}");
+                    logger.LogInfo($"Current cooldown: {(data[1] << 8) + data[2]}");
                 }
             }
             else
             {
-                logger.LogDebug($"WebSocket_OnMessage(): opcode {(Opcode)buffer[0]}, ignoring");
+                logger.LogDebug($"WebSocket_OnMessage(): opcode {(Opcode)data[0]}, ignoring");
             }
         }
 
@@ -301,15 +301,18 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         private string DataToString(byte[] data)
         {
+            int offset = data[0] == (byte)Opcode.RegisterMultipleChunks ? 1 : 0;
             StringBuilder sb = new StringBuilder();
+            sb.Append('"');
             for (int j = 0; j < data.Length; j++)
             {
-                sb.Append(data[j].ToString("x2"));
-                if (j % 2 == 1)
+                sb.Append(data[j].ToString("X2"));
+                if (j % 2 == offset && j < data.Length - 1)
                 {
                     sb.Append(' ');
                 }
             }
+            sb.Append('"');
             return sb.ToString();
         }
 

@@ -80,7 +80,7 @@ namespace PixelPlanetUtils.CanvasInteraction
 
         private static PixelColor[,] GetChunk(byte[] bytes)
         {
-            PixelColor[,] chunk = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
+            PixelColor[,] chunk = new PixelColor[PixelMap.ChunkSideSize, PixelMap.ChunkSideSize];
             if (bytes.Length != 0)
             {
                 unsafe
