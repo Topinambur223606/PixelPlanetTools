@@ -57,7 +57,8 @@ namespace PixelPlanetUtils.CanvasInteraction
                     try
                     {
                         logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
-                        CachedChunks[chunkXY] = GetChunk(HttpWrapper.GetChunkData(chunkXY));
+                        byte[] data = HttpWrapper.GetChunkData(chunkXY);
+                        CachedChunks[chunkXY] = BinaryConversion.ConvertToColorRectangle(data, PixelMap.ChunkSideSize, PixelMap.ChunkSideSize);
                         logger.LogDebug($"DownloadChunks(): downloaded chunk  {chunkXY}");
                         success = true;
                     }
@@ -76,23 +77,6 @@ namespace PixelPlanetUtils.CanvasInteraction
             });
             logger.LogTechInfo("Chunk data is downloaded");
             OnMapUpdated?.Invoke(this, null);
-        }
-
-        private static PixelColor[,] GetChunk(byte[] bytes)
-        {
-            PixelColor[,] chunk = new PixelColor[PixelMap.ChunkSideSize, PixelMap.ChunkSideSize];
-            if (bytes.Length != 0)
-            {
-                unsafe
-                {
-                    fixed (byte* byteArr = &bytes[0])
-                    fixed (PixelColor* enumArr = &chunk[0, 0])
-                    {
-                        Buffer.MemoryCopy(byteArr, enumArr, PixelMap.ChunkBinarySize, PixelMap.ChunkBinarySize);
-                    }
-                }
-            }
-            return chunk;
         }
 
         private void Wrapper_OnConnectionRestored(object sender, ConnectionRestoredEventArgs e)

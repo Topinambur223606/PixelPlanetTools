@@ -7,19 +7,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
 using System.Threading;
 
 namespace RecordVisualizer
 {
     using Pixel = ValueTuple<short, short, PixelColor>;
 
-    class Program
+    static class Program
     {
-        private static short x1, y1, x2, y2;
+        private static short leftX, topY, rightX, bottomY;
         private static int w, h;
         private static DateTime startTime;
         private static PixelColor[,] initialMapState;
-        private static List<Delta> deltas;
+        private static readonly List<Delta> deltas = new List<Delta>();
         private static Options options;
         private static Logger logger;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
@@ -120,7 +121,7 @@ namespace RecordVisualizer
                 }
                 image.Save(string.Format(filePathTemplate, startTime));
             }
-            Console.WriteLine("Initial map state image created");
+            logger.LogInfo("Initial map state image created");
             int d = 0;
             int padLength = 1 + (int)Math.Log10(deltas.Count);
             foreach (Delta delta in deltas)
@@ -130,10 +131,10 @@ namespace RecordVisualizer
                 {
                     foreach ((short, short, PixelColor) pixel in delta.Pixels)
                     {
-                        image[pixel.Item1 - x1, pixel.Item2 - y1] = pixel.Item3.ToRgba32();
+                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
                     }
                     image.Save(string.Format(filePathTemplate, delta.DateTime));
-                    Console.WriteLine($"Saved delta {d.ToString().PadLeft(padLength)}/{deltas.Count}");
+                    logger.LogInfo($"Saved delta {d.ToString().PadLeft(padLength)}/{deltas.Count}");
                 }
             }
         }
@@ -144,57 +145,75 @@ namespace RecordVisualizer
             {
                 if (options.OldRecordFile)
                 {
-                    ReadFromStream(fileStream);
+                    using (BinaryReader reader = new BinaryReader(fileStream))
+                    {
+                        reader.ReadMap();
+                        while (!reader.ReachedEnd())
+                        {
+                            deltas.Add(reader.ReadDelta());
+                        }
+                    }
                 }
                 else
                 {
-                    using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress))
+                    byte[] buffer = new byte[sizeof(uint)];
+                    fileStream.Read(buffer, 0, sizeof(uint));
+                    uint mapLength = BitConverter.ToUInt32(buffer, 0);
+                    using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
                     {
-                        ReadFromStream(decompressingStream);
+                        using (BinaryReader reader = new BinaryReader(decompressingStream, Encoding.Default, true))
+                        {
+                            reader.ReadMap();
+                            while (!reader.ReachedEnd())
+                            {
+                                reader.ReadByte();
+                            }
+                        }
+                    }
+                    fileStream.Seek(sizeof(uint) + mapLength, SeekOrigin.Begin);
+                    using (BinaryReader reader = new BinaryReader(fileStream))
+                    {
+                        while (fileStream.Length - fileStream.Position > 1)
+                        {
+                            deltas.Add(reader.ReadDelta());
+                        }
                     }
                 }
             }
         }
 
-        private static void ReadFromStream(Stream stream)
+        private static bool ReachedEnd(this BinaryReader reader) => reader.PeekChar() == -1;
+
+        private static void ReadMap(this BinaryReader reader)
         {
-            using (BinaryReader reader = new BinaryReader(stream))
+            leftX = reader.ReadInt16();
+            topY = reader.ReadInt16();
+            rightX = reader.ReadInt16();
+            bottomY = reader.ReadInt16();
+            w = rightX - leftX + 1;
+            h = bottomY - topY + 1;
+            startTime = DateTime.FromBinary(reader.ReadInt64());
+            byte[] data = reader.ReadBytes(w * h);
+            initialMapState = BinaryConversion.ConvertToColorRectangle(data, w, h);
+        }
+
+        private static Delta ReadDelta(this BinaryReader reader)
+        {
+            DateTime dateTime = DateTime.FromBinary(reader.ReadInt64());
+            uint count = reader.ReadUInt32();
+            List<(short, short, PixelColor)> pixels = new List<Pixel>();
+            for (int j = 0; j < count; j++)
             {
-                x1 = reader.ReadInt16();
-                y1 = reader.ReadInt16();
-                x2 = reader.ReadInt16();
-                y2 = reader.ReadInt16();
-                w = x2 - x1 + 1;
-                h = y2 - y1 + 1;
-                startTime = DateTime.FromBinary(reader.ReadInt64());
-                initialMapState = new PixelColor[w, h];
-                for (int dy = 0; dy < h; dy++)
-                {
-                    for (int dx = 0; dx < w; dx++)
-                    {
-                        initialMapState[dx, dy] = (PixelColor)reader.ReadByte();
-                    }
-                }
-                deltas = new List<Delta>();
-                while (reader.PeekChar() != -1)
-                {
-                    DateTime dateTime = DateTime.FromBinary(reader.ReadInt64());
-                    uint count = reader.ReadUInt32();
-                    List<(short, short, PixelColor)> pixels = new List<Pixel>();
-                    for (int j = 0; j < count; j++)
-                    {
-                        short x = reader.ReadInt16();
-                        short y = reader.ReadInt16();
-                        PixelColor color = (PixelColor)reader.ReadByte();
-                        pixels.Add((x, y, color));
-                    }
-                    deltas.Add(new Delta
-                    {
-                        DateTime = dateTime,
-                        Pixels = pixels
-                    });
-                }
+                short x = reader.ReadInt16();
+                short y = reader.ReadInt16();
+                PixelColor color = (PixelColor)reader.ReadByte();
+                pixels.Add((x, y, color));
             }
+            return new Delta
+            {
+                DateTime = dateTime,
+                Pixels = pixels
+            };
         }
 
         private static bool CheckForUpdates()

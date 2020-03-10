@@ -133,23 +133,29 @@ namespace PixelPlanetWatcher
             cache.DownloadChunks();
             using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
             {
-                using (DeflateStream compressionStream = new DeflateStream(fileStream, CompressionLevel.Fastest))
+                using (MemoryStream memoryStream = new MemoryStream())
                 {
-                    using (BinaryWriter writer = new BinaryWriter(compressionStream))
+                    using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
                     {
-                        writer.Write(options.LeftX);
-                        writer.Write(options.TopY);
-                        writer.Write(options.RightX);
-                        writer.Write(options.BottomY);
-                        writer.Write(now.ToBinary());
-                        for (int y = options.TopY; y <= options.BottomY; y++)
+                        using (BinaryWriter writer = new BinaryWriter(compressionStream))
                         {
-                            for (int x = options.LeftX; x <= options.RightX; x++)
+                            writer.Write(options.LeftX);
+                            writer.Write(options.TopY);
+                            writer.Write(options.RightX);
+                            writer.Write(options.BottomY);
+                            writer.Write(now.ToBinary());
+                            for (int y = options.TopY; y <= options.BottomY; y++)
                             {
-                                writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                                for (int x = options.LeftX; x <= options.RightX; x++)
+                                {
+                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                                }
                             }
                         }
                     }
+                    fileStream.Write(BitConverter.GetBytes((uint)memoryStream.Length), 0, sizeof(uint));
+                    memoryStream.Seek(0, SeekOrigin.Begin);
+                    memoryStream.CopyTo(fileStream);
                 }
             }
             logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
@@ -299,18 +305,15 @@ namespace PixelPlanetWatcher
                 {
                     using (FileStream fileStream = File.Open(options.FileName, FileMode.Append, FileAccess.Write))
                     {
-                        using (DeflateStream compressionStream = new DeflateStream(fileStream, CompressionLevel.Fastest))
+                        using (BinaryWriter writer = new BinaryWriter(fileStream))
                         {
-                            using (BinaryWriter writer = new BinaryWriter(compressionStream))
+                            writer.Write(DateTime.Now.ToBinary());
+                            writer.Write((uint)pixels.Count);
+                            foreach ((short, short, PixelColor) pixel in pixels)
                             {
-                                writer.Write(DateTime.Now.ToBinary());
-                                writer.Write((uint)pixels.Count);
-                                foreach ((short, short, PixelColor) pixel in pixels)
-                                {
-                                    writer.Write(pixel.Item1);
-                                    writer.Write(pixel.Item2);
-                                    writer.Write((byte)pixel.Item3);
-                                }
+                                writer.Write(pixel.Item1);
+                                writer.Write(pixel.Item2);
+                                writer.Write((byte)pixel.Item3);
                             }
                         }
                     }

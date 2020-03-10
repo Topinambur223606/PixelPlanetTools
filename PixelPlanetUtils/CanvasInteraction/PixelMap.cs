@@ -4,7 +4,6 @@
     {
         public const int ChunkSideSize = 0x100;
         private const int ChunksPerSide = 0x100;
-        public const int ChunkBinarySize = ChunkSideSize * ChunkSideSize;
 
         public static short ConvertToAbsolute(int chunk, int relative)
         {
