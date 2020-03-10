@@ -1,6 +1,6 @@
-﻿using System;
+﻿using PixelPlanetUtils;
+using System;
 using System.Collections.Generic;
-using PixelPlanetUtils;
 
 namespace RecordVisualizer
 {

@@ -19,28 +19,26 @@ namespace PixelPlanetBot
     static partial class Program
     {
         private static Thread statsThread;
-        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
-        private static ChunkCache cache;
-        private static bool repeatingFails = false;
-        private static AutoResetEvent gotGriefed;
-        private static ManualResetEvent mapUpdatedResetEvent;
-        private static CancellationTokenSource captchaCts;
         private static object waitingGriefLock;
-        
-        private static Options options;
+        private static AutoResetEvent gotGriefed;
+        private static bool repeatingFails = false;
+        private static CancellationTokenSource captchaCts;
+        private static ManualResetEvent mapUpdatedResetEvent;
+        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
+        private static Logger logger;
+        private static Options options;
+        private static ChunkCache cache;
+        private static ushort width, height;
         private static PixelColor[,] imagePixels;
         private static IEnumerable<Pixel> pixelsToBuild;
-        private static ushort width, height;
-
-        private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
 
         private static volatile int builtInLastMinute = 0;
         private static volatile int griefedInLastMinute = 0;
+        private static readonly Queue<int> doneInPast = new Queue<int>();
         private static readonly Queue<int> builtInPast = new Queue<int>();
         private static readonly Queue<int> griefedInPast = new Queue<int>();
-        private static readonly Queue<int> doneInPast = new Queue<int>();
-        private static Logger logger;
+        private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
 
         private static void Main(string[] args)
         {
@@ -60,7 +58,7 @@ namespace PixelPlanetBot
 
                 if (!options.DisableUpdates)
                 {
-                    if (CheckForUpdates())
+                    if (UpdateChecker.IsStartingUpdate(logger))
                     {
                         return;
                     }
@@ -166,137 +164,47 @@ namespace PixelPlanetBot
                 Environment.Exit(0);
             }
         }
-
-        private static void MainWorkingBody()
+        
+        private static bool ParseArguments(string[] args)
         {
-            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false))
+            using (Parser parser = new Parser(cfg =>
             {
-                wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
-                cache.Wrapper = wrapper;
-                logger.LogDebug("MainWorkingBody(): downloading chunks");
-                cache.DownloadChunks();
-                wrapper.OnPixelChanged += LogPixelChanged;
-                placed.Clear();
-                bool wasChanged;
-                do
-                {
-                    logger.LogDebug("MainWorkingBody(): main body cycle started");
-                    wasChanged = false;
-                    repeatingFails = false;
-                    foreach (Pixel pixel in pixelsToBuild)
+                cfg.CaseInsensitiveEnumValues = true;
+                cfg.HelpWriter = Console.Out;
+            }))
+            {
+                bool success = true;
+                parser.ParseArguments<Options>(args)
+                    .WithNotParsed(e => success = false)
+                    .WithParsed(o =>
                     {
-                        mapUpdatedResetEvent.WaitOne();
-                        (short x, short y, PixelColor color) = pixel;
-                        PixelColor actualColor = cache.GetPixelColor(x, y);
-                        if (!IsCorrectPixelColor(actualColor, color))
+                        options = o;
+                        if (!string.IsNullOrWhiteSpace(o.Proxy))
                         {
-                            logger.LogDebug($"MainWorkingBody(): {pixel} - wrong color ({actualColor})");
-                            wasChanged = true;
-                            bool success;
-                            placed.Add(pixel);
-                            do
+                            HttpWrapper.Proxy = new WebProxy(o.Proxy);
+                            if (o.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
-                                wrapper.WaitWebsocketConnected();
-                                success = HttpWrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
-                                if (success)
-                                {
-                                    logger.LogPixel($"{(cd == 4 ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
-                                    Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
-                                }
-                                else
-                                {
-                                    logger.LogDebug($"MainWorkingBody(): pixel placing handled error {error}");
-                                    if (error == "captcha")
-                                    {
-                                        ProcessCaptcha();
-                                    }
-                                    else
-                                    {
-                                        logger.Log($"Failed to place pixel: {error}", MessageGroup.PixelFail);
-                                    }
-                                    logger.LogDebug($"MainWorkingBody(): sleep {cd:F2} seconds");
-                                    Thread.Sleep(TimeSpan.FromSeconds(cd));
-                                }
-                            } while (!success);
-                        }
-                    }
-                    if (options.DefenseMode)
-                    {
-                        if (!wasChanged)
-                        {
-                            logger.Log("Image is intact, waiting...", MessageGroup.Info);
-                            lock (waitingGriefLock)
-                            {
-                                logger.LogDebug("MainWorkingBody(): acquiring grief waiting lock");
-                                gotGriefed.Reset();
-                                gotGriefed.WaitOne();
+                                Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
+                                    "Ensure that same proxy settings are set in your default browser");
                             }
-                            logger.LogDebug("MainWorkingBody(): got griefed");
-                            Thread.Sleep(new Random().Next(500, 3000));
                         }
-                    }
-                } while (options.DefenseMode || wasChanged);
-                logger.Log("Building is finished", MessageGroup.Info);
-                return;
+                        if (o.UseMirror)
+                        {
+                            if (o.ServerUrl != null)
+                            {
+                                Console.WriteLine("Invalid args: mirror usage and custom server address are specified");
+                                success = false;
+                                return;
+                            }
+                            UrlManager.MirrorMode = o.UseMirror;
+                        }
+                        if (o.ServerUrl != null)
+                        {
+                            UrlManager.BaseUrl = o.ServerUrl;
+                        }
+                    });
+                return success;
             }
-        }
-
-        private static void BeepThreadBody()
-        {
-            logger.LogDebug("BeepThreadBody() started");
-            CancellationToken token = captchaCts.Token;
-            while (!token.IsCancellationRequested)
-            {
-                logger.LogDebug("BeepThreadBody(): beeping");
-                for (int j = 0; j < 7; j++)
-                {
-                    Console.Beep(1000, 100);
-                }
-                try
-                {
-                    Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
-                }
-                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                {
-                    logger.LogDebug("BeepThreadBody(): canceled (1)");
-                    return;
-                }
-                catch (TaskCanceledException)
-                {
-                    logger.LogDebug("BeepThreadBody(): canceled (2)");
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug($"BeepThreadBody(): unhandled exception {ex.GetBaseException().Message}");
-                }
-            }
-        }
-
-        private static void ProcessCaptcha()
-        {
-            logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
-            captchaCts = null;
-            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Sound))
-            {
-                logger.LogDebug("ProcessCaptcha(): starting beep thread");
-                captchaCts = new CancellationTokenSource();
-                new Thread(BeepThreadBody).Start();
-            }
-            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
-            {
-                logger.LogDebug("ProcessCaptcha(): starting browser");
-                Process.Start(UrlManager.BaseHttpAdress);
-            }
-            while (Console.KeyAvailable)
-            {
-                Console.ReadKey(true);
-            }
-            Console.ReadKey(true);
-            logger.LogDebug("ProcessCaptcha(): got keypress");
-            logger.ResumeLogging();
-            captchaCts?.Cancel();
-            captchaCts?.Dispose();
         }
 
         private static void CalculatePixelOrder()
@@ -374,53 +282,237 @@ namespace PixelPlanetBot
                 .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
         }
 
-        private static bool ParseArguments(string[] args)
+        private static void MainWorkingBody()
         {
-            using (Parser parser = new Parser(cfg =>
+            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false))
             {
-                cfg.CaseInsensitiveEnumValues = true;
-                cfg.HelpWriter = Console.Out;
-            }))
-            {
-                bool success = true;
-                parser.ParseArguments<Options>(args)
-                    .WithNotParsed(e => success = false)
-                    .WithParsed(o => 
+                wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
+                cache.Wrapper = wrapper;
+                logger.LogDebug("MainWorkingBody(): downloading chunks");
+                cache.DownloadChunks();
+                wrapper.OnPixelChanged += LogPixelChanged;
+                placed.Clear();
+                bool wasChanged;
+                do
+                {
+                    logger.LogDebug("MainWorkingBody(): main body cycle started");
+                    wasChanged = false;
+                    repeatingFails = false;
+                    foreach (Pixel pixel in pixelsToBuild)
                     {
-                        options = o;
-                        if (!string.IsNullOrWhiteSpace(o.Proxy))
+                        mapUpdatedResetEvent.WaitOne();
+                        (short x, short y, PixelColor color) = pixel;
+                        PixelColor actualColor = cache.GetPixelColor(x, y);
+                        if (!IsCorrectPixelColor(actualColor, color))
                         {
-                            HttpWrapper.Proxy = new WebProxy(o.Proxy);
-                            if (o.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                            logger.LogDebug($"MainWorkingBody(): {pixel} - wrong color ({actualColor})");
+                            wasChanged = true;
+                            bool success;
+                            placed.Add(pixel);
+                            do
                             {
-                                Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
-                                    "Ensure that same proxy settings are set in your default browser");
-                            }
+                                wrapper.WaitWebsocketConnected();
+                                success = HttpWrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
+                                if (success)
+                                {
+                                    logger.LogPixel($"{(cd == 4 ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
+                                    Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
+                                }
+                                else
+                                {
+                                    logger.LogDebug($"MainWorkingBody(): pixel placing handled error {error}");
+                                    if (error == "captcha")
+                                    {
+                                        ProcessCaptcha();
+                                    }
+                                    else
+                                    {
+                                        logger.Log($"Failed to place pixel: {error}", MessageGroup.PixelFail);
+                                    }
+                                    logger.LogDebug($"MainWorkingBody(): sleep {cd:F2} seconds");
+                                    Thread.Sleep(TimeSpan.FromSeconds(cd));
+                                }
+                            } while (!success);
                         }
-                        if (o.UseMirror)
+                    }
+                    if (options.DefenseMode)
+                    {
+                        if (!wasChanged)
                         {
-                            if (o.ServerUrl != null)
+                            logger.Log("Image is intact, waiting...", MessageGroup.Info);
+                            lock (waitingGriefLock)
                             {
-                                Console.WriteLine("Invalid args: mirror usage and custom server address are specified");
-                                success = false;
-                                return;
+                                logger.LogDebug("MainWorkingBody(): acquiring grief waiting lock");
+                                gotGriefed.Reset();
+                                gotGriefed.WaitOne();
                             }
-                            UrlManager.MirrorMode = o.UseMirror;
+                            logger.LogDebug("MainWorkingBody(): got griefed");
+                            Thread.Sleep(new Random().Next(500, 3000));
                         }
-                        if (o.ServerUrl != null)
-                        {
-                            UrlManager.BaseUrl = o.ServerUrl;
-                        }
-                    });
-                return success;
+                    }
+                } while (options.DefenseMode || wasChanged);
+                logger.Log("Building is finished", MessageGroup.Info);
+                return;
             }
         }
 
-        private static bool IsCorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
+        private static void ProcessCaptcha()
         {
-            return (actualColor == desiredColor) ||
-                    (actualColor == PixelColor.UnsetOcean && desiredColor == PixelColor.SkyBlue) ||
-                    (actualColor == PixelColor.UnsetLand && desiredColor == PixelColor.White);
+            logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
+            captchaCts = null;
+            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            {
+                logger.LogDebug("ProcessCaptcha(): starting beep thread");
+                captchaCts = new CancellationTokenSource();
+                new Thread(BeepThreadBody).Start();
+            }
+            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            {
+                logger.LogDebug("ProcessCaptcha(): starting browser");
+                Process.Start(UrlManager.BaseHttpAdress);
+            }
+            while (Console.KeyAvailable)
+            {
+                Console.ReadKey(true);
+            }
+            Console.ReadKey(true);
+            logger.LogDebug("ProcessCaptcha(): got keypress");
+            logger.ResumeLogging();
+            captchaCts?.Cancel();
+            captchaCts?.Dispose();
+        }
+        
+        private static void BeepThreadBody()
+        {
+            logger.LogDebug("BeepThreadBody() started");
+            CancellationToken token = captchaCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                logger.LogDebug("BeepThreadBody(): beeping");
+                for (int j = 0; j < 7; j++)
+                {
+                    Console.Beep(1000, 100);
+                }
+                try
+                {
+                    Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
+                }
+                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                {
+                    logger.LogDebug("BeepThreadBody(): canceled (1)");
+                    return;
+                }
+                catch (TaskCanceledException)
+                {
+                    logger.LogDebug("BeepThreadBody(): canceled (2)");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"BeepThreadBody(): unhandled exception {ex.GetBaseException().Message}");
+                }
+            }
+        }
+        
+        private static void StatsCollectionThreadBody()
+        {
+            int CountDone() => pixelsToBuild.
+                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
+                   Count();
+
+            void AddToQueue(Queue<int> queue, int value)
+            {
+                const int maxCount = 5;
+                queue.Enqueue(value);
+                if (queue.Count > maxCount)
+                {
+                    queue.Dequeue();
+                }
+            }
+
+            Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
+
+            logger.LogDebug("StatsCollectionThreadBody() started");
+            mapUpdatedResetEvent.WaitOne();
+            logger.LogDebug("StatsCollectionThreadBody(): map updated, stats collection started");
+            Task taskToWait = GetDelayTask();
+            int total = pixelsToBuild.Count();
+            int done = CountDone();
+            logger.LogDebug($"StatsCollectionThreadBody(): {done} pixels are done at start");
+            doneInPast.Enqueue(done);
+            do
+            {
+                if (finishCTS.IsCancellationRequested)
+                {
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S1), finishing");
+                    return;
+                }
+                try
+                {
+                    logger.LogDebug($"StatsCollectionThreadBody(): task waiting");
+                    taskToWait.Wait();
+                }
+                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                {
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S2), finishing");
+                    return;
+                }
+                if (finishCTS.IsCancellationRequested)
+                {
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S3), finishing");
+                    return;
+                }
+
+                AddToQueue(builtInPast, builtInLastMinute);
+                builtInLastMinute = 0;
+                AddToQueue(griefedInPast, griefedInLastMinute);
+                griefedInLastMinute = 0;
+                done = CountDone(); //time consuming => cancellation check again later
+                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
+                AddToQueue(doneInPast, done);
+                logger.LogDebug($"StatsCollectionThreadBody(): last minute: {builtInPast.Last()} built, {griefedInPast.Last()} griefed; {done} total done");
+
+                double griefedPerMinute = griefedInPast.Average();
+                double builtPerMinute = builtInPast.Average();
+                double percent = Math.Floor(done * 1000D / total) / 10D;
+                DateTime time = DateTime.Now;
+
+                if (finishCTS.IsCancellationRequested)
+                {
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
+                    return;
+                }
+                if (options.DefenseMode)
+                {
+                    logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
+                    logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
+                    lock (waitingGriefLock)
+                    { }
+                    logger.LogDebug($"StatsCollectionThreadBody(): grief lock released");
+                }
+                else
+                {
+                    string info = $"Image is {percent:F1}% complete, ";
+                    if (buildSpeed > 0)
+                    {
+                        int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
+                        int hrsLeft = minsLeft / 60;
+                        info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
+                    }
+                    else
+                    {
+                        info += $"no progress in last 5 minutes";
+                    }
+                    logger.Log(info, MessageGroup.Info, time);
+                }
+                if (griefedPerMinute > 1)
+                {
+                    logger.Log($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
+                    logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
+                }
+                taskToWait = GetDelayTask();
+                logger.LogDebug("StatsCollectionThreadBody(): cycle ended");
+            } while (true);
         }
 
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)
@@ -472,148 +564,11 @@ namespace PixelPlanetBot
             }
         }
 
-        private static bool CheckForUpdates()
+        private static bool IsCorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
         {
-            using (UpdateChecker checker = new UpdateChecker(logger))
-            {
-                if (checker.NeedsToCheckUpdates())
-                {
-                    logger.Log("Checking for updates...", MessageGroup.Update);
-                    if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
-                    {
-                        logger.Log($"Update is available: {version} (current version is {App.Version})", MessageGroup.Update);
-                        if (isCompatible)
-                        {
-                            logger.Log("New version is backwards compatible, it will be relaunched with same arguments", MessageGroup.Update);
-                        }
-                        else
-                        {
-                            logger.Log("Argument list was changed, check it and relaunch bot manually after update", MessageGroup.Update);
-                        }
-                        logger.Log("Press Enter to update, anything else to skip", MessageGroup.Update);
-                        while (Console.KeyAvailable)
-                        {
-                            Console.ReadKey(true);
-                        }
-                        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-                        if (keyInfo.Key == ConsoleKey.Enter)
-                        {
-                            logger.Log("Starting update...", MessageGroup.Update);
-                            checker.StartUpdate();
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        if (version == null)
-                        {
-                            logger.LogError("Cannot check for updates");
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-
-        private static void StatsCollectionThreadBody()
-        {
-            int CountDone() => pixelsToBuild.
-                   Where(p => IsCorrectPixelColor(cache.GetPixelColor(p.Item1, p.Item2), p.Item3)).
-                   Count();
-
-            void AddToQueue(Queue<int> queue, int value)
-            {
-                const int maxCount = 5;
-                queue.Enqueue(value);
-                if (queue.Count > maxCount)
-                {
-                    queue.Dequeue();
-                }
-            }
-
-            Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
-
-            logger.LogDebug("StatsCollectionThreadBody() started");
-            int total = pixelsToBuild.Count();
-            mapUpdatedResetEvent.WaitOne();
-            logger.LogDebug("StatsCollectionThreadBody(): map updated, stats collection started");
-            Task taskToWait = GetDelayTask();
-            int done = CountDone();
-            logger.LogDebug($"{done} pixels are done at start");
-            doneInPast.Enqueue(done);
-            do
-            {
-                if (finishCTS.IsCancellationRequested)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S1), finishing");
-                    return;
-                }
-                try
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): task waiting");
-                    taskToWait.Wait();
-                }
-                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S2), finishing");
-                    return;
-                }
-                if (finishCTS.IsCancellationRequested)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S3), finishing");
-                    return;
-                }
-
-                AddToQueue(builtInPast, builtInLastMinute);
-                builtInLastMinute = 0;
-                AddToQueue(griefedInPast, griefedInLastMinute);
-                griefedInLastMinute = 0;
-                done = CountDone(); //time consuming => cancellation check again later
-                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
-                AddToQueue(doneInPast, done);
-                logger.LogDebug($"StatsCollectionThreadBody(): last minute: {builtInPast} built, {griefedInPast} griefed; {done} total done");
-
-                double griefedPerMinute = griefedInPast.Average();
-                double builtPerMinute = builtInPast.Average();
-                double percent = Math.Floor(done * 1000D / total) / 10D;
-                DateTime time = DateTime.Now;
-
-                if (finishCTS.IsCancellationRequested)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
-                    return;
-                }
-                if (options.DefenseMode)
-                {
-                    logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
-                    logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
-                    lock (waitingGriefLock)
-                    { }
-                    logger.LogDebug($"StatsCollectionThreadBody(): grief lock released");
-                }
-                else
-                {
-                    string info = $"Image is {percent:F1}% complete, ";
-                    if (buildSpeed > 0)
-                    {
-                        int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
-                        int hrsLeft = minsLeft / 60;
-                        info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
-                    }
-                    else
-                    {
-                        info += $"no progress in last 5 minutes";
-                    }
-                    logger.Log(info, MessageGroup.Info, time);
-                }
-                if (griefedPerMinute > 1)
-                {
-                    logger.Log($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
-                    logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
-                }
-                taskToWait = GetDelayTask();
-                logger.LogDebug("StatsCollectionThreadBody(): cycle ended");
-            } while (true);
+            return (actualColor == desiredColor) ||
+                    (actualColor == PixelColor.UnsetOcean && desiredColor == PixelColor.SkyBlue) ||
+                    (actualColor == PixelColor.UnsetLand && desiredColor == PixelColor.White);
         }
     }
 }

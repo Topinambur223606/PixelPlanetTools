@@ -16,7 +16,6 @@ namespace PixelPlanetUtils.NetworkInteraction
 {
     public class WebsocketWrapper : IDisposable
     {
-
         private readonly Logging.Logger logger;
 
         private WebSocket webSocket;
@@ -51,48 +50,11 @@ namespace PixelPlanetUtils.NetworkInteraction
             webSocket.OnClose += WebSocket_OnClose;
             ConnectWebSocket();
         }
-        
-        void LogWebsocketOutput(LogData d, string s)
-        {
-            logger.LogDebug($"Websocket log message: {s}, {d.Message}");
-        }
 
         public void WaitWebsocketConnected()
         {
             logger.LogDebug("WaitWebsocketConnected(): waiting websocket connection");
             websocketResetEvent.WaitOne();
-        }
-
-        private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed() started");
-            preemptiveWebsocketReplacingTimer.Stop();
-            WebSocket newWebSocket = new WebSocket(UrlManager.WebSocketUrl);
-            newWebSocket.Log.Output = LogWebsocketOutput;
-            newWebSocket.Connect();
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): new websocket connected");
-            preemptiveWebsocketReplacingTimer.Start();
-            WebSocket oldWebSocket = webSocket;
-            webSocket = newWebSocket;
-            SubscribeToCanvas();
-            if (trackedChunks.Count == 1)
-            {
-                RegisterChunk(trackedChunks.Single());
-            }
-            else
-            {
-                RegisterMultipleChunks(trackedChunks);
-            }
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): event resubscribing");
-            newWebSocket.OnOpen += WebSocket_OnOpen;
-            oldWebSocket.OnOpen -= WebSocket_OnOpen;
-            newWebSocket.OnMessage += WebSocket_OnMessage;
-            oldWebSocket.OnMessage -= WebSocket_OnMessage;
-            newWebSocket.OnClose += WebSocket_OnClose;
-            oldWebSocket.OnClose -= WebSocket_OnClose;
-            newWebSocket.OnError += WebSocket_OnError;
-            oldWebSocket.OnError -= WebSocket_OnError;
-            (oldWebSocket as IDisposable).Dispose();
         }
 
         public void RegisterChunks(IEnumerable<XY> chunks)
@@ -108,6 +70,29 @@ namespace PixelPlanetUtils.NetworkInteraction
                     RegisterChunk(chunk);
                 }
             }
+        }
+
+        public void StartListening()
+        {
+            logger.LogDebug($"StartListening(): started");
+            if (!listeningMode)
+            {
+                logger.LogDebug($"StartListening(): not listening mode");
+                throw new InvalidOperationException();
+            }
+            listeningResetEvent.Reset();
+            listeningResetEvent.WaitOne();
+            logger.LogDebug($"StartListening(): ended");
+        }
+
+        public void StopListening()
+        {
+            if (!listeningMode)
+            {
+                logger.LogDebug($"StopListening(): not listening mode");
+                throw new InvalidOperationException();
+            }
+            listeningResetEvent.Set();
         }
 
         private void RegisterChunk(XY chunk)
@@ -176,29 +161,6 @@ namespace PixelPlanetUtils.NetworkInteraction
             webSocket.Send(data);
         }
 
-        public void StartListening()
-        {
-            logger.LogDebug($"StartListening(): started");
-            if (!listeningMode)
-            {
-                logger.LogDebug($"StartListening(): not listening mode");
-                throw new InvalidOperationException();
-            }
-            listeningResetEvent.Reset();
-            listeningResetEvent.WaitOne();
-            logger.LogDebug($"StartListening(): ended");
-        }
-
-        public void StopListening()
-        {
-            if (!listeningMode)
-            {
-                logger.LogDebug($"StopListening(): not listening mode");
-                throw new InvalidOperationException();
-            }
-            listeningResetEvent.Set();
-        }
-
         private void ConnectWebSocket()
         {
             if (!webSocket.IsAlive)
@@ -211,6 +173,38 @@ namespace PixelPlanetUtils.NetworkInteraction
             {
                 logger.LogDebug("ConnectWebSocket(): socket is already alive");
             }
+        }
+
+        private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed() started");
+            preemptiveWebsocketReplacingTimer.Stop();
+            WebSocket newWebSocket = new WebSocket(UrlManager.WebSocketUrl);
+            newWebSocket.Log.Output = LogWebsocketOutput;
+            newWebSocket.Connect();
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): new websocket connected");
+            preemptiveWebsocketReplacingTimer.Start();
+            WebSocket oldWebSocket = webSocket;
+            webSocket = newWebSocket;
+            SubscribeToCanvas();
+            if (trackedChunks.Count == 1)
+            {
+                RegisterChunk(trackedChunks.Single());
+            }
+            else
+            {
+                RegisterMultipleChunks(trackedChunks);
+            }
+            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): event resubscribing");
+            newWebSocket.OnOpen += WebSocket_OnOpen;
+            oldWebSocket.OnOpen -= WebSocket_OnOpen;
+            newWebSocket.OnMessage += WebSocket_OnMessage;
+            oldWebSocket.OnMessage -= WebSocket_OnMessage;
+            newWebSocket.OnClose += WebSocket_OnClose;
+            oldWebSocket.OnClose -= WebSocket_OnClose;
+            newWebSocket.OnError += WebSocket_OnError;
+            oldWebSocket.OnError -= WebSocket_OnError;
+            (oldWebSocket as IDisposable).Dispose();
         }
 
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
@@ -299,7 +293,12 @@ namespace PixelPlanetUtils.NetworkInteraction
             preemptiveWebsocketReplacingTimer.Start();
         }
 
-        private string DataToString(byte[] data)
+        private void LogWebsocketOutput(LogData d, string s)
+        {
+            logger.LogDebug($"Websocket log message: {s}, {d.Message}");
+        }
+
+        private static string DataToString(byte[] data)
         {
             int offset = data[0] == (byte)Opcode.RegisterMultipleChunks ? 1 : 0;
             StringBuilder sb = new StringBuilder();

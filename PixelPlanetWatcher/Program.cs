@@ -17,15 +17,17 @@ namespace PixelPlanetWatcher
 
     class Program
     {
-        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
-        private static ChunkCache cache;
-        private static Logger logger;
         private static List<Pixel> updates = new List<Pixel>();
-        private static Task<FileStream> lockingStreamTask;
-        private static readonly object listLockObj = new object();
+
+        private static Logger logger;
+        private static Options options;
+        private static ChunkCache cache;
+
         private static Thread saveThread;
         private static Action stopListening;
-        private static Options options;
+        private static Task<FileStream> lockingStreamTask;
+        private static readonly object listLockObj = new object();
+        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private static void Main(string[] args)
         {
@@ -45,7 +47,7 @@ namespace PixelPlanetWatcher
 
                 if (!options.DisableUpdates)
                 {
-                    if (CheckForUpdates())
+                    if (UpdateChecker.IsStartingUpdate(logger))
                     {
                         return;
                     }
@@ -113,55 +115,6 @@ namespace PixelPlanetWatcher
             }
         }
 
-        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
-        {
-            short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
-            short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
-            if (x <= options.RightX && x >= options.LeftX && y <= options.BottomY && y >= options.TopY)
-            {
-                logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
-                lock (listLockObj)
-                {
-                    updates.Add((x, y, e.Color));
-                }
-            }
-        }
-
-        private static FileStream SaveInitialMapState()
-        {
-            DateTime now = DateTime.Now;
-            cache.DownloadChunks();
-            using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
-            {
-                using (MemoryStream memoryStream = new MemoryStream())
-                {
-                    using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
-                    {
-                        using (BinaryWriter writer = new BinaryWriter(compressionStream))
-                        {
-                            writer.Write(options.LeftX);
-                            writer.Write(options.TopY);
-                            writer.Write(options.RightX);
-                            writer.Write(options.BottomY);
-                            writer.Write(now.ToBinary());
-                            for (int y = options.TopY; y <= options.BottomY; y++)
-                            {
-                                for (int x = options.LeftX; x <= options.RightX; x++)
-                                {
-                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
-                                }
-                            }
-                        }
-                    }
-                    fileStream.Write(BitConverter.GetBytes((uint)memoryStream.Length), 0, sizeof(uint));
-                    memoryStream.Seek(0, SeekOrigin.Begin);
-                    memoryStream.CopyTo(fileStream);
-                }
-            }
-            logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
-            return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
-        }
-
         private static bool ParseArguments(string[] args)
         {
             using (Parser parser = new Parser(cfg =>
@@ -203,47 +156,39 @@ namespace PixelPlanetWatcher
             }
         }
 
-        private static bool CheckForUpdates()
+        private static FileStream SaveInitialMapState()
         {
-            using (UpdateChecker checker = new UpdateChecker(logger))
+            DateTime now = DateTime.Now;
+            cache.DownloadChunks();
+            using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
             {
-                if (checker.NeedsToCheckUpdates())
+                using (MemoryStream memoryStream = new MemoryStream())
                 {
-                    logger.Log("Checking for updates...", MessageGroup.Update);
-                    if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
+                    using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
                     {
-                        logger.Log($"Update is available: {version} (current version is {App.Version})", MessageGroup.Update);
-                        if (isCompatible)
+                        using (BinaryWriter writer = new BinaryWriter(compressionStream))
                         {
-                            logger.Log("New version is backwards compatible, it will be relaunched with same arguments", MessageGroup.Update);
-                        }
-                        else
-                        {
-                            logger.Log("Argument list was changed, check it and relaunch bot manually after update", MessageGroup.Update);
-                        }
-                        logger.Log("Press Enter to update, anything else to skip", MessageGroup.Update);
-                        while (Console.KeyAvailable)
-                        {
-                            Console.ReadKey(true);
-                        }
-                        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-                        if (keyInfo.Key == ConsoleKey.Enter)
-                        {
-                            logger.Log("Starting update...", MessageGroup.Update);
-                            checker.StartUpdate();
-                            return true;
+                            writer.Write(options.LeftX);
+                            writer.Write(options.TopY);
+                            writer.Write(options.RightX);
+                            writer.Write(options.BottomY);
+                            writer.Write(now.ToBinary());
+                            for (int y = options.TopY; y <= options.BottomY; y++)
+                            {
+                                for (int x = options.LeftX; x <= options.RightX; x++)
+                                {
+                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
+                                }
+                            }
                         }
                     }
-                    else
-                    {
-                        if (version == null)
-                        {
-                            logger.LogError("Cannot check for updates");
-                        }
-                    }
+                    fileStream.Write(BitConverter.GetBytes((uint)memoryStream.Length), 0, sizeof(uint));
+                    memoryStream.Seek(0, SeekOrigin.Begin);
+                    memoryStream.CopyTo(fileStream);
                 }
             }
-            return false;
+            logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
+            return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
         }
 
         private static void SaveChangesThreadBody()
@@ -322,6 +267,20 @@ namespace PixelPlanetWatcher
                 else
                 {
                     logger.LogInfo($"No pixel updates to save");
+                }
+            }
+        }
+
+        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
+        {
+            short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
+            short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
+            if (x <= options.RightX && x >= options.LeftX && y <= options.BottomY && y >= options.TopY)
+            {
+                logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
+                lock (listLockObj)
+                {
+                    updates.Add((x, y, e.Color));
                 }
             }
         }

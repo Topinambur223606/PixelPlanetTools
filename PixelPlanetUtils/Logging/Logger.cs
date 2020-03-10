@@ -13,25 +13,34 @@ namespace PixelPlanetUtils.Logging
 
     public class Logger : IDisposable
     {
+        private static readonly string space = new string(' ', 2);
+        private static readonly string largeSpace = new string(' ', 5);
+        private readonly static int msgGroupPadLength = 2 + //brackets
+            Enum.GetValues(typeof(MessageGroup)).Cast<MessageGroup>().Max(mg => mg.ToString().Length);
+
+        private readonly StreamWriter logFileWriter;
+
+        private ConcurrentQueue<ConsoleLogEntry> printableConsoleMessages;
         private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
         private ConcurrentQueue<ConsoleLogEntry> incomingConsoleMessages = new ConcurrentQueue<ConsoleLogEntry>();
-        private ConcurrentQueue<ConsoleLogEntry> printableConsoleMessages;
-        private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
-        private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
-        private readonly AutoResetEvent noPrintableMessages = new AutoResetEvent(true);
-        private readonly StreamWriter logFileWriter;
-        private readonly CancellationToken finishToken;
-        private readonly object lockObj = new object();
+        
         private bool disposed;
         private bool consolePaused = false;
+        private readonly CancellationToken finishToken;
+        private readonly object lockObj = new object();
         private readonly Thread loggingThread, consoleThread;
+        private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
+        private readonly AutoResetEvent noPrintableMessages = new AutoResetEvent(true);
+        private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
 
         public bool ShowDebugLogs { get; set; } = false;
 
         public string LogFilePath { get; }
 
-        public Logger(CancellationToken finishToken) : this(null, finishToken)
-        { }
+        static Logger()
+        {
+            ClearOldLogs();
+        }
 
         public Logger(string logFilePath, CancellationToken finishToken)
         {
@@ -59,6 +68,12 @@ namespace PixelPlanetUtils.Logging
             }
         }
 
+        public void Log(string msg, MessageGroup group, DateTime time)
+        {
+            messages.Enqueue((msg, group, time));
+            messagesAvailable.Set();
+        }
+        
         public void LogAndPause(string msg, MessageGroup group)
         {
             if (!consolePaused)
@@ -93,59 +108,6 @@ namespace PixelPlanetUtils.Logging
                 }
                 consoleMessagesAvailable.Set();
             }
-        }
-
-        private static ConsoleColor ColorOf(MessageGroup group)
-        {
-            switch (group)
-            {
-                case MessageGroup.Attack:
-                case MessageGroup.Captcha:
-                case MessageGroup.PixelFail:
-                case MessageGroup.Error:
-                    return ConsoleColor.Red;
-                case MessageGroup.Assist:
-                case MessageGroup.Pixel:
-                    return ConsoleColor.Green;
-                case MessageGroup.Info:
-                    return ConsoleColor.Magenta;
-                case MessageGroup.TechInfo:
-                    return ConsoleColor.Cyan;
-                case MessageGroup.TechState:
-                    return ConsoleColor.Yellow;
-                case MessageGroup.PixelInfo:
-                case MessageGroup.Debug:
-                default:
-                    return ConsoleColor.DarkGray;
-            }
-        }
-
-        private readonly static int padLength = 2 + //brackets
-            Enum.GetValues(typeof(MessageGroup)).Cast<MessageGroup>().Max(mg => mg.ToString().Length);
-
-        private static readonly string space = new string(' ', 2);
-        private static readonly string largeSpace = new string(' ', 5);
-
-        private static string FormatLine(string msg, MessageGroup group, DateTime time)
-        {
-            if (group == MessageGroup.Debug)
-            {
-                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
-                                        $"[{group.ToString().ToUpper()}]", space,
-                                        msg);
-            }
-            else
-            {
-                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
-                                        $"[{group.ToString().ToUpper()}]".PadRight(padLength), largeSpace,
-                                        msg);
-            }
-        }
-
-        public void Log(string msg, MessageGroup group, DateTime time)
-        {
-            messages.Enqueue((msg, group, time));
-            messagesAvailable.Set();
         }
 
         private void LogWriterThreadBody()
@@ -198,6 +160,59 @@ namespace PixelPlanetUtils.Logging
                 }
             }
         }
+        
+        private static ConsoleColor ColorOf(MessageGroup group)
+        {
+            switch (group)
+            {
+                case MessageGroup.Attack:
+                case MessageGroup.Captcha:
+                case MessageGroup.PixelFail:
+                case MessageGroup.Error:
+                    return ConsoleColor.Red;
+                case MessageGroup.Assist:
+                case MessageGroup.Pixel:
+                    return ConsoleColor.Green;
+                case MessageGroup.Info:
+                    return ConsoleColor.Magenta;
+                case MessageGroup.TechInfo:
+                case MessageGroup.Update:
+                    return ConsoleColor.Cyan;
+                case MessageGroup.TechState:
+                    return ConsoleColor.Yellow;
+                case MessageGroup.PixelInfo:
+                case MessageGroup.Debug:
+                default:
+                    return ConsoleColor.Gray;
+            }
+        }
+
+        private static string FormatLine(string msg, MessageGroup group, DateTime time)
+        {
+            if (group == MessageGroup.Debug)
+            {
+                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
+                                        $"[{group.ToString().ToUpper()}]", space,
+                                        msg);
+            }
+            else
+            {
+                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
+                                        $"[{group.ToString().ToUpper()}]".PadRight(msgGroupPadLength), largeSpace,
+                                        msg);
+            }
+        }
+
+        private static void ClearOldLogs()
+        {
+            TimeSpan maxLogAge = TimeSpan.FromDays(7);
+            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
+            foreach (FileInfo logFile in di.EnumerateFiles("*.log")
+                                           .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
+            {
+                logFile.Delete();
+            }
+        }
 
         public void Dispose()
         {
@@ -212,22 +227,6 @@ namespace PixelPlanetUtils.Logging
                 messagesAvailable.Dispose();
                 consoleMessagesAvailable.Dispose();
                 noPrintableMessages.Dispose();
-            }
-        }
-
-        static Logger()
-        {
-            ClearOldLogs();
-        }
-
-        private static void ClearOldLogs()
-        {
-            TimeSpan maxLogAge = TimeSpan.FromDays(7);
-            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
-            foreach (FileInfo logFile in di.EnumerateFiles("*.log")
-                                           .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
-            {
-                logFile.Delete();
             }
         }
     }

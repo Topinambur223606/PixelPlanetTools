@@ -16,13 +16,15 @@ namespace RecordVisualizer
 
     static class Program
     {
-        private static short leftX, topY, rightX, bottomY;
         private static int w, h;
         private static DateTime startTime;
         private static PixelColor[,] initialMapState;
+        private static short leftX, topY, rightX, bottomY;
         private static readonly List<Delta> deltas = new List<Delta>();
-        private static Options options;
+
         private static Logger logger;
+        private static Options options;
+
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private static void Main(string[] args)
@@ -41,7 +43,7 @@ namespace RecordVisualizer
 
                 if (!options.DisableUpdates)
                 {
-                    if (CheckForUpdates())
+                    if (UpdateChecker.IsStartingUpdate(logger))
                     {
                         return;
                     }
@@ -107,38 +109,7 @@ namespace RecordVisualizer
                 return success;
             }
         }
-
-        private static void SaveLoadedData(string filePathTemplate)
-        {
-            using (Image<Rgba32> image = new Image<Rgba32>(w, h))
-            {
-                for (int y = 0; y < h; y++)
-                {
-                    for (int x = 0; x < w; x++)
-                    {
-                        image[x, y] = initialMapState[y, x].ToRgba32();
-                    }
-                }
-                image.Save(string.Format(filePathTemplate, startTime));
-            }
-            logger.LogInfo("Initial map state image created");
-            int d = 0;
-            int padLength = 1 + (int)Math.Log10(deltas.Count);
-            foreach (Delta delta in deltas)
-            {
-                d++;
-                using (Image<Rgba32> image = new Image<Rgba32>(w, h))
-                {
-                    foreach ((short, short, PixelColor) pixel in delta.Pixels)
-                    {
-                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
-                    }
-                    image.Save(string.Format(filePathTemplate, delta.DateTime));
-                    logger.LogInfo($"Saved delta {d.ToString().PadLeft(padLength)}/{deltas.Count}");
-                }
-            }
-        }
-
+        
         private static void LoadFile(string path)
         {
             using (FileStream fileStream = File.OpenRead(path))
@@ -182,6 +153,37 @@ namespace RecordVisualizer
             }
         }
 
+        private static void SaveLoadedData(string filePathTemplate)
+        {
+            using (Image<Rgba32> image = new Image<Rgba32>(w, h))
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        image[x, y] = initialMapState[y, x].ToRgba32();
+                    }
+                }
+                image.Save(string.Format(filePathTemplate, startTime));
+            }
+            logger.LogInfo("Initial map state image created");
+            int d = 0;
+            int padLength = 1 + (int)Math.Log10(deltas.Count);
+            foreach (Delta delta in deltas)
+            {
+                d++;
+                using (Image<Rgba32> image = new Image<Rgba32>(w, h))
+                {
+                    foreach ((short, short, PixelColor) pixel in delta.Pixels)
+                    {
+                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
+                    }
+                    image.Save(string.Format(filePathTemplate, delta.DateTime));
+                    logger.LogInfo($"Saved delta {d.ToString().PadLeft(padLength)}/{deltas.Count}");
+                }
+            }
+        }
+
         private static bool ReachedEnd(this BinaryReader reader) => reader.PeekChar() == -1;
 
         private static void ReadMap(this BinaryReader reader)
@@ -215,49 +217,5 @@ namespace RecordVisualizer
                 Pixels = pixels
             };
         }
-
-        private static bool CheckForUpdates()
-        {
-            using (UpdateChecker checker = new UpdateChecker(logger))
-            {
-                if (checker.NeedsToCheckUpdates())
-                {
-                    logger.Log("Checking for updates...", MessageGroup.Update);
-                    if (checker.UpdateIsAvailable(out string version, out bool isCompatible))
-                    {
-                        logger.Log($"Update is available: {version} (current version is {App.Version})", MessageGroup.Update);
-                        if (isCompatible)
-                        {
-                            logger.Log("New version is backwards compatible, it will be relaunched with same arguments", MessageGroup.Update);
-                        }
-                        else
-                        {
-                            logger.Log("Argument list was changed, check it and relaunch bot manually after update", MessageGroup.Update);
-                        }
-                        logger.Log("Press Enter to update, anything else to skip", MessageGroup.Update);
-                        while (Console.KeyAvailable)
-                        {
-                            Console.ReadKey(true);
-                        }
-                        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-                        if (keyInfo.Key == ConsoleKey.Enter)
-                        {
-                            logger.Log("Starting update...", MessageGroup.Update);
-                            checker.StartUpdate();
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        if (version == null)
-                        {
-                            logger.LogError("Cannot check for updates");
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-
     }
 }

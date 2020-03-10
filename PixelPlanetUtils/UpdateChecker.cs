@@ -34,11 +34,55 @@ namespace PixelPlanetUtils
             }
         }
 
-        public UpdateChecker(Logger logger)
+        private UpdateChecker(Logger logger)
         {
             this.logger = logger;
             appName = Assembly.GetEntryAssembly().GetName().Name;
             lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, appName + ".lastcheck");
+        }
+
+        public static bool IsStartingUpdate(Logger logger)
+        {
+            using (UpdateChecker checker = new UpdateChecker(logger))
+            {
+                if (checker.NeedsToCheckUpdates())
+                {
+                    logger.LogUpdate("Checking for updates...");
+                    if (checker.UpdateIsAvailable(out string version, out bool isCompatible, out string description))
+                    {
+                        logger.LogUpdate($"Update is available: {version} (current version is {App.Version})");
+                        logger.LogUpdate("Description: " + description);
+                        if (isCompatible)
+                        {
+                            logger.LogUpdate("New version is backwards compatible, it will be relaunched with same arguments");
+                        }
+                        else
+                        {
+                            logger.LogUpdate("Argument list was changed, check it and relaunch bot manually after update");
+                        }
+                        logger.LogUpdate("Press Enter to update, anything else to skip");
+                        while (Console.KeyAvailable)
+                        {
+                            Console.ReadKey(true);
+                        }
+                        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                        if (keyInfo.Key == ConsoleKey.Enter)
+                        {
+                            logger.Log("Starting update...", MessageGroup.Update);
+                            checker.StartUpdate();
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        if (version == null)
+                        {
+                            logger.LogError("Cannot check for updates");
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         private static string GetPackedArgs()
@@ -50,7 +94,7 @@ namespace PixelPlanetUtils
             return Convert.ToBase64String(bytes);
         }
 
-        public bool NeedsToCheckUpdates()
+        private bool NeedsToCheckUpdates()
         {
             try
             {
@@ -89,7 +133,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public bool UpdateIsAvailable(out string availableVersion, out bool isCompatible)
+        private bool UpdateIsAvailable(out string availableVersion, out bool isCompatible, out string description)
         {
             try
             {
@@ -99,7 +143,7 @@ namespace PixelPlanetUtils
                     wc.Headers[HttpRequestHeader.UserAgent] = "PixelPlanetTools";
                     release = JObject.Parse(wc.DownloadString(latestReleaseUrl));
                     string versionsJsonUrl = release["assets"].
-                        Single(t => t["name"].ToString().StartsWith("versions", StringComparison.InvariantCultureIgnoreCase))
+                        Single(t => t["name"].ToString().StartsWith("release", StringComparison.InvariantCultureIgnoreCase))
                         ["browser_download_url"].ToString();
                     versions = JObject.Parse(wc.DownloadString(versionsJsonUrl));
                 }
@@ -109,7 +153,8 @@ namespace PixelPlanetUtils
                     ["browser_download_url"].ToString();
 
                 Version appVersion = App.Version;
-                availableVersion = versions[appName].ToString();
+                availableVersion = versions[appName]["version"].ToString();
+                description = versions[appName]["description"].ToString();
                 Version upToDateVersion = Version.Parse(availableVersion);
                 isCompatible = this.isCompatible = upToDateVersion.Major == appVersion.Major;
                 lastCheckFileStream.Seek(0, SeekOrigin.Begin);
@@ -124,11 +169,12 @@ namespace PixelPlanetUtils
                 logger.LogError($"Error while checking for updates: {ex.Message}");
                 isCompatible = true;
                 availableVersion = null;
+                description = null;
                 return false;
             }
         }
 
-        public static void UnpackUpdater()
+        private static void UnpackUpdater()
         {
             if (!File.Exists(updaterPath) ||
                 Version.Parse(FileVersionInfo.GetVersionInfo(updaterPath).FileVersion) < updaterVersion)
@@ -138,7 +184,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public void StartUpdate()
+        private void StartUpdate()
         {
             try
             {
@@ -162,7 +208,7 @@ namespace PixelPlanetUtils
             }
         }
 
-        public void Dispose()
+        void IDisposable.Dispose()
         {
             lastCheckFileStream?.Dispose();
         }
