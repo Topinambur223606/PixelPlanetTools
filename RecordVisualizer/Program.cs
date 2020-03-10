@@ -59,7 +59,7 @@ namespace RecordVisualizer
                 logger.LogInfo($"File is loaded: {w}x{h}, {deltas.Count + 1} frames");
 
                 DirectoryInfo dir = Directory.CreateDirectory($"seq_{startTime:MM.dd_HH-mm}");
-                string pathTemplate = Path.Combine(dir.FullName, "{0:MM.dd_HH-mm}.png");
+                string pathTemplate = Path.Combine(dir.FullName, "{0:MM.dd_HH-mm-ss}.png");
                 try
                 {
                     SaveLoadedData(pathTemplate);
