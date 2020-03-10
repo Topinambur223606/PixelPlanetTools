@@ -132,7 +132,7 @@ namespace PixelPlanetUtils.CanvasInteraction
             PixelMap.ConvertToRelative(x, out byte chunkX, out byte relativeX);
             PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);
             PixelColor[,] chunkMap = CachedChunks[(chunkX, chunkY)];
-            return chunkMap[relativeX, relativeY];
+            return chunkMap[relativeY, relativeX];
         }
 
         private void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
@@ -141,7 +141,7 @@ namespace PixelPlanetUtils.CanvasInteraction
             {
                 logger.LogDebug("Wrapper_OnPixelChanged(): writing update to map");
                 (byte rX, byte rY) = e.Pixel;
-                chunkMap[rX, rY] = e.Color;
+                chunkMap[rY, rX] = e.Color;
             }
             else
             {

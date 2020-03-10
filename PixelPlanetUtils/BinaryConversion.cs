@@ -5,9 +5,9 @@ namespace PixelPlanetUtils
 {
     public static class BinaryConversion
     {
-        public static PixelColor[,] ConvertToColorRectangle(byte[] bytes, int width, int height)
+        public static PixelColor[,] ConvertToColorRectangle(byte[] bytes, int height, int width)
         {
-            PixelColor[,] chunk = new PixelColor[width, height];
+            PixelColor[,] chunk = new PixelColor[height, width];
             if (bytes.Length != 0)
             {
                 unsafe

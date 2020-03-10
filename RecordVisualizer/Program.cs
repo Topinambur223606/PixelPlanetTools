@@ -116,7 +116,7 @@ namespace RecordVisualizer
                 {
                     for (int x = 0; x < w; x++)
                     {
-                        image[x, y] = initialMapState[x, y].ToRgba32();
+                        image[x, y] = initialMapState[y, x].ToRgba32();
                     }
                 }
                 image.Save(string.Format(filePathTemplate, startTime));
@@ -194,7 +194,7 @@ namespace RecordVisualizer
             h = bottomY - topY + 1;
             startTime = DateTime.FromBinary(reader.ReadInt64());
             byte[] data = reader.ReadBytes(w * h);
-            initialMapState = BinaryConversion.ConvertToColorRectangle(data, w, h);
+            initialMapState = BinaryConversion.ConvertToColorRectangle(data, h, w);
         }
 
         private static Delta ReadDelta(this BinaryReader reader)
