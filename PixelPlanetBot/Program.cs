@@ -73,13 +73,13 @@ namespace PixelPlanetBot
                 catch (WebException ex)
                 {
                     logger.LogError("Cannot download image");
-                    logger.LogDebug($"Error: {ex.Message}");
+                    logger.LogDebug($"Main(): error downloading image - {ex.Message}");
                     return;
                 }
                 catch (ArgumentException ex)
                 {
                     logger.LogError("Cannot convert image");
-                    logger.LogDebug($"Error: {ex.Message}");
+                    logger.LogDebug($"Main(): error converting image - {ex.Message}");
                     return;
                 }
 
@@ -98,7 +98,7 @@ namespace PixelPlanetBot
                 catch (OverflowException ex)
                 {
                     logger.LogError("Entire image should be inside the map");
-                    logger.LogDebug($"Error: {ex.Message}");
+                    logger.LogDebug($"Main(): error checking boundaries - {ex.Message}");
                     return;
                 }
 
@@ -110,7 +110,7 @@ namespace PixelPlanetBot
                 mapUpdatedResetEvent = new ManualResetEvent(false);
                 cache.OnMapUpdated += (o, e) =>
                 {
-                    logger.LogDebug("Map updated event received");
+                    logger.LogDebug("Cache.OnMapUpdated handler: Map updated event received");
                     mapUpdatedResetEvent.Set();
                 };
                 if (options.DefenseMode)
@@ -533,10 +533,10 @@ namespace PixelPlanetBot
 
             Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
 
-            logger.LogDebug("Stats collection thread started");
+            logger.LogDebug("StatsCollectionThreadBody() started");
             int total = pixelsToBuild.Count();
             mapUpdatedResetEvent.WaitOne();
-            logger.LogDebug("Map updated, stats collection started");
+            logger.LogDebug("StatsCollectionThreadBody(): map updated, stats collection started");
             Task taskToWait = GetDelayTask();
             int done = CountDone();
             logger.LogDebug($"{done} pixels are done at start");
@@ -545,22 +545,22 @@ namespace PixelPlanetBot
             {
                 if (finishCTS.IsCancellationRequested)
                 {
-                    logger.LogDebug($"cancellation requested (S1), finishing");
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S1), finishing");
                     return;
                 }
                 try
                 {
-                    logger.LogDebug($"waiting");
+                    logger.LogDebug($"StatsCollectionThreadBody(): task waiting");
                     taskToWait.Wait();
                 }
                 catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
                 {
-                    logger.LogDebug($"cancellation requested (S2), finishing");
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S2), finishing");
                     return;
                 }
                 if (finishCTS.IsCancellationRequested)
                 {
-                    logger.LogDebug($"cancellation requested (S3), finishing");
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S3), finishing");
                     return;
                 }
 
@@ -571,7 +571,7 @@ namespace PixelPlanetBot
                 done = CountDone(); //time consuming => cancellation check again later
                 double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
                 AddToQueue(doneInPast, done);
-                logger.LogDebug($"last minute: {builtInPast} built, {griefedInPast} griefed; {done} total done");
+                logger.LogDebug($"StatsCollectionThreadBody(): last minute: {builtInPast} built, {griefedInPast} griefed; {done} total done");
 
                 double griefedPerMinute = griefedInPast.Average();
                 double builtPerMinute = builtInPast.Average();
@@ -580,16 +580,16 @@ namespace PixelPlanetBot
 
                 if (finishCTS.IsCancellationRequested)
                 {
-                    logger.LogDebug($"cancellation requested (S4), finishing");
+                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
                     return;
                 }
                 if (options.DefenseMode)
                 {
                     logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
-                    logger.LogDebug($"grief lock start");
+                    logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
                     lock (waitingGriefLock)
                     { }
-                    logger.LogDebug($"grief lock end");
+                    logger.LogDebug($"StatsCollectionThreadBody(): grief lock released");
                 }
                 else
                 {
@@ -612,7 +612,7 @@ namespace PixelPlanetBot
                     logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
                 }
                 taskToWait = GetDelayTask();
-                logger.LogDebug("cycle ended");
+                logger.LogDebug("StatsCollectionThreadBody(): cycle ended");
             } while (true);
         }
     }

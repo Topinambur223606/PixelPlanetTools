@@ -88,7 +88,7 @@ namespace PixelPlanetUtils
             logger.LogTechState("Downloading image...");
             using (WebClient wc = new WebClient())
             {
-                logger.LogDebug($"URI: {imageUri}");
+                logger.LogDebug($"PixelColorsByUri(): URI - {imageUri}");
                 byte[] data = wc.DownloadData(imageUri);
                 using (Image<Rgba32> image = Image.Load(data))
                 {

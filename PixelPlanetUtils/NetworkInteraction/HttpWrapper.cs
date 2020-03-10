@@ -46,7 +46,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                             Thread.Sleep(1000);
                             continue;
                         }
-                        Logger?.LogDebug($"Response status: {(int)response.StatusCode} {response.StatusCode}: {response.StatusDescription}");
+                        Logger?.LogDebug($"ConnectToApi(): response status: {(int)response.StatusCode} {response.StatusCode}: {response.StatusDescription}");
                         switch (response.StatusCode)
                         {
                             case HttpStatusCode.Forbidden:
@@ -81,7 +81,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                                 using (StreamReader sr = new StreamReader(response.GetResponseStream()))
                                 {
                                     string responseString = sr.ReadToEnd();
-                                    Logger.LogDebug($"Placing pixel response: {responseString}");
+                                    Logger.LogDebug($"PlacePixel(): response - {responseString}");
                                     JObject json = JObject.Parse(responseString);
                                     if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                                     {
@@ -168,7 +168,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                     using (StreamWriter streamWriter = new StreamWriter(requestStream))
                     {
                         string jsonText = JsonConvert.SerializeObject(data);
-                        Logger?.LogDebug($"Data to send: {jsonText}");
+                        Logger?.LogDebug($"SendRequest(): data to send - {jsonText}");
                         streamWriter.Write(jsonText);
                     }
                 }
@@ -183,12 +183,12 @@ namespace PixelPlanetUtils.NetworkInteraction
                 }
                 else
                 {
-                    Logger?.LogDebug($"No response from server for {timeout} ms");
+                    Logger?.LogDebug($"SendRequest(): no response from server for {timeout} ms");
                     responseTask.ContinueWith(t =>
                     {
                         if (t.Status == TaskStatus.RanToCompletion)
                         {
-                            Logger?.LogDebug("Got response after timeout, ignoring");
+                            Logger?.LogDebug("SendRequest task continuation: got response after timeout, ignoring");
                             t.Result.Close();
                         }
                     });
@@ -197,7 +197,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             catch (AggregateException ex)
             {
-                Logger.LogDebug($"Aggregate exception while sending request, {ex.InnerExceptions.Count} exceptions: {string.Join("; ", ex.InnerExceptions.Select(e => e.Message))}");
+                Logger.LogDebug($"SendRequest(): aggregate exception while sending request, {ex.InnerExceptions.Count} exceptions: {string.Join("; ", ex.InnerExceptions.Select(e => e.Message))}");
                 throw ex.GetBaseException();
             }
         }

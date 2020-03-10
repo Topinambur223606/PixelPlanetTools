@@ -54,7 +54,7 @@ namespace PixelPlanetUtils.NetworkInteraction
         
         void LogWebsocketOutput(LogData d, string s)
         {
-            logger.LogDebug($"Websocket message: {s}, {d.Message}");
+            logger.LogDebug($"Websocket log message: {s}, {d.Message}");
         }
 
         public void WaitWebsocketConnected()

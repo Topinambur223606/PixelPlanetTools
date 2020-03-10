@@ -59,12 +59,12 @@ namespace PixelPlanetUtils
                 {
                     try
                     {
-                        logger.LogDebug("Trying to access last check file");
+                        logger.LogDebug("NeedsToCheckUpdates(): trying to access last check file");
                         lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                     }
                     catch (IOException ex)
                     {
-                        logger.LogDebug($"Cannot access last check file: {ex.Message}");
+                        logger.LogDebug($"NeedsToCheckUpdates(): cannot access last check file: {ex.Message}");
                         Thread.Sleep(300);
                     }
                 }
@@ -142,7 +142,7 @@ namespace PixelPlanetUtils
         {
             try
             {
-                logger.LogDebug("Unpacking updater if needed");
+                logger.LogDebug("StartUpdate(): unpacking updater if needed");
                 UnpackUpdater();
                 string args;
                 int id = Process.GetCurrentProcess().Id;
@@ -158,7 +158,7 @@ namespace PixelPlanetUtils
             }
             catch (Exception ex)
             {
-                logger.LogDebug($"Exception during update start: {ex.Message}");
+                logger.LogDebug($"StartUpdate(): exception during update start - {ex.Message}");
             }
         }
 
