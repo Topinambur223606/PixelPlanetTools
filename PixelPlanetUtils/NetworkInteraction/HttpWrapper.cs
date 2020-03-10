@@ -143,26 +143,12 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
-        public static PixelColor[,] GetChunk(XY chunk)
+        public static byte[] GetChunkData(XY chunk)
         {
             string url = $"{UrlManager.BaseHttpAdress}/chunks/0/{chunk.Item1}/{chunk.Item2}.bmp";
             using (WebClient wc = new WebClient())
             {
-                byte[] pixelData = wc.DownloadData(url);
-                PixelColor[,] map = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
-                if (pixelData.Length == 0)
-                {
-                    return map;
-                }
-                int i = 0;
-                for (int y = 0; y < PixelMap.ChunkSize; y++)
-                {
-                    for (int x = 0; x < PixelMap.ChunkSize; x++)
-                    {
-                        map[x, y] = (PixelColor)pixelData[i++];
-                    }
-                }
-                return map;
+                return wc.DownloadData(url);
             }
         }
 

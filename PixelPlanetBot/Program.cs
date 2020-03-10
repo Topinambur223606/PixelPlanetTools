@@ -20,25 +20,18 @@ namespace PixelPlanetBot
     {
         private static Thread statsThread;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
-        private static bool defenseMode;
-        private static CaptchaNotificationMode notificationMode;
-        private static PlacingOrderMode placingOrder;
         private static ChunkCache cache;
         private static bool repeatingFails = false;
-
         private static AutoResetEvent gotGriefed;
         private static ManualResetEvent mapUpdatedResetEvent;
         private static CancellationTokenSource captchaCts;
-
         private static object waitingGriefLock;
+        
+        private static Options options;
 
-        private static string imagePath;
         private static PixelColor[,] imagePixels;
         private static IEnumerable<Pixel> pixelsToBuild;
-        private static short leftX, topY;
         private static ushort width, height;
-        private static WebProxy proxy;
-        private static bool disableUpdates;
 
         private static readonly HashSet<Pixel> placed = new HashSet<Pixel>();
 
@@ -48,7 +41,6 @@ namespace PixelPlanetBot
         private static readonly Queue<int> griefedInPast = new Queue<int>();
         private static readonly Queue<int> doneInPast = new Queue<int>();
         private static Logger logger;
-        private static string logFilePath = null;
 
         private static void Main(string[] args)
         {
@@ -59,7 +51,14 @@ namespace PixelPlanetBot
                     return;
                 }
 
-                if (!disableUpdates)
+                logger = new Logger(options.LogFilePath, finishCTS.Token)
+                {
+                    ShowDebugLogs = options.ShowDebugLogs
+                };
+                logger.LogDebug("Command line: " + Environment.CommandLine);
+                HttpWrapper.Logger = logger;
+
+                if (!options.DisableUpdates)
                 {
                     if (CheckForUpdates())
                     {
@@ -67,12 +66,9 @@ namespace PixelPlanetBot
                     }
                 }
 
-                logger = new Logger(logFilePath, finishCTS.Token);
-                logger.LogDebug("Command line: " + Environment.CommandLine);
-                HttpWrapper.Logger = logger;
                 try
                 {
-                    imagePixels = ImageProcessing.PixelColorsByUri(imagePath, logger);
+                    imagePixels = ImageProcessing.PixelColorsByUri(options.ImagePath, logger);
                 }
                 catch (WebException ex)
                 {
@@ -94,8 +90,8 @@ namespace PixelPlanetBot
                         width = (ushort)imagePixels.GetLength(0);
                         height = (ushort)imagePixels.GetLength(1);
                         short check;
-                        check = (short)(leftX + width);
-                        check = (short)(topY + height);
+                        check = (short)(options.LeftX + width);
+                        check = (short)(options.TopY + height);
                     }
 
                 }
@@ -117,7 +113,7 @@ namespace PixelPlanetBot
                     logger.LogDebug("Map updated event received");
                     mapUpdatedResetEvent.Set();
                 };
-                if (defenseMode)
+                if (options.DefenseMode)
                 {
                     gotGriefed = new AutoResetEvent(false);
                     cache.OnMapUpdated += (o, e) => gotGriefed.Set();
@@ -158,11 +154,15 @@ namespace PixelPlanetBot
             {
                 logger?.LogInfo("Exiting...");
                 finishCTS.Cancel();
-                Thread.Sleep(500);
+                if (logger != null)
+                {
+                    Thread.Sleep(500);
+                }
                 gotGriefed?.Dispose();
                 mapUpdatedResetEvent?.Dispose();
                 logger?.Dispose();
                 finishCTS.Dispose();
+                Console.ForegroundColor = ConsoleColor.White;
                 Environment.Exit(0);
             }
         }
@@ -220,7 +220,7 @@ namespace PixelPlanetBot
                             } while (!success);
                         }
                     }
-                    if (defenseMode)
+                    if (options.DefenseMode)
                     {
                         if (!wasChanged)
                         {
@@ -235,7 +235,7 @@ namespace PixelPlanetBot
                             Thread.Sleep(new Random().Next(500, 3000));
                         }
                     }
-                } while (defenseMode || wasChanged);
+                } while (options.DefenseMode || wasChanged);
                 logger.Log("Building is finished", MessageGroup.Info);
                 return;
             }
@@ -277,13 +277,13 @@ namespace PixelPlanetBot
         {
             logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
             captchaCts = null;
-            if (notificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
                 logger.LogDebug("ProcessCaptcha(): starting beep thread");
                 captchaCts = new CancellationTokenSource();
                 new Thread(BeepThreadBody).Start();
             }
-            if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
             {
                 logger.LogDebug("ProcessCaptcha(): starting browser");
                 Process.Start(UrlManager.BaseHttpAdress);
@@ -308,7 +308,7 @@ namespace PixelPlanetBot
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
                 Where(xyc => xyc.C != PixelColor.None).ToList();
-            switch (placingOrder)
+            switch (options.PlacingOrderMode)
             {
                 case PlacingOrderMode.Left:
                     relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
@@ -370,7 +370,8 @@ namespace PixelPlanetBot
                     relativePixelsToBuild = nonEmptyPixels;
                     break;
             }
-            pixelsToBuild = relativePixelsToBuild.Select(p => ((short)(p.Item1 + leftX), (short)(p.Item2 + topY), p.Item3)).ToList();
+            pixelsToBuild = relativePixelsToBuild
+                .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
         }
 
         private static bool ParseArguments(string[] args)
@@ -384,27 +385,18 @@ namespace PixelPlanetBot
                 bool success = true;
                 parser.ParseArguments<Options>(args)
                     .WithNotParsed(e => success = false)
-                    .WithParsed(o =>
+                    .WithParsed(o => 
                     {
-                        leftX = o.LeftX;
-                        topY = o.TopY;
-
-                        notificationMode = o.CaptchaNotificationMode;
-                        defenseMode = o.DefenseMode;
-                        placingOrder = o.PlacingOrderMode;
+                        options = o;
                         if (!string.IsNullOrWhiteSpace(o.Proxy))
                         {
-                            proxy = new WebProxy(o.Proxy);
-                            HttpWrapper.Proxy = proxy;
-                            if (notificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                            HttpWrapper.Proxy = new WebProxy(o.Proxy);
+                            if (o.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
                                 Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
                                     "Ensure that same proxy settings are set in your default browser");
                             }
                         }
-                        logFilePath = o.LogFilePath;
-                        imagePath = o.ImagePath;
-                        disableUpdates = o.DisableUpdates;
                         if (o.UseMirror)
                         {
                             if (o.ServerUrl != null)
@@ -413,7 +405,7 @@ namespace PixelPlanetBot
                                 success = false;
                                 return;
                             }
-                            UrlManager.MirrorMode = true;
+                            UrlManager.MirrorMode = o.UseMirror;
                         }
                         if (o.ServerUrl != null)
                         {
@@ -441,7 +433,7 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    PixelColor desiredColor = imagePixels[x - leftX, y - topY];
+                    PixelColor desiredColor = imagePixels[x - options.LeftX, y - options.TopY];
                     if (desiredColor == PixelColor.None)
                     {
                         msgGroup = MessageGroup.PixelInfo;
@@ -591,7 +583,7 @@ namespace PixelPlanetBot
                     logger.LogDebug($"cancellation requested (S4), finishing");
                     return;
                 }
-                if (defenseMode)
+                if (options.DefenseMode)
                 {
                     logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
                     logger.LogDebug($"grief lock start");

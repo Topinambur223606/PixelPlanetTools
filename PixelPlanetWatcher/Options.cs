@@ -33,5 +33,8 @@ namespace PixelPlanetWatcher
 
         [Option("disableUpdates", Default = false, HelpText = "If specified, updates are disabled")]
         public bool DisableUpdates { get; set; }
+
+        [Option("showDebug", Default = false, HelpText = "Toggles debug output to console window")]
+        public bool ShowDebugLogs { get; set; }
     }
 }

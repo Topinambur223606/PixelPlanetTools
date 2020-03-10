@@ -19,23 +19,31 @@ namespace PixelPlanetWatcher
     {
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
         private static ChunkCache cache;
-        private static short x1, y1, x2, y2;
-        private static string logFilePath;
-        private static string filename;
         private static Logger logger;
         private static List<Pixel> updates = new List<Pixel>();
         private static Task<FileStream> lockingStreamTask;
         private static readonly object listLockObj = new object();
-        private static readonly Thread saveThread = new Thread(SaveChangesThreadBody);
-        private static bool disableUpdates;
+        private static Thread saveThread;
         private static Action stopListening;
+        private static Options options;
 
         private static void Main(string[] args)
         {
             try
             {
-                ParseArguments(args);
-                if (!disableUpdates)
+                if (!ParseArguments(args))
+                {
+                    return;
+                }
+
+                logger = new Logger(options.LogFilePath, finishCTS.Token)
+                {
+                    ShowDebugLogs = options.ShowDebugLogs
+                };
+                logger.LogDebug("Command line: " + Environment.CommandLine);
+                HttpWrapper.Logger = logger;
+
+                if (!options.DisableUpdates)
                 {
                     if (CheckForUpdates())
                     {
@@ -43,17 +51,15 @@ namespace PixelPlanetWatcher
                     }
                 }
 
-                logger = new Logger(logFilePath, finishCTS.Token);
-                logger.LogDebug("Command line: " + Environment.CommandLine);
-                HttpWrapper.Logger = logger;
-                cache = new ChunkCache(x1, y1, x2, y2, logger);
+                cache = new ChunkCache(options.LeftX, options.TopY, options.RightX, options.BottomY, logger);
                 bool initialMapSavingStarted = false;
+                saveThread = new Thread(SaveChangesThreadBody);
                 saveThread.Start();
-                if (string.IsNullOrWhiteSpace(filename))
+                if (string.IsNullOrWhiteSpace(options.FileName))
                 {
-                    filename = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", x1, y1, x2, y2, DateTime.Now);
+                    options.FileName = string.Format("pixels_({0};{1})-({2};{3})_{4:yyyy.MM.dd_HH-mm}.bin", options.LeftX, options.TopY, options.RightX, options.BottomY, DateTime.Now);
                 }
-                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filename)));
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.FileName)));
                 do
                 {
                     try
@@ -78,6 +84,7 @@ namespace PixelPlanetWatcher
                             };
                             logger.LogInfo("Press Ctrl+C to stop");
                             wrapper.StartListening();
+                            break;
                         }
                     }
                     catch (Exception ex)
@@ -89,19 +96,20 @@ namespace PixelPlanetWatcher
             }
             finally
             {
-                logger?.LogInfo("Exiting...");
+                logger?.LogInfo("Waiting for saving to finish...");
                 finishCTS.Cancel();
-                Thread.Sleep(1000);
+                if (logger != null)
+                {
+                    Thread.Sleep(500);
+                }
                 finishCTS.Dispose();
                 logger?.Dispose();
-                if (!saveThread.Join(10000))
+                if (saveThread != null && !saveThread.Join(TimeSpan.FromMinutes(1)))
                 {
-                    Console.WriteLine("Save thread can't finish, aborting. Please contact developer");
-                    if (saveThread.IsAlive)
-                    {
-                        saveThread.Interrupt();
-                    }
+                    Console.WriteLine("Save thread can't finish, aborting");
                 }
+                Console.ForegroundColor = ConsoleColor.White;
+                Environment.Exit(0);
             }
         }
 
@@ -109,7 +117,7 @@ namespace PixelPlanetWatcher
         {
             short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
             short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
-            if (x <= x2 && x >= x1 && y <= y2 && y >= y1)
+            if (x <= options.RightX && x >= options.LeftX && y <= options.BottomY && y >= options.TopY)
             {
                 logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
                 lock (listLockObj)
@@ -123,20 +131,20 @@ namespace PixelPlanetWatcher
         {
             DateTime now = DateTime.Now;
             cache.DownloadChunks();
-            using (FileStream fileStream = File.Open(filename, FileMode.Create, FileAccess.Write))
+            using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
             {
-                using (GZipStream compressionStream = new GZipStream(fileStream, CompressionLevel.Fastest))
+                using (DeflateStream compressionStream = new DeflateStream(fileStream, CompressionLevel.Fastest))
                 {
                     using (BinaryWriter writer = new BinaryWriter(compressionStream))
                     {
-                        writer.Write(x1);
-                        writer.Write(y1);
-                        writer.Write(x2);
-                        writer.Write(y2);
+                        writer.Write(options.LeftX);
+                        writer.Write(options.TopY);
+                        writer.Write(options.RightX);
+                        writer.Write(options.BottomY);
                         writer.Write(now.ToBinary());
-                        for (int y = y1; y <= y2; y++)
+                        for (int y = options.TopY; y <= options.BottomY; y++)
                         {
-                            for (int x = x1; x <= x2; x++)
+                            for (int x = options.LeftX; x <= options.RightX; x++)
                             {
                                 writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
                             }
@@ -145,7 +153,7 @@ namespace PixelPlanetWatcher
                 }
             }
             logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
-            return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+            return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
         }
 
         private static bool ParseArguments(string[] args)
@@ -161,19 +169,15 @@ namespace PixelPlanetWatcher
                     .WithNotParsed(e => success = false)
                     .WithParsed(o =>
                     {
-                        x1 = o.LeftX;
-                        y1 = o.TopY;
-                        x2 = o.RightX;
-                        y2 = o.BottomY;
-                        if (x1 > x2 || y1 > y2)
+                        options = o;
+
+                        if (o.LeftX > o.RightX || o.TopY > o.BottomY)
                         {
                             Console.WriteLine("Invalid args: check rectangle borders");
                             success = false;
                             return;
                         }
-                        logFilePath = o.LogFilePath;
-                        disableUpdates = o.DisableUpdates;
-                        filename = o.FileName;
+
                         if (o.UseMirror)
                         {
                             if (o.ServerUrl != null)
@@ -264,7 +268,7 @@ namespace PixelPlanetWatcher
                         {
                             t.Result.Close();
                             WriteChangesToFile(saved);
-                            return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.None);
+                            return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
                         });
                     } while (true);
                 }
@@ -293,9 +297,9 @@ namespace PixelPlanetWatcher
             {
                 if (pixels.Count > 0)
                 {
-                    using (FileStream fileStream = File.Open(filename, FileMode.Append, FileAccess.Write))
+                    using (FileStream fileStream = File.Open(options.FileName, FileMode.Append, FileAccess.Write))
                     {
-                        using (GZipStream compressionStream = new GZipStream(fileStream, CompressionLevel.Fastest))
+                        using (DeflateStream compressionStream = new DeflateStream(fileStream, CompressionLevel.Fastest))
                         {
                             using (BinaryWriter writer = new BinaryWriter(compressionStream))
                             {

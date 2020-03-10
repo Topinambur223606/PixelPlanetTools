@@ -20,50 +20,66 @@ namespace RecordVisualizer
         private static DateTime startTime;
         private static PixelColor[,] initialMapState;
         private static List<Delta> deltas;
-        private static string fileName;
-        private static bool disableUpdates;
-        private static string logFilePath;
+        private static Options options;
         private static Logger logger;
-        private static bool oldRecordFile;
-        private static readonly CancellationTokenSource finishTokenSource = new CancellationTokenSource();
+        private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private static void Main(string[] args)
         {
-            if (!ParseArguments(args))
+            try
             {
-                return;
-            }
-            
-            logger = new Logger(logFilePath, finishTokenSource.Token);
-
-            if (!disableUpdates)
-            {
-                if (CheckForUpdates())
+                if (!ParseArguments(args))
                 {
                     return;
                 }
-            }
-            
-            logger.LogTechState("Loading data from file...");
-            try
-            {
-                LoadFile(fileName);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError($"Error during loading file: {ex.Message}");
-            }
-            logger.LogInfo($"File is loaded: {w}x{h}, {deltas.Count + 1} frames");
 
-            DirectoryInfo dir = Directory.CreateDirectory($"seq_{startTime:MM.dd_HH-mm}");
-            string pathTemplate = Path.Combine(dir.FullName, "{0:MM.dd_HH-mm}.png");
-            try
-            {
-                SaveLoadedData(pathTemplate);
+                logger = new Logger(options.LogFilePath, finishCTS.Token)
+                {
+                    ShowDebugLogs = options.ShowDebugLogs
+                };
+
+                if (!options.DisableUpdates)
+                {
+                    if (CheckForUpdates())
+                    {
+                        return;
+                    }
+                }
+
+                logger.LogTechState("Loading data from file...");
+                try
+                {
+                    LoadFile(options.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Error during loading file: {ex.Message}");
+                }
+                logger.LogInfo($"File is loaded: {w}x{h}, {deltas.Count + 1} frames");
+
+                DirectoryInfo dir = Directory.CreateDirectory($"seq_{startTime:MM.dd_HH-mm}");
+                string pathTemplate = Path.Combine(dir.FullName, "{0:MM.dd_HH-mm}.png");
+                try
+                {
+                    SaveLoadedData(pathTemplate);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Error during saving results: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                logger.LogError($"Error during saving results: {ex.Message}");
+                logger?.LogInfo("Exiting...");
+                finishCTS.Cancel();
+                if (logger != null)
+                {
+                    Thread.Sleep(500);
+                }
+                logger?.Dispose();
+                finishCTS.Dispose();
+                Console.ForegroundColor = ConsoleColor.White;
+                Environment.Exit(0);
             }
         }
 
@@ -80,11 +96,8 @@ namespace RecordVisualizer
                     .WithNotParsed(e => success = false)
                     .WithParsed(o =>
                     {
-                        disableUpdates = o.DisableUpdates;
-                        logFilePath = o.LogFilePath;
-                        oldRecordFile = o.OldRecordFile;
-                        fileName = o.FileName;
-                        if (!File.Exists(fileName))
+                        options = o;
+                        if (!File.Exists(o.FileName))
                         {
                             Console.WriteLine("File does not exist");
                             success = false;
@@ -129,13 +142,13 @@ namespace RecordVisualizer
         {
             using (FileStream fileStream = File.OpenRead(path))
             {
-                if (oldRecordFile)
+                if (options.OldRecordFile)
                 {
                     ReadFromStream(fileStream);
                 }
                 else
                 {
-                    using (GZipStream decompressingStream = new GZipStream(fileStream, CompressionMode.Decompress))
+                    using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress))
                     {
                         ReadFromStream(decompressingStream);
                     }

@@ -8,13 +8,14 @@ using System.Linq;
 namespace PixelPlanetUtils.Logging
 {
 
-    using LogEntry = ValueTuple<string, ConsoleColor>;
+    using ConsoleLogEntry = ValueTuple<string, ConsoleColor>;
+    using LogEntry = ValueTuple<string, MessageGroup, DateTime>;
 
     public class Logger : IDisposable
     {
         private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
-        private ConcurrentQueue<LogEntry> incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
-        private ConcurrentQueue<LogEntry> printableConsoleMessages;
+        private ConcurrentQueue<ConsoleLogEntry> incomingConsoleMessages = new ConcurrentQueue<ConsoleLogEntry>();
+        private ConcurrentQueue<ConsoleLogEntry> printableConsoleMessages;
         private readonly AutoResetEvent messagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent consoleMessagesAvailable = new AutoResetEvent(false);
         private readonly AutoResetEvent noPrintableMessages = new AutoResetEvent(true);
@@ -24,7 +25,9 @@ namespace PixelPlanetUtils.Logging
         private bool disposed;
         private bool consolePaused = false;
         private readonly Thread loggingThread, consoleThread;
-        
+
+        public bool ShowDebugLogs { get; set; } = false;
+
         public string LogFilePath { get; }
 
         public Logger(CancellationToken finishToken) : this(null, finishToken)
@@ -66,7 +69,7 @@ namespace PixelPlanetUtils.Logging
                     text = FormatLine(msg, group, DateTime.Now);
                     logFileWriter.WriteLine(text);
                     consolePaused = true;
-                    incomingConsoleMessages = new ConcurrentQueue<LogEntry>();
+                    incomingConsoleMessages = new ConcurrentQueue<ConsoleLogEntry>();
                 }
                 noPrintableMessages.Reset();
                 printableConsoleMessages.Enqueue((text, ColorOf(group)));
@@ -120,18 +123,28 @@ namespace PixelPlanetUtils.Logging
         private readonly static int padLength = 2 + //brackets
             Enum.GetValues(typeof(MessageGroup)).Cast<MessageGroup>().Max(mg => mg.ToString().Length);
 
+        private static readonly string space = new string(' ', 2);
+        private static readonly string largeSpace = new string(' ', 5);
+
         private static string FormatLine(string msg, MessageGroup group, DateTime time)
         {
-            const string space = "  ";
-            return string.Concat(time.ToString("HH:mm:ss.fff"), space,
-                                    $"[{group.ToString().ToUpper()}]".PadRight(padLength), space,
-                                    msg);
+            if (group == MessageGroup.Debug)
+            {
+                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
+                                        $"[{group.ToString().ToUpper()}]", space,
+                                        msg);
+            }
+            else
+            {
+                return string.Concat(time.ToString("HH:mm:ss.fff"), space,
+                                        $"[{group.ToString().ToUpper()}]".PadRight(padLength), largeSpace,
+                                        msg);
+            }
         }
 
         public void Log(string msg, MessageGroup group, DateTime time)
         {
-            string line = FormatLine(msg, group, time);
-            messages.Enqueue((line, ColorOf(group)));
+            messages.Enqueue((msg, group, time));
             messagesAvailable.Set();
         }
 
@@ -139,13 +152,18 @@ namespace PixelPlanetUtils.Logging
         {
             while (true)
             {
-                if (messages.TryDequeue(out LogEntry msg))
+                if (messages.TryDequeue(out LogEntry entry))
                 {
                     lock (lockObj)
                     {
-                        logFileWriter.WriteLine(msg.Item1);
-                        incomingConsoleMessages.Enqueue(msg);
-                        consoleMessagesAvailable.Set();
+                        (string msg, MessageGroup group, DateTime time) = entry;
+                        string line = FormatLine(msg, group, time);
+                        logFileWriter.WriteLine(line);
+                        if (ShowDebugLogs || group != MessageGroup.Debug)
+                        {
+                            incomingConsoleMessages.Enqueue((line, ColorOf(group)));
+                            consoleMessagesAvailable.Set();
+                        }
                     }
                 }
                 else
@@ -163,7 +181,7 @@ namespace PixelPlanetUtils.Logging
         {
             while (true)
             {
-                if (printableConsoleMessages.TryDequeue(out LogEntry msg))
+                if (printableConsoleMessages.TryDequeue(out ConsoleLogEntry msg))
                 {
                     (string line, ConsoleColor color) = msg;
                     Console.ForegroundColor = color;

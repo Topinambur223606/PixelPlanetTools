@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
@@ -15,12 +16,6 @@ namespace PixelPlanetUtils.NetworkInteraction
 {
     public class WebsocketWrapper : IDisposable
     {
-        private const byte subscribeOpcode = 0xA1;
-        private const byte unsubscribeOpcode = 0xA2;
-        private const byte subscribeManyOpcode = 0xA3;
-        private const byte pixelUpdatedOpcode = 0xC1;
-        private const byte cooldownOpcode = 0xC2;
-        private const byte registerCanvasOpcode = 0xA0;
 
         private readonly Logging.Logger logger;
 
@@ -56,6 +51,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             webSocket.OnClose += WebSocket_OnClose;
             ConnectWebSocket();
         }
+        
         void LogWebsocketOutput(LogData d, string s)
         {
             logger.LogDebug($"Websocket message: {s}, {d.Message}");
@@ -81,11 +77,11 @@ namespace PixelPlanetUtils.NetworkInteraction
             SubscribeToCanvas();
             if (trackedChunks.Count == 1)
             {
-                SubscribeToUpdates(trackedChunks.Single());
+                RegisterChunk(trackedChunks.Single());
             }
             else
             {
-                SubscribeToUpdatesMany(trackedChunks);
+                RegisterMultipleChunks(trackedChunks);
             }
             logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): event resubscribing");
             newWebSocket.OnOpen += WebSocket_OnOpen;
@@ -99,47 +95,48 @@ namespace PixelPlanetUtils.NetworkInteraction
             (oldWebSocket as IDisposable).Dispose();
         }
 
-        public void SubscribeToUpdates(IEnumerable<XY> chunks)
+        public void RegisterChunks(IEnumerable<XY> chunks)
         {
             if (trackedChunks.Count == 0 && chunks.Skip(1).Any())
             {
-                SubscribeToUpdatesMany(chunks);
+                RegisterMultipleChunks(chunks);
             }
             else
             {
                 foreach (XY chunk in chunks)
                 {
-                    SubscribeToUpdates(chunk);
+                    RegisterChunk(chunk);
                 }
             }
         }
 
-        private void SubscribeToUpdates(XY chunk)
+        private void RegisterChunk(XY chunk)
         {
-            logger.LogDebug($"SubscribeToUpdates(): chunk {chunk}");
+            logger.LogDebug($"RegisterChunk(): chunk {chunk}");
             WaitWebsocketConnected();
             if (disposed)
             {
-                logger.LogDebug($"SubscribeToUpdates(): already disposed");
+                logger.LogDebug($"RegisterChunk(): already disposed");
                 return;
             }
             trackedChunks.Add(chunk);
             byte[] data = new byte[3]
             {
-                subscribeOpcode,
+                (byte)Opcode.RegisterChunk,
                 chunk.Item1,
                 chunk.Item2
             };
+            logger.LogDebug($"RegisterChunk(): sending data {DataToString(data)}");
             webSocket.Send(data);
         }
 
-        private void SubscribeToUpdatesMany(IEnumerable<XY> chunks)
+        private void RegisterMultipleChunks(IEnumerable<XY> chunks)
         {
-            logger.LogDebug($"SubscribeToUpdatesMany(): chunks {string.Join(" ", chunks)}");
+            logger.LogDebug($"RegisterMultipleChunks(): chunks {string.Join(" ", chunks)}");
             WaitWebsocketConnected();
             if (disposed)
             {
-                logger.LogDebug($"SubscribeToUpdatesMany(): already disposed");
+                logger.LogDebug($"RegisterMultipleChunks(): already disposed");
                 return;
             }
             trackedChunks.UnionWith(chunks);
@@ -147,7 +144,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             {
                 using (BinaryWriter sw = new BinaryWriter(ms))
                 {
-                    sw.Write(subscribeManyOpcode);
+                    sw.Write((byte)Opcode.RegisterMultipleChunks);
                     sw.Write(byte.MinValue);
                     foreach ((byte, byte) chunk in chunks)
                     {
@@ -156,6 +153,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                     }
                 }
                 byte[] data = ms.ToArray();
+                logger.LogDebug($"RegisterMultipleChunks(): sending data {DataToString(data)}");
                 webSocket.Send(data);
             }
         }
@@ -169,16 +167,13 @@ namespace PixelPlanetUtils.NetworkInteraction
                 logger.LogDebug($"SubscribeToCanvas(): already disposed");
                 return;
             }
-            using (MemoryStream ms = new MemoryStream())
+            byte[] data = new byte[2]
             {
-                using (BinaryWriter sw = new BinaryWriter(ms))
-                {
-                    sw.Write(registerCanvasOpcode);
-                    sw.Write((byte)canvas);
-                }
-                byte[] data = ms.ToArray();
-                webSocket.Send(data);
-            }
+                (byte)Opcode.RegisterCanvas,
+                (byte)canvas
+            };
+            logger.LogDebug($"SubscribeToCanvas(): sending data {DataToString(data)}");
+            webSocket.Send(data);
         }
 
         public void StartListening()
@@ -249,7 +244,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             {
                 return;
             }
-            if (buffer[0] == pixelUpdatedOpcode)
+            if (buffer[0] == (byte)Opcode.PixelUpdated)
             {
                 logger.LogDebug($"WebSocket_OnMessage(): got pixel update {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
                 byte chunkX = buffer[1];
@@ -267,7 +262,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                 logger.LogDebug($"WebSocket_OnMessage(): pixel update: {args.Color} at {args.Chunk}:{args.Pixel}");
                 OnPixelChanged?.Invoke(this, args);
             }
-            else if (!listeningMode && buffer[0] == cooldownOpcode)
+            else if (!listeningMode && buffer[0] == (byte)Opcode.Cooldown)
             {
                 logger.LogDebug($"WebSocket_OnMessage(): got cooldown {string.Join(" ", e.RawData.Select(b => b.ToString("X2")))}");
                 if (buffer[2] > 0)
@@ -277,7 +272,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             else
             {
-                logger.LogDebug($"WebSocket_OnMessage(): opcode {buffer[0]}, length {buffer.Length}, ignoring");
+                logger.LogDebug($"WebSocket_OnMessage(): opcode {(Opcode)buffer[0]}, ignoring");
             }
         }
 
@@ -289,7 +284,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             SubscribeToCanvas();
             if (trackedChunks.Count > 0)
             {
-                SubscribeToUpdates(trackedChunks);
+                RegisterChunks(trackedChunks);
             }
             logger.LogTechInfo("Listening for changes via websocket");
             if (!initialConnection)
@@ -302,6 +297,20 @@ namespace PixelPlanetUtils.NetworkInteraction
             logger.LogDebug($"WebSocket_OnOpen(): preemptive reconnection timer reset");
             preemptiveWebsocketReplacingTimer.Stop();
             preemptiveWebsocketReplacingTimer.Start();
+        }
+
+        private string DataToString(byte[] data)
+        {
+            StringBuilder sb = new StringBuilder();
+            for (int j = 0; j < data.Length; j++)
+            {
+                sb.Append(data[j].ToString("x2"));
+                if (j % 2 == 1)
+                {
+                    sb.Append(' ');
+                }
+            }
+            return sb.ToString();
         }
 
         public void Dispose()

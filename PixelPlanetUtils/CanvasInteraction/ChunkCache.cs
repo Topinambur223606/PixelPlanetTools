@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetUtils.CanvasInteraction
@@ -32,7 +33,7 @@ namespace PixelPlanetUtils.CanvasInteraction
             {
                 logger.LogDebug("ChunkCache.Wrapper set started");
                 wrapper = value;
-                wrapper.SubscribeToUpdates(chunks);
+                wrapper.RegisterChunks(chunks);
                 if (interactiveMode)
                 {
                     logger.LogDebug("ChunkCache.Wrapper event subscription");
@@ -46,41 +47,52 @@ namespace PixelPlanetUtils.CanvasInteraction
         {
             logger.LogTechState("Downloading chunk data...");
             const int maxFails = 5;
-            int fails;
-            do
+            Parallel.ForEach(chunks, chunkXY =>
             {
-                fails = 0;
-                foreach (XY chunkXY in chunks)
+                int fails;
+                bool success = false;
+                do
                 {
-                    bool success = false;
-                    do
+                    fails = 0;
+                    try
                     {
-                        try
+                        logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
+                        CachedChunks[chunkXY] = GetChunk(HttpWrapper.GetChunkData(chunkXY));
+                        logger.LogDebug($"DownloadChunks(): downloaded chunk  {chunkXY}");
+                        success = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogDebug($"DownloadChunks(): error - {ex.Message}");
+                        if (++fails == maxFails)
                         {
-                            logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
-                            CachedChunks[chunkXY] = HttpWrapper.GetChunk(chunkXY);
-                            success = true;
+                            fails = 0;
+                            logger.LogDebug($"DownloadChunks(): {maxFails} fails in row, pause 30s");
+                            Thread.Sleep(TimeSpan.FromSeconds(30));
+                            break;
                         }
-                        catch
-                        {
-                            logger.LogError("Cannot download chunk data, waiting 5s before next attempt");
-                            if (++fails == maxFails)
-                            {
-                                logger.LogDebug($"DownloadChunks(): {fails} fails in row, aborting");
-                                break;
-                            }
-                            Thread.Sleep(TimeSpan.FromSeconds(5));
-                        }
-                    } while (!success);
-                }
-                if (fails == 5)
-                {
-                    logger.LogTechState("Waiting 30s before next attempt");
-                    Thread.Sleep(TimeSpan.FromSeconds(30));
-                }
-            } while (fails == 5);
+                    }
+                } while (!success);
+            });
             logger.LogTechInfo("Chunk data is downloaded");
             OnMapUpdated?.Invoke(this, null);
+        }
+
+        private static PixelColor[,] GetChunk(byte[] bytes)
+        {
+            PixelColor[,] chunk = new PixelColor[PixelMap.ChunkSize, PixelMap.ChunkSize];
+            if (bytes.Length != 0)
+            {
+                unsafe
+                {
+                    fixed (byte* byteArr = &bytes[0])
+                    fixed (PixelColor* enumArr = &chunk[0, 0])
+                    {
+                        Buffer.MemoryCopy(byteArr, enumArr, PixelMap.ChunkBinarySize, PixelMap.ChunkBinarySize);
+                    }
+                }
+            }
+            return chunk;
         }
 
         private void Wrapper_OnConnectionRestored(object sender, ConnectionRestoredEventArgs e)

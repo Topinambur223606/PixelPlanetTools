@@ -2,8 +2,12 @@
 {
     public static class PixelMap
     {
-        public const int ChunkSize = 256;
-        private const int ChunksPerSide = 256;
+        public const int ChunkSize =      0xFF;
+        private const int ChunksPerSide = 0xFF;
+
+        public const int ChunkBinarySize = ChunkSize * ChunkSize;
+
+
 
         public static short ConvertToAbsolute(int chunk, int relative)
         {
