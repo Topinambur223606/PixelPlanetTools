@@ -3,8 +3,8 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetBot</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>4.0.0.3</FileVersion>
-    <AssemblyVersion>4.0.0.3</AssemblyVersion>
+    <FileVersion>4.0.1.1</FileVersion>
+    <AssemblyVersion>4.0.1.1</AssemblyVersion>
     <Version>4.0</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
     <Authors>Topinambur223606</Authors>

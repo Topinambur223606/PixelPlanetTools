@@ -59,7 +59,10 @@ namespace PixelPlanetUtils.Logging
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(logFilePath)));
-                logFileWriter = new StreamWriter(logFilePath, true);
+                logFileWriter = new StreamWriter(logFilePath, true)
+                {
+                    AutoFlush = true
+                };
                 LogFilePath = logFilePath;
             }
             catch
