@@ -5,11 +5,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 
-namespace PixelPlanetUtils
+namespace PixelPlanetUtils.Updates
 {
     public class UpdateChecker : IDisposable
     {
@@ -20,7 +19,6 @@ namespace PixelPlanetUtils
         private readonly string lastCheckFilePath;
         private static readonly Version updaterVersion = new Version(3, 1);
         private readonly Logger logger;
-        private readonly string appName;
         private string downloadUrl;
         private bool isCompatible;
         private FileStream lastCheckFileStream;
@@ -37,8 +35,7 @@ namespace PixelPlanetUtils
         private UpdateChecker(Logger logger)
         {
             this.logger = logger;
-            appName = Assembly.GetEntryAssembly().GetName().Name;
-            lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, appName + ".lastcheck");
+            lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, AppInfo.Name + ".lastcheck");
         }
 
         public static bool IsStartingUpdate(Logger logger)
@@ -50,7 +47,7 @@ namespace PixelPlanetUtils
                     logger.LogUpdate("Checking for updates...");
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible, out string description))
                     {
-                        logger.LogUpdate($"Update is available: {version} (current version is {App.Version})");
+                        logger.LogUpdate($"Update is available: {version} (current version is {AppInfo.Version})");
                         logger.LogUpdate("Description: " + description);
                         if (isCompatible)
                         {
@@ -149,12 +146,12 @@ namespace PixelPlanetUtils
                 }
 
                 downloadUrl = release["assets"].
-                    Single(t => t["name"].ToString().StartsWith(appName, StringComparison.InvariantCultureIgnoreCase))
+                    Single(t => t["name"].ToString().StartsWith(AppInfo.Name, StringComparison.InvariantCultureIgnoreCase))
                     ["browser_download_url"].ToString();
 
-                Version appVersion = App.Version;
-                availableVersion = versions[appName]["version"].ToString();
-                description = versions[appName]["description"].ToString();
+                Version appVersion = AppInfo.Version;
+                availableVersion = versions[AppInfo.Name]["version"].ToString();
+                description = versions[AppInfo.Name]["description"].ToString();
                 Version upToDateVersion = Version.Parse(availableVersion);
                 isCompatible = this.isCompatible = upToDateVersion.Major == appVersion.Major;
                 lastCheckFileStream.Seek(0, SeekOrigin.Begin);

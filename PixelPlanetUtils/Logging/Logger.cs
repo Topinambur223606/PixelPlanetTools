@@ -206,8 +206,8 @@ namespace PixelPlanetUtils.Logging
         private static void ClearOldLogs()
         {
             TimeSpan maxLogAge = TimeSpan.FromDays(7);
-            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
-            foreach (FileInfo logFile in di.EnumerateFiles("*.log")
+            DirectoryInfo di = new DirectoryInfo(PathTo.LogsFolder);
+            foreach (FileInfo logFile in di.EnumerateFiles("*.log", SearchOption.AllDirectories)
                                            .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
             {
                 logFile.Delete();

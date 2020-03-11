@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PixelPlanetUtils.Canvas;
+using System;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetUtils.Eventing
@@ -11,6 +12,6 @@ namespace PixelPlanetUtils.Eventing
 
         public XY Pixel { get; set; }
 
-        public PixelColor Color { get; set; }
+        public EarthPixelColor Color { get; set; }
     }
 }

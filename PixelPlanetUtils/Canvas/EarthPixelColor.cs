@@ -1,6 +1,6 @@
-﻿namespace PixelPlanetUtils
+﻿namespace PixelPlanetUtils.Canvas
 {
-    public enum PixelColor : byte
+    public enum EarthPixelColor : byte
     {
         UnsetOcean,
         UnsetLand,

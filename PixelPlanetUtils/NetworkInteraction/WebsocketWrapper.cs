@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils.Eventing;
+﻿using PixelPlanetUtils.Canvas;
+using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using System;
 using System.Collections.Generic;
@@ -143,7 +144,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
-        private void SubscribeToCanvas(Canvas canvas = Canvas.Earth)
+        private void SubscribeToCanvas(CanvasType canvas = CanvasType.Earth)
         {
             logger.LogDebug($"SubscribeToCanvas(): canvas {canvas}");
             WaitWebsocketConnected();
@@ -250,7 +251,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                 {
                     Chunk = (chunkX, chunkY),
                     Pixel = (relativeX, relativeY),
-                    Color = (PixelColor)color,
+                    Color = (EarthPixelColor)color,
                     DateTime = DateTime.Now
                 };
                 logger.LogDebug($"WebSocket_OnMessage(): pixel update: {args.Color} at {args.Chunk}:{args.Pixel}");

@@ -1,4 +1,5 @@
-﻿using System.Runtime.Serialization;
+﻿using PixelPlanetUtils.Canvas;
+using System.Runtime.Serialization;
 
 namespace PixelPlanetUtils.NetworkInteraction
 {
@@ -9,7 +10,7 @@ namespace PixelPlanetUtils.NetworkInteraction
         public byte Canvas { get; set; }
 
         [DataMember(Name = "clr")]
-        public PixelColor Color { get; set; }
+        public EarthPixelColor Color { get; set; }
 
         [DataMember(Name = "a")]
         public int ValidationSum => AbsoluteX + AbsoluteY + 8;

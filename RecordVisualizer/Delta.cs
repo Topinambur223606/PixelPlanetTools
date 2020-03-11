@@ -1,10 +1,10 @@
-﻿using PixelPlanetUtils;
+﻿using PixelPlanetUtils.Canvas;
 using System;
 using System.Collections.Generic;
 
 namespace RecordVisualizer
 {
-    using Pixel = ValueTuple<short, short, PixelColor>;
+    using Pixel = ValueTuple<short, short, EarthPixelColor>;
 
     class Delta
     {

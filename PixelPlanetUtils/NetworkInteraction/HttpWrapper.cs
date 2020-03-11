@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using PixelPlanetUtils.CanvasInteraction;
+using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Logging;
 using System;
 using System.IO;
@@ -61,7 +61,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
-        public static bool PlacePixel(int x, int y, PixelColor color, out double coolDown, out double totalCoolDown, out string error)
+        public static bool PlacePixel(int x, int y, EarthPixelColor color, out double coolDown, out double totalCoolDown, out string error)
         {
             PixelPlacingData data = new PixelPlacingData
             {

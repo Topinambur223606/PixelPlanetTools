@@ -1,9 +1,9 @@
 ﻿using CommandLine;
-using PixelPlanetUtils;
-using PixelPlanetUtils.CanvasInteraction;
+using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.Updates;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,14 +13,14 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetWatcher
 {
-    using Pixel = ValueTuple<short, short, PixelColor>;
+    using Pixel = ValueTuple<short, short, EarthPixelColor>;
 
     class Program
     {
         private static List<Pixel> updates = new List<Pixel>();
 
         private static Logger logger;
-        private static Options options;
+        private static WatcherOptions options;
         private static ChunkCache cache;
 
         private static Thread saveThread;
@@ -96,6 +96,10 @@ namespace PixelPlanetWatcher
                     }
                 } while (true);
             }
+            catch (Exception ex)
+            {
+                logger?.LogError($"Unhandled app level exception: {ex.Message}");
+            }
             finally
             {
                 logger?.LogInfo("Waiting for saving to finish...");
@@ -124,7 +128,7 @@ namespace PixelPlanetWatcher
             }))
             {
                 bool success = true;
-                parser.ParseArguments<Options>(args)
+                parser.ParseArguments<WatcherOptions>(args)
                     .WithNotParsed(e => success = false)
                     .WithParsed(o =>
                     {
@@ -254,7 +258,7 @@ namespace PixelPlanetWatcher
                         {
                             writer.Write(DateTime.Now.ToBinary());
                             writer.Write((uint)pixels.Count);
-                            foreach ((short, short, PixelColor) pixel in pixels)
+                            foreach ((short, short, EarthPixelColor) pixel in pixels)
                             {
                                 writer.Write(pixel.Item1);
                                 writer.Write(pixel.Item2);

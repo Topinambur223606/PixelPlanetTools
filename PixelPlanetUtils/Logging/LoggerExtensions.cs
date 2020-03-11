@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PixelPlanetUtils.Canvas;
+using System;
 using System.Linq;
 using System.Threading;
 
@@ -6,14 +7,14 @@ namespace PixelPlanetUtils.Logging
 {
     public static class LoggerExtensions
     {
-        private static readonly int colorPadLength = Enum.GetValues(typeof(PixelColor)).Cast<PixelColor>().Max(c => c.ToString().Length);
+        private static readonly int colorPadLength = Enum.GetValues(typeof(EarthPixelColor)).Cast<EarthPixelColor>().Max(c => c.ToString().Length);
 
         public static void Log(this Logger logger, string msg, MessageGroup group)
         {
             logger.Log(msg, group, DateTime.Now);
         }
 
-        public static void LogPixel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, PixelColor color)
+        public static void LogPixel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, EarthPixelColor color)
         {
             const int maxMsgLength = 22;
             const int maxCoordLength = 6;

@@ -1,6 +1,8 @@
 ﻿using CommandLine;
 using PixelPlanetUtils;
+using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.Updates;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
@@ -9,21 +11,22 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace RecordVisualizer
 {
-    using Pixel = ValueTuple<short, short, PixelColor>;
+    using Pixel = ValueTuple<short, short, EarthPixelColor>;
 
     static class Program
     {
         private static int w, h;
         private static DateTime startTime;
-        private static PixelColor[,] initialMapState;
+        private static EarthPixelColor[,] initialMapState;
         private static short leftX, topY, rightX, bottomY;
         private static readonly List<Delta> deltas = new List<Delta>();
 
         private static Logger logger;
-        private static Options options;
+        private static VisualizerOptions options;
 
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
@@ -71,6 +74,10 @@ namespace RecordVisualizer
                     logger.LogError($"Error during saving results: {ex.Message}");
                 }
             }
+            catch (Exception ex)
+            {
+                logger?.LogError($"Unhandled app level exception: {ex.Message}");
+            }
             finally
             {
                 logger?.LogInfo("Exiting...");
@@ -95,7 +102,7 @@ namespace RecordVisualizer
             }))
             {
                 bool success = true;
-                parser.ParseArguments<Options>(args)
+                parser.ParseArguments<VisualizerOptions>(args)
                     .WithNotParsed(e => success = false)
                     .WithParsed(o =>
                     {
@@ -109,7 +116,7 @@ namespace RecordVisualizer
                 return success;
             }
         }
-        
+
         private static void LoadFile(string path)
         {
             using (FileStream fileStream = File.OpenRead(path))
@@ -119,9 +126,11 @@ namespace RecordVisualizer
                     using (BinaryReader reader = new BinaryReader(fileStream))
                     {
                         reader.ReadMap();
+                        logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
                         while (!reader.ReachedEnd())
                         {
                             deltas.Add(reader.ReadDelta());
+                            logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
                         }
                     }
                 }
@@ -130,23 +139,22 @@ namespace RecordVisualizer
                     byte[] buffer = new byte[sizeof(uint)];
                     fileStream.Read(buffer, 0, sizeof(uint));
                     uint mapLength = BitConverter.ToUInt32(buffer, 0);
+                    logger.LogDebug($"LoadFile(): compressed map length is {sizeof(uint)}+{mapLength}, total stream length is {fileStream.Length}");
                     using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
                     {
                         using (BinaryReader reader = new BinaryReader(decompressingStream, Encoding.Default, true))
                         {
                             reader.ReadMap();
-                            while (!reader.ReachedEnd())
-                            {
-                                reader.ReadByte();
-                            }
                         }
                     }
+                    logger.LogDebug($"LoadFile(): seeking for deltas at {sizeof(uint)}+{mapLength}");
                     fileStream.Seek(sizeof(uint) + mapLength, SeekOrigin.Begin);
                     using (BinaryReader reader = new BinaryReader(fileStream))
                     {
                         while (fileStream.Length - fileStream.Position > 1)
                         {
                             deltas.Add(reader.ReadDelta());
+                            logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
                         }
                     }
                 }
@@ -154,6 +162,32 @@ namespace RecordVisualizer
         }
 
         private static void SaveLoadedData(string filePathTemplate)
+        {
+            string initMapFileName = string.Format(filePathTemplate, startTime);
+            Thread initialMapSavingThread = new Thread(() => SaveInitialMap(initMapFileName));
+            initialMapSavingThread.Start();
+
+            int padLength = 1 + (int)Math.Log10(deltas.Count);
+            Parallel.For(0, deltas.Count, index =>
+            {
+                Delta delta = deltas[index++];
+                using (Image<Rgba32> image = new Image<Rgba32>(w, h))
+                {
+                    foreach (Pixel pixel in delta.Pixels)
+                    {
+                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
+                    }
+                    string fileName = string.Format(filePathTemplate, delta.DateTime);
+                    logger.LogDebug($"SaveLoadedData(): saving delta {index} to {fileName}");
+                    image.Save(fileName);
+                    logger.LogInfo($"Saved delta {index.ToString().PadLeft(padLength)}/{deltas.Count}");
+                }
+            });
+
+            initialMapSavingThread.Join();
+        }
+
+        private static void SaveInitialMap(string filename)
         {
             using (Image<Rgba32> image = new Image<Rgba32>(w, h))
             {
@@ -164,23 +198,9 @@ namespace RecordVisualizer
                         image[x, y] = initialMapState[y, x].ToRgba32();
                     }
                 }
-                image.Save(string.Format(filePathTemplate, startTime));
-            }
-            logger.LogInfo("Initial map state image created");
-            int d = 0;
-            int padLength = 1 + (int)Math.Log10(deltas.Count);
-            foreach (Delta delta in deltas)
-            {
-                d++;
-                using (Image<Rgba32> image = new Image<Rgba32>(w, h))
-                {
-                    foreach ((short, short, PixelColor) pixel in delta.Pixels)
-                    {
-                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
-                    }
-                    image.Save(string.Format(filePathTemplate, delta.DateTime));
-                    logger.LogInfo($"Saved delta {d.ToString().PadLeft(padLength)}/{deltas.Count}");
-                }
+                logger.LogDebug($"SaveLoadedData(): saving initial map to {filename}");
+                image.Save(filename);
+                logger.LogInfo("Initial map state image created");
             }
         }
 
@@ -203,12 +223,12 @@ namespace RecordVisualizer
         {
             DateTime dateTime = DateTime.FromBinary(reader.ReadInt64());
             uint count = reader.ReadUInt32();
-            List<(short, short, PixelColor)> pixels = new List<Pixel>();
+            List<(short, short, EarthPixelColor)> pixels = new List<Pixel>();
             for (int j = 0; j < count; j++)
             {
                 short x = reader.ReadInt16();
                 short y = reader.ReadInt16();
-                PixelColor color = (PixelColor)reader.ReadByte();
+                EarthPixelColor color = (EarthPixelColor)reader.ReadByte();
                 pixels.Add((x, y, color));
             }
             return new Delta

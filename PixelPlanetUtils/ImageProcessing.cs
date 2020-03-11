@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils.Logging;
+﻿using PixelPlanetUtils.Canvas;
+using PixelPlanetUtils.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
@@ -45,26 +46,26 @@ namespace PixelPlanetUtils
            new Rgba32(130, 0, 128)
         };
 
-        public static Rgba32 ToRgba32(this PixelColor color)
+        public static Rgba32 ToRgba32(this EarthPixelColor color)
         {
-            if (color == PixelColor.None)
+            if (color == EarthPixelColor.None)
             {
                 return Rgba32.Transparent;
             }
-            if (color == PixelColor.UnsetOcean)
+            if (color == EarthPixelColor.UnsetOcean)
             {
-                color = PixelColor.SkyBlue;
+                color = EarthPixelColor.SkyBlue;
             }
-            if (color == PixelColor.UnsetLand)
+            if (color == EarthPixelColor.UnsetLand)
             {
-                color = PixelColor.White;
+                color = EarthPixelColor.White;
             }
             return colors[(byte)color - 2];
         }
         
-        public static double RgbCubeDistance(PixelColor c1, PixelColor c2)
+        public static double RgbCubeDistance(EarthPixelColor c1, EarthPixelColor c2)
         {
-            if (c1 == PixelColor.None || c2 == PixelColor.None)
+            if (c1 == EarthPixelColor.None || c2 == EarthPixelColor.None)
             {
                 if (c1 == c2)
                 {
@@ -83,7 +84,7 @@ namespace PixelPlanetUtils
             return Math.Sqrt(dR * dR + dG * dG + dB * dB);
         }
 
-        public static PixelColor[,] PixelColorsByUri(string imageUri, Logger logger)
+        public static EarthPixelColor[,] PixelColorsByUri(string imageUri, Logger logger)
         {
             logger.LogTechState("Downloading image...");
             using (WebClient wc = new WebClient())
@@ -96,7 +97,7 @@ namespace PixelPlanetUtils
                     logger.LogTechState("Converting image...");
                     int w = image.Width;
                     int h = image.Height;
-                    PixelColor[,] res = new PixelColor[w, h];
+                    EarthPixelColor[,] res = new EarthPixelColor[w, h];
                     Parallel.For(0, w, x =>
                     {
                         for (int y = 0; y < h; y++)
@@ -110,11 +111,11 @@ namespace PixelPlanetUtils
             }
         }
 
-        private static PixelColor ClosestAvailable(Rgba32 color)
+        private static EarthPixelColor ClosestAvailable(Rgba32 color)
         {
             if (color.A == 0)
             {
-                return PixelColor.None;
+                return EarthPixelColor.None;
             }
             int index = 0, bestD = 260000;
             for (int i = 0; i < colors.Length; i++)
@@ -130,7 +131,7 @@ namespace PixelPlanetUtils
                     bestD = d;
                 }
             }
-            return (PixelColor)(index + 2);
+            return (EarthPixelColor)(index + 2);
         }
     }
 }

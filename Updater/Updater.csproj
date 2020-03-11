@@ -13,6 +13,7 @@
 
   <PropertyGroup>
     <PostBuildEvent>if $(Configuration) == Release (
+md ..\..\..\..\PixelPlanetUtils\Resources
 copy /y Updater.exe ..\..\..\..\PixelPlanetUtils\Resources\Updater.exe
 )
     </PostBuildEvent>

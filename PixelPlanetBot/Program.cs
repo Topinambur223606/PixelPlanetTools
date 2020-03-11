@@ -1,9 +1,10 @@
 ﻿using CommandLine;
 using PixelPlanetUtils;
-using PixelPlanetUtils.CanvasInteraction;
+using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.Updates;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetBot
 {
-    using Pixel = ValueTuple<short, short, PixelColor>;
+    using Pixel = ValueTuple<short, short, EarthPixelColor>;
 
     static partial class Program
     {
@@ -27,10 +28,10 @@ namespace PixelPlanetBot
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private static Logger logger;
-        private static Options options;
+        private static BotOptions options;
         private static ChunkCache cache;
         private static ushort width, height;
-        private static PixelColor[,] imagePixels;
+        private static EarthPixelColor[,] imagePixels;
         private static IEnumerable<Pixel> pixelsToBuild;
 
         private static volatile int builtInLastMinute = 0;
@@ -148,6 +149,10 @@ namespace PixelPlanetBot
                     }
                 } while (true);
             }
+            catch (Exception ex)
+            {
+                logger?.LogError($"Unhandled app level exception: {ex.Message}");
+            }
             finally
             {
                 logger?.LogInfo("Exiting...");
@@ -174,7 +179,7 @@ namespace PixelPlanetBot
             }))
             {
                 bool success = true;
-                parser.ParseArguments<Options>(args)
+                parser.ParseArguments<BotOptions>(args)
                     .WithNotParsed(e => success = false)
                     .WithParsed(o =>
                     {
@@ -182,7 +187,7 @@ namespace PixelPlanetBot
                         if (!string.IsNullOrWhiteSpace(o.Proxy))
                         {
                             HttpWrapper.Proxy = new WebProxy(o.Proxy);
-                            if (o.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                            if (o.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
                                 Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
                                     "Ensure that same proxy settings are set in your default browser");
@@ -215,7 +220,7 @@ namespace PixelPlanetBot
             IList<Pixel> nonEmptyPixels = allX.
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
-                Where(xyc => xyc.C != PixelColor.None).ToList();
+                Where(xyc => xyc.C != EarthPixelColor.None).ToList();
             switch (options.PlacingOrderMode)
             {
                 case PlacingOrderMode.Left:
@@ -236,7 +241,7 @@ namespace PixelPlanetBot
                     {
                         const int radius = 3;
                         double score = rnd.NextDouble() * 125D;
-                        (short x, short y, PixelColor c) = p;
+                        (short x, short y, EarthPixelColor c) = p;
                         for (int i = -radius; i <= radius; i++)
                         {
                             for (int j = -radius; j <= radius; j++)
@@ -246,8 +251,8 @@ namespace PixelPlanetBot
                                 double dist = Math.Sqrt(i * i + j * j);
                                 if (ox >= 0 && oy >= 0 && ox < width && oy < height)
                                 {
-                                    PixelColor c2 = imagePixels[x + i, y + j];
-                                    if (c2 == PixelColor.None)
+                                    EarthPixelColor c2 = imagePixels[x + i, y + j];
+                                    if (c2 == EarthPixelColor.None)
                                     {
                                         score += ImageProcessing.NoneColorDistance / dist;
                                     }
@@ -301,8 +306,8 @@ namespace PixelPlanetBot
                     foreach (Pixel pixel in pixelsToBuild)
                     {
                         mapUpdatedResetEvent.WaitOne();
-                        (short x, short y, PixelColor color) = pixel;
-                        PixelColor actualColor = cache.GetPixelColor(x, y);
+                        (short x, short y, EarthPixelColor color) = pixel;
+                        EarthPixelColor actualColor = cache.GetPixelColor(x, y);
                         if (!IsCorrectPixelColor(actualColor, color))
                         {
                             logger.LogDebug($"MainWorkingBody(): {pixel} - wrong color ({actualColor})");
@@ -360,13 +365,13 @@ namespace PixelPlanetBot
         {
             logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
             captchaCts = null;
-            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
                 logger.LogDebug("ProcessCaptcha(): starting beep thread");
                 captchaCts = new CancellationTokenSource();
                 new Thread(BeepThreadBody).Start();
             }
-            if (options.CaptchaNotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
             {
                 logger.LogDebug("ProcessCaptcha(): starting browser");
                 Process.Start(UrlManager.BaseHttpAdress);
@@ -525,8 +530,8 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    PixelColor desiredColor = imagePixels[x - options.LeftX, y - options.TopY];
-                    if (desiredColor == PixelColor.None)
+                    EarthPixelColor desiredColor = imagePixels[x - options.LeftX, y - options.TopY];
+                    if (desiredColor == EarthPixelColor.None)
                     {
                         msgGroup = MessageGroup.PixelInfo;
                     }
@@ -564,11 +569,11 @@ namespace PixelPlanetBot
             }
         }
 
-        private static bool IsCorrectPixelColor(PixelColor actualColor, PixelColor desiredColor)
+        private static bool IsCorrectPixelColor(EarthPixelColor actualColor, EarthPixelColor desiredColor)
         {
             return (actualColor == desiredColor) ||
-                    (actualColor == PixelColor.UnsetOcean && desiredColor == PixelColor.SkyBlue) ||
-                    (actualColor == PixelColor.UnsetLand && desiredColor == PixelColor.White);
+                    (actualColor == EarthPixelColor.UnsetOcean && desiredColor == EarthPixelColor.SkyBlue) ||
+                    (actualColor == EarthPixelColor.UnsetLand && desiredColor == EarthPixelColor.White);
         }
     }
 }

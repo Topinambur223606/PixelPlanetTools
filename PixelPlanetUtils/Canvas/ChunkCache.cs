@@ -8,9 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using XY = System.ValueTuple<byte, byte>;
 
-namespace PixelPlanetUtils.CanvasInteraction
+namespace PixelPlanetUtils.Canvas
 {
-    using Pixel = ValueTuple<short, short, PixelColor>;
+    using Pixel = ValueTuple<short, short, EarthPixelColor>;
 
     public class ChunkCache
     {
@@ -20,7 +20,7 @@ namespace PixelPlanetUtils.CanvasInteraction
         private readonly Logger logger;
         
         private readonly List<XY> chunks;
-        private readonly Dictionary<XY, PixelColor[,]> CachedChunks = new Dictionary<XY, PixelColor[,]>();
+        private readonly Dictionary<XY, EarthPixelColor[,]> CachedChunks = new Dictionary<XY, EarthPixelColor[,]>();
         
         private readonly bool interactiveMode;
         
@@ -116,11 +116,11 @@ namespace PixelPlanetUtils.CanvasInteraction
             OnMapUpdated?.Invoke(this, null);
         }
 
-        public PixelColor GetPixelColor(short x, short y)
+        public EarthPixelColor GetPixelColor(short x, short y)
         {
             PixelMap.ConvertToRelative(x, out byte chunkX, out byte relativeX);
             PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);
-            PixelColor[,] chunkMap = CachedChunks[(chunkX, chunkY)];
+            EarthPixelColor[,] chunkMap = CachedChunks[(chunkX, chunkY)];
             return chunkMap[relativeY, relativeX];
         }
 
@@ -140,7 +140,7 @@ namespace PixelPlanetUtils.CanvasInteraction
 
         private void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
         {
-            if (CachedChunks.TryGetValue(e.Chunk, out PixelColor[,] chunkMap))
+            if (CachedChunks.TryGetValue(e.Chunk, out EarthPixelColor[,] chunkMap))
             {
                 logger.LogDebug("Wrapper_OnPixelChanged(): writing update to map");
                 (byte rX, byte rY) = e.Pixel;
