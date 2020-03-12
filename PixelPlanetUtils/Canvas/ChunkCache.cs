@@ -2,6 +2,7 @@
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -20,7 +21,7 @@ namespace PixelPlanetUtils.Canvas
         private readonly Logger logger;
         
         private readonly List<XY> chunks;
-        private readonly Dictionary<XY, EarthPixelColor[,]> CachedChunks = new Dictionary<XY, EarthPixelColor[,]>();
+        private readonly ConcurrentDictionary<XY, EarthPixelColor[,]> CachedChunks = new ConcurrentDictionary<XY, EarthPixelColor[,]>();
         
         private readonly bool interactiveMode;
         
@@ -51,7 +52,7 @@ namespace PixelPlanetUtils.Canvas
             interactiveMode = true;
             this.logger = logger;
             logger.LogTechState("Calculating list of chunks...");
-            chunks = pixels.Select(p =>
+            chunks = pixels.AsParallel().Select(p =>
             {
                 PixelMap.ConvertToRelative(p.Item1, out byte chunkX, out _);
                 PixelMap.ConvertToRelative(p.Item2, out byte chunkY, out _);
@@ -120,8 +121,16 @@ namespace PixelPlanetUtils.Canvas
         {
             PixelMap.ConvertToRelative(x, out byte chunkX, out byte relativeX);
             PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);
-            EarthPixelColor[,] chunkMap = CachedChunks[(chunkX, chunkY)];
-            return chunkMap[relativeY, relativeX];
+            try
+            {
+                EarthPixelColor[,] chunkMap = CachedChunks[(chunkX, chunkY)];
+                return chunkMap[relativeY, relativeX];
+            }
+            catch
+            {
+                logger.LogDebug($"GetPixelColor(): exception while retrieving ({x};{y}) = ({chunkX};{chunkY}):({relativeX};{relativeY})");
+                throw;
+            }
         }
 
         private void Wrapper_OnConnectionRestored(object sender, ConnectionRestoredEventArgs e)

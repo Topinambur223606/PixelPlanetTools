@@ -106,6 +106,7 @@ namespace PixelPlanetWatcher
                 finishCTS.Cancel();
                 if (logger != null)
                 {
+                    Console.WriteLine($"Logs was saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 finishCTS.Dispose();

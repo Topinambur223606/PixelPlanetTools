@@ -170,6 +170,7 @@ namespace PixelPlanetBot
                 finishCTS.Cancel();
                 if (logger != null)
                 {
+                    Console.WriteLine($"Logs was saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 gotGriefed?.Dispose();
@@ -301,7 +302,7 @@ namespace PixelPlanetBot
             }
             catch (Exception ex)
             {
-                logger.LogError($"CalculatePixelOrder(): unhandled exception - {ex.Message}");
+                logger.LogError($"Unhandled exception while calculating pixel order: {ex.Message}");
                 return false;
             }
             return true;
@@ -544,7 +545,7 @@ namespace PixelPlanetBot
             }
             catch (Exception ex)
             {
-                logger.LogError($"StatsCollectionThreadBody: unhandled exception - {ex.Message}");
+                logger.LogError($"Stats collection thread: unhandled exception - {ex.Message}");
             }
         }
 
