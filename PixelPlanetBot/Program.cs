@@ -102,7 +102,10 @@ namespace PixelPlanetBot
                 }
 
                 logger.LogTechState("Calculating pixel placing order...");
-                CalculatePixelOrder();
+                if (!CalculatePixelOrder())
+                {
+                    return;
+                }
                 logger.LogTechInfo("Pixel placing order is calculated");
 
                 cache = new ChunkCache(pixelsToBuild, logger);
@@ -151,7 +154,15 @@ namespace PixelPlanetBot
             }
             catch (Exception ex)
             {
-                logger?.LogError($"Unhandled app level exception: {ex.Message}");
+                string msg = $"Unhandled app level exception: {ex.Message}";
+                if (logger != null)
+                {
+                    logger.LogError(msg);
+                }
+                else
+                {
+                    Console.WriteLine(msg);
+                }
             }
             finally
             {
@@ -212,7 +223,7 @@ namespace PixelPlanetBot
             }
         }
 
-        private static void CalculatePixelOrder()
+        private static bool CalculatePixelOrder()
         {
             IEnumerable<Pixel> relativePixelsToBuild;
             IEnumerable<int> allY = Enumerable.Range(0, height);
@@ -221,70 +232,79 @@ namespace PixelPlanetBot
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
                 Where(xyc => xyc.C != EarthPixelColor.None).ToList();
-            switch (options.PlacingOrderMode)
+            try
             {
-                case PlacingOrderMode.Left:
-                    relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
-                    break;
-                case PlacingOrderMode.Right:
-                    relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
-                    break;
-                case PlacingOrderMode.Top:
-                    relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
-                    break;
-                case PlacingOrderMode.Bottom:
-                    relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
-                    break;
-                case PlacingOrderMode.Outline:
-                    Random rnd = new Random();
-                    relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(p =>
-                    {
-                        const int radius = 3;
-                        double score = rnd.NextDouble() * 125D;
-                        (short x, short y, EarthPixelColor c) = p;
-                        for (int i = -radius; i <= radius; i++)
+                switch (options.PlacingOrderMode)
+                {
+                    case PlacingOrderMode.Left:
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
+                        break;
+                    case PlacingOrderMode.Right:
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
+                        break;
+                    case PlacingOrderMode.Top:
+                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
+                        break;
+                    case PlacingOrderMode.Bottom:
+                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
+                        break;
+                    case PlacingOrderMode.Outline:
+                        Random rnd = new Random();
+                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(p =>
                         {
-                            for (int j = -radius; j <= radius; j++)
+                            const int radius = 3;
+                            double score = rnd.NextDouble() * 125D;
+                            (short x, short y, EarthPixelColor c) = p;
+                            for (int i = -radius; i <= radius; i++)
                             {
-                                int ox = x + i;
-                                int oy = y + j;
-                                double dist = Math.Sqrt(i * i + j * j);
-                                if (ox >= 0 && oy >= 0 && ox < width && oy < height)
+                                for (int j = -radius; j <= radius; j++)
                                 {
-                                    EarthPixelColor c2 = imagePixels[x + i, y + j];
-                                    if (c2 == EarthPixelColor.None)
+                                    int ox = x + i;
+                                    int oy = y + j;
+                                    double dist = Math.Sqrt(i * i + j * j);
+                                    if (ox >= 0 && oy >= 0 && ox < width && oy < height)
+                                    {
+                                        EarthPixelColor c2 = imagePixels[x + i, y + j];
+                                        if (c2 == EarthPixelColor.None)
+                                        {
+                                            score += ImageProcessing.NoneColorDistance / dist;
+                                        }
+                                        else if (c != c2)
+                                        {
+
+                                            score += ImageProcessing.RgbCubeDistance(c, c2) / dist;
+                                        }
+                                    }
+                                    else
                                     {
                                         score += ImageProcessing.NoneColorDistance / dist;
                                     }
-                                    else if (c != c2)
-                                    {
-
-                                        score += ImageProcessing.RgbCubeDistance(c, c2) / dist;
-                                    }
-                                }
-                                else
-                                {
-                                    score += ImageProcessing.NoneColorDistance / dist;
                                 }
                             }
+                            return score;
+                        });
+                        break;
+                    default:
+                        Random rand = new Random();
+                        for (int i = 0; i < nonEmptyPixels.Count; i++)
+                        {
+                            int r = rand.Next(i, nonEmptyPixels.Count);
+                            Pixel tmp = nonEmptyPixels[r];
+                            nonEmptyPixels[r] = nonEmptyPixels[i];
+                            nonEmptyPixels[i] = tmp;
                         }
-                        return score;
-                    });
-                    break;
-                default:
-                    Random rand = new Random();
-                    for (int i = 0; i < nonEmptyPixels.Count; i++)
-                    {
-                        int r = rand.Next(i, nonEmptyPixels.Count);
-                        Pixel tmp = nonEmptyPixels[r];
-                        nonEmptyPixels[r] = nonEmptyPixels[i];
-                        nonEmptyPixels[i] = tmp;
-                    }
-                    relativePixelsToBuild = nonEmptyPixels;
-                    break;
+                        relativePixelsToBuild = nonEmptyPixels;
+                        break;
+                }
+                pixelsToBuild = relativePixelsToBuild
+                    .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
             }
-            pixelsToBuild = relativePixelsToBuild
-                .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
+            catch (Exception ex)
+            {
+                logger.LogError($"CalculatePixelOrder(): unhandled exception - {ex.Message}");
+                return false;
+            }
+            return true;
         }
 
         private static void MainWorkingBody()
@@ -437,87 +457,95 @@ namespace PixelPlanetBot
 
             Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
 
-            logger.LogDebug("StatsCollectionThreadBody() started");
-            mapUpdatedResetEvent.WaitOne();
-            logger.LogDebug("StatsCollectionThreadBody(): map updated, stats collection started");
-            Task taskToWait = GetDelayTask();
-            int total = pixelsToBuild.Count();
-            int done = CountDone();
-            logger.LogDebug($"StatsCollectionThreadBody(): {done} pixels are done at start");
-            doneInPast.Enqueue(done);
-            do
+            try
             {
-                if (finishCTS.IsCancellationRequested)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S1), finishing");
-                    return;
-                }
-                try
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): task waiting");
-                    taskToWait.Wait();
-                }
-                catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S2), finishing");
-                    return;
-                }
-                if (finishCTS.IsCancellationRequested)
-                {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S3), finishing");
-                    return;
-                }
 
-                AddToQueue(builtInPast, builtInLastMinute);
-                builtInLastMinute = 0;
-                AddToQueue(griefedInPast, griefedInLastMinute);
-                griefedInLastMinute = 0;
-                done = CountDone(); //time consuming => cancellation check again later
-                double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
-                AddToQueue(doneInPast, done);
-                logger.LogDebug($"StatsCollectionThreadBody(): last minute: {builtInPast.Last()} built, {griefedInPast.Last()} griefed; {done} total done");
-
-                double griefedPerMinute = griefedInPast.Average();
-                double builtPerMinute = builtInPast.Average();
-                double percent = Math.Floor(done * 1000D / total) / 10D;
-                DateTime time = DateTime.Now;
-
-                if (finishCTS.IsCancellationRequested)
+                logger.LogDebug("StatsCollectionThreadBody() started");
+                mapUpdatedResetEvent.WaitOne();
+                logger.LogDebug("StatsCollectionThreadBody(): map updated, stats collection started");
+                Task taskToWait = GetDelayTask();
+                int total = pixelsToBuild.Count();
+                int done = CountDone();
+                logger.LogDebug($"StatsCollectionThreadBody(): {done} pixels are done at start");
+                doneInPast.Enqueue(done);
+                do
                 {
-                    logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
-                    return;
-                }
-                if (options.DefenseMode)
-                {
-                    logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
-                    logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
-                    lock (waitingGriefLock)
-                    { }
-                    logger.LogDebug($"StatsCollectionThreadBody(): grief lock released");
-                }
-                else
-                {
-                    string info = $"Image is {percent:F1}% complete, ";
-                    if (buildSpeed > 0)
+                    if (finishCTS.IsCancellationRequested)
                     {
-                        int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
-                        int hrsLeft = minsLeft / 60;
-                        info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
+                        logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S1), finishing");
+                        return;
+                    }
+                    try
+                    {
+                        logger.LogDebug($"StatsCollectionThreadBody(): task waiting");
+                        taskToWait.Wait();
+                    }
+                    catch (AggregateException ex) when (ex.InnerException is TaskCanceledException)
+                    {
+                        logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S2), finishing");
+                        return;
+                    }
+                    if (finishCTS.IsCancellationRequested)
+                    {
+                        logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S3), finishing");
+                        return;
+                    }
+
+                    AddToQueue(builtInPast, builtInLastMinute);
+                    builtInLastMinute = 0;
+                    AddToQueue(griefedInPast, griefedInLastMinute);
+                    griefedInLastMinute = 0;
+                    done = CountDone(); //time consuming => cancellation check again later
+                    double buildSpeed = (done - doneInPast.First()) / ((double)doneInPast.Count);
+                    AddToQueue(doneInPast, done);
+                    logger.LogDebug($"StatsCollectionThreadBody(): last minute: {builtInPast.Last()} built, {griefedInPast.Last()} griefed; {done} total done");
+
+                    double griefedPerMinute = griefedInPast.Average();
+                    double builtPerMinute = builtInPast.Average();
+                    double percent = Math.Floor(done * 1000D / total) / 10D;
+                    DateTime time = DateTime.Now;
+
+                    if (finishCTS.IsCancellationRequested)
+                    {
+                        logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
+                        return;
+                    }
+                    if (options.DefenseMode)
+                    {
+                        logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
+                        logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
+                        lock (waitingGriefLock)
+                        { }
+                        logger.LogDebug($"StatsCollectionThreadBody(): grief lock released");
                     }
                     else
                     {
-                        info += $"no progress in last 5 minutes";
+                        string info = $"Image is {percent:F1}% complete, ";
+                        if (buildSpeed > 0)
+                        {
+                            int minsLeft = (int)Math.Ceiling((total - done) / buildSpeed);
+                            int hrsLeft = minsLeft / 60;
+                            info += $"will be built approximately in {hrsLeft}h {minsLeft % 60}min";
+                        }
+                        else
+                        {
+                            info += $"no progress in last 5 minutes";
+                        }
+                        logger.Log(info, MessageGroup.Info, time);
                     }
-                    logger.Log(info, MessageGroup.Info, time);
-                }
-                if (griefedPerMinute > 1)
-                {
-                    logger.Log($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
-                    logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
-                }
-                taskToWait = GetDelayTask();
-                logger.LogDebug("StatsCollectionThreadBody(): cycle ended");
-            } while (true);
+                    if (griefedPerMinute > 1)
+                    {
+                        logger.Log($"Image is under attack at the moment, {done} pixels are good now", MessageGroup.Info, time);
+                        logger.Log($"Building {builtPerMinute:F1} px/min, getting griefed {griefedPerMinute:F1} px/min", MessageGroup.Info, time);
+                    }
+                    taskToWait = GetDelayTask();
+                    logger.LogDebug("StatsCollectionThreadBody(): cycle ended");
+                } while (true);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"StatsCollectionThreadBody: unhandled exception - {ex.Message}");
+            }
         }
 
         private static void LogPixelChanged(object sender, PixelChangedEventArgs e)

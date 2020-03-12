@@ -25,11 +25,21 @@ namespace PixelPlanetUtils.Updates
 
         static UpdateChecker()
         {
-            DirectoryInfo di = new DirectoryInfo(PathTo.AppFolder);
-            foreach (FileInfo fi in di.EnumerateFiles("*.lastcheck"))
+            DirectoryInfo di = Directory.CreateDirectory(PathTo.AppFolder);
+            try
             {
-                fi.Delete();
+                foreach (FileInfo fi in di.EnumerateFiles("*.lastcheck"))
+                {
+                    try
+                    {
+                        fi.Delete();
+                    }
+                    catch
+                    { }
+                }
             }
+            catch
+            { }
         }
 
         private UpdateChecker(Logger logger)

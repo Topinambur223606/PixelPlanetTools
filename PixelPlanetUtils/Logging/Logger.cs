@@ -39,7 +39,23 @@ namespace PixelPlanetUtils.Logging
 
         static Logger()
         {
-            ClearOldLogs();
+            TimeSpan maxLogAge = TimeSpan.FromDays(7);
+            DirectoryInfo di = Directory.CreateDirectory(PathTo.LogsFolder);
+            try
+            {
+                foreach (FileInfo logFile in di.EnumerateFiles("*.log", SearchOption.AllDirectories)
+                                               .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
+                {
+                    try
+                    {
+                        logFile.Delete();
+                    }
+                    catch
+                    { }
+                }
+            }
+            catch
+            { }
         }
 
         public Logger(string logFilePath, CancellationToken finishToken)
@@ -203,17 +219,6 @@ namespace PixelPlanetUtils.Logging
                 return string.Concat(time.ToString("HH:mm:ss.fff"), space,
                                         $"[{group.ToString().ToUpper()}]".PadRight(msgGroupPadLength), largeSpace,
                                         msg);
-            }
-        }
-
-        private static void ClearOldLogs()
-        {
-            TimeSpan maxLogAge = TimeSpan.FromDays(7);
-            DirectoryInfo di = new DirectoryInfo(PathTo.LogsFolder);
-            foreach (FileInfo logFile in di.EnumerateFiles("*.log", SearchOption.AllDirectories)
-                                           .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
-            {
-                logFile.Delete();
             }
         }
 
