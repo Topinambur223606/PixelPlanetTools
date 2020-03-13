@@ -170,7 +170,7 @@ namespace PixelPlanetBot
                 finishCTS.Cancel();
                 if (logger != null)
                 {
-                    Console.WriteLine($"Logs was saved to {logger.LogFilePath}");
+                    Console.WriteLine($"Logs were saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 gotGriefed?.Dispose();

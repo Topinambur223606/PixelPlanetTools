@@ -5,6 +5,14 @@ namespace PixelPlanetUtils.Canvas
 {
     public static class BinaryConversion
     {
+        public static void DropPixelProtectionInfo(byte[] rawData)
+        {
+            for (int j = 0; j < rawData.Length; j++)
+            {
+                rawData[j] &= 0x3F; //remove first 2 bits that indicate if pixel is protected
+            }
+        }
+
         public static EarthPixelColor[,] ToColorRectangle(byte[] bytes, int height, int width)
         {
             EarthPixelColor[,] map = new EarthPixelColor[height, width];

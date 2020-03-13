@@ -97,6 +97,7 @@ namespace PixelPlanetUtils.Canvas
                     {
                         logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
                         byte[] data = HttpWrapper.GetChunkData(chunkXY);
+                        BinaryConversion.DropPixelProtectionInfo(data);
                         CachedChunks[chunkXY] = BinaryConversion.ToColorRectangle(data, PixelMap.ChunkSideSize, PixelMap.ChunkSideSize);
                         logger.LogDebug($"DownloadChunks(): downloaded chunk  {chunkXY}");
                         success = true;

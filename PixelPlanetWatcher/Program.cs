@@ -8,7 +8,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -107,7 +106,7 @@ namespace PixelPlanetWatcher
                 finishCTS.Cancel();
                 if (logger != null)
                 {
-                    Console.WriteLine($"Logs was saved to {logger.LogFilePath}");
+                    Console.WriteLine($"Logs were saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 finishCTS.Dispose();
@@ -179,7 +178,7 @@ namespace PixelPlanetWatcher
                     byte[] mapBytes = BinaryConversion.GetRectangle(cache, options.LeftX, options.TopY, options.RightX, options.BottomY);
                     using (MemoryStream memoryStream = new MemoryStream())
                     {
-                        using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
+                        using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Optimal, true))
                         {
                             compressionStream.Write(mapBytes, 0, mapBytes.Length);
                         }
@@ -219,12 +218,19 @@ namespace PixelPlanetWatcher
                         {
                             throw lockingStreamTask.Exception.GetBaseException();
                         }
-                        lockingStreamTask = lockingStreamTask.ContinueWith(t =>
+                        if (saved.Count > 0)
                         {
-                            t.Result.Close();
-                            WriteChangesToFile(saved);
-                            return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
-                        });
+                            lockingStreamTask = lockingStreamTask.ContinueWith(t =>
+                            {
+                                t.Result.Close();
+                                WriteChangesToFile(saved);
+                                return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
+                            });
+                        }
+                        else
+                        {
+                            logger.LogInfo($"No pixel updates to save");
+                        }
                     } while (true);
                 }
                 catch (ThreadInterruptedException)
@@ -240,7 +246,15 @@ namespace PixelPlanetWatcher
                     logger.LogDebug("SaveChangesThreadBody(): cancelling (3)");
                 }
                 lockingStreamTask.Result.Close();
-                WriteChangesToFile(updates);
+
+                if (updates.Count > 0)
+                {
+                    WriteChangesToFile(updates);
+                }
+                else
+                {
+                    logger.LogInfo($"No pixel updates to save");
+                }
             }
             catch (Exception ex)
             {
@@ -250,29 +264,23 @@ namespace PixelPlanetWatcher
 
             void WriteChangesToFile(List<Pixel> pixels)
             {
-                if (pixels.Count > 0)
+                using (FileStream fileStream = File.Open(options.FileName, FileMode.Append, FileAccess.Write))
                 {
-                    using (FileStream fileStream = File.Open(options.FileName, FileMode.Append, FileAccess.Write))
+                    using (BinaryWriter writer = new BinaryWriter(fileStream))
                     {
-                        using (BinaryWriter writer = new BinaryWriter(fileStream))
+                        writer.Write(DateTime.Now.ToBinary());
+                        writer.Write((uint)pixels.Count);
+                        foreach ((short, short, EarthPixelColor) pixel in pixels)
                         {
-                            writer.Write(DateTime.Now.ToBinary());
-                            writer.Write((uint)pixels.Count);
-                            foreach ((short, short, EarthPixelColor) pixel in pixels)
-                            {
-                                writer.Write(pixel.Item1);
-                                writer.Write(pixel.Item2);
-                                writer.Write((byte)pixel.Item3);
-                            }
+                            writer.Write(pixel.Item1);
+                            writer.Write(pixel.Item2);
+                            writer.Write((byte)pixel.Item3);
                         }
                     }
-                    logger.LogInfo($"{pixels.Count} pixel updates are saved to file");
                 }
-                else
-                {
-                    logger.LogInfo($"No pixel updates to save");
-                }
+                logger.LogInfo($"{pixels.Count} pixel updates are saved to file");
             }
+            
         }
 
         private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
