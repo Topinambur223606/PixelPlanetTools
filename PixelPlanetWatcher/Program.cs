@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -167,30 +168,28 @@ namespace PixelPlanetWatcher
             cache.DownloadChunks();
             using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
             {
-                using (MemoryStream memoryStream = new MemoryStream())
+                using (BinaryWriter writer = new BinaryWriter(fileStream))
                 {
-                    using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
+                    writer.Write(options.LeftX);
+                    writer.Write(options.TopY);
+                    writer.Write(options.RightX);
+                    writer.Write(options.BottomY);
+                    writer.Write(now.ToBinary());
+
+                    byte[] mapBytes = BinaryConversion.GetRectangle(cache, options.LeftX, options.TopY, options.RightX, options.BottomY);
+                    using (MemoryStream memoryStream = new MemoryStream())
                     {
-                        using (BinaryWriter writer = new BinaryWriter(compressionStream))
+                        using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Fastest, true))
                         {
-                            writer.Write(options.LeftX);
-                            writer.Write(options.TopY);
-                            writer.Write(options.RightX);
-                            writer.Write(options.BottomY);
-                            writer.Write(now.ToBinary());
-                            for (int y = options.TopY; y <= options.BottomY; y++)
-                            {
-                                for (int x = options.LeftX; x <= options.RightX; x++)
-                                {
-                                    writer.Write((byte)cache.GetPixelColor((short)x, (short)y));
-                                }
-                            }
+                            compressionStream.Write(mapBytes, 0, mapBytes.Length);
                         }
+                        writer.Write(memoryStream.Length);
+                        memoryStream.Seek(0, SeekOrigin.Begin);
+                        memoryStream.CopyTo(fileStream);
                     }
-                    fileStream.Write(BitConverter.GetBytes((uint)memoryStream.Length), 0, sizeof(uint));
-                    memoryStream.Seek(0, SeekOrigin.Begin);
-                    memoryStream.CopyTo(fileStream);
+                
                 }
+               
             }
             logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
             return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);

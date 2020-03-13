@@ -21,7 +21,8 @@ namespace PixelPlanetUtils.Canvas
         private readonly Logger logger;
         
         private readonly List<XY> chunks;
-        private readonly ConcurrentDictionary<XY, EarthPixelColor[,]> CachedChunks = new ConcurrentDictionary<XY, EarthPixelColor[,]>();
+        
+        internal ConcurrentDictionary<XY, EarthPixelColor[,]> CachedChunks { get; }  = new ConcurrentDictionary<XY, EarthPixelColor[,]>();
         
         private readonly bool interactiveMode;
         
@@ -71,11 +72,11 @@ namespace PixelPlanetUtils.Canvas
             PixelMap.ConvertToRelative(x2, out byte chunkX2, out _);
             PixelMap.ConvertToRelative(y2, out byte chunkY2, out _);
             chunks = new List<XY>();
-            for (ushort i = chunkX1; i <= chunkX2; i++)
+            for (ushort x = chunkX1; x <= chunkX2; x++)
             {
-                for (ushort j = chunkY1; j <= chunkY2; j++)
+                for (ushort y = chunkY1; y <= chunkY2; y++)
                 {
-                    chunks.Add(((byte)i, (byte)j));
+                    chunks.Add(((byte)x, (byte)y));
                 }
             }
             logger.LogTechInfo("Chunk list is calculated");
@@ -96,7 +97,7 @@ namespace PixelPlanetUtils.Canvas
                     {
                         logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
                         byte[] data = HttpWrapper.GetChunkData(chunkXY);
-                        CachedChunks[chunkXY] = BinaryConversion.ConvertToColorRectangle(data, PixelMap.ChunkSideSize, PixelMap.ChunkSideSize);
+                        CachedChunks[chunkXY] = BinaryConversion.ToColorRectangle(data, PixelMap.ChunkSideSize, PixelMap.ChunkSideSize);
                         logger.LogDebug($"DownloadChunks(): downloaded chunk  {chunkXY}");
                         success = true;
                     }

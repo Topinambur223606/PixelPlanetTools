@@ -122,6 +122,17 @@ namespace RecordVisualizer
         {
             using (FileStream fileStream = File.OpenRead(path))
             {
+                using (BinaryReader reader = new BinaryReader(fileStream, Encoding.Default, true))
+                {
+                    leftX = reader.ReadInt16();
+                    topY = reader.ReadInt16();
+                    rightX = reader.ReadInt16();
+                    bottomY = reader.ReadInt16();
+                    w = rightX - leftX + 1;
+                    h = bottomY - topY + 1;
+                    startTime = DateTime.FromBinary(reader.ReadInt64());
+                }
+
                 if (options.OldRecordFile)
                 {
                     using (BinaryReader reader = new BinaryReader(fileStream))
@@ -137,21 +148,22 @@ namespace RecordVisualizer
                 }
                 else
                 {
-                    byte[] buffer = new byte[sizeof(uint)];
-                    fileStream.Read(buffer, 0, sizeof(uint));
-                    uint mapLength = BitConverter.ToUInt32(buffer, 0);
-                    logger.LogDebug($"LoadFile(): compressed map length is {sizeof(uint)}+{mapLength}, total stream length is {fileStream.Length}");
-                    using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
-                    {
-                        using (BinaryReader reader = new BinaryReader(decompressingStream, Encoding.Default, true))
-                        {
-                            reader.ReadMap();
-                        }
-                    }
-                    logger.LogDebug($"LoadFile(): seeking for deltas at {sizeof(uint)}+{mapLength}");
-                    fileStream.Seek(sizeof(uint) + mapLength, SeekOrigin.Begin);
                     using (BinaryReader reader = new BinaryReader(fileStream))
                     {
+                        long mapLength = reader.ReadInt64();
+
+                        using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
+                        {
+                            using (BinaryReader decompressingReader = new BinaryReader(decompressingStream))
+                            {
+                                decompressingReader.ReadMap();
+                            }
+                        }
+
+                        const int metadataLength = sizeof(short) * 4 + sizeof(long) + sizeof(long);
+                        logger.LogDebug($"LoadFile(): seeking for deltas at {metadataLength}+{mapLength}");
+                        fileStream.Seek(metadataLength + mapLength, SeekOrigin.Begin);
+
                         while (fileStream.Length - fileStream.Position > 1)
                         {
                             deltas.Add(reader.ReadDelta());
@@ -209,15 +221,8 @@ namespace RecordVisualizer
 
         private static void ReadMap(this BinaryReader reader)
         {
-            leftX = reader.ReadInt16();
-            topY = reader.ReadInt16();
-            rightX = reader.ReadInt16();
-            bottomY = reader.ReadInt16();
-            w = rightX - leftX + 1;
-            h = bottomY - topY + 1;
-            startTime = DateTime.FromBinary(reader.ReadInt64());
             byte[] data = reader.ReadBytes(w * h);
-            initialMapState = BinaryConversion.ConvertToColorRectangle(data, h, w);
+            initialMapState = BinaryConversion.ToColorRectangle(data, h, w);
         }
 
         private static Delta ReadDelta(this BinaryReader reader)
