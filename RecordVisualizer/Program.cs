@@ -80,11 +80,14 @@ namespace RecordVisualizer
             }
             finally
             {
-                logger?.LogInfo("Exiting...");
+                if (logger != null)
+                {
+                    logger.LogInfo("Exiting...");
+                    logger.LogInfo($"Logs were saved to {logger.LogFilePath}");
+                }
                 finishCTS.Cancel();
                 if (logger != null)
                 {
-                    Console.WriteLine($"Logs were saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 logger?.Dispose();

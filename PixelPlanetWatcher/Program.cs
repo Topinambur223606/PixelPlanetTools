@@ -102,18 +102,21 @@ namespace PixelPlanetWatcher
             }
             finally
             {
-                logger?.LogInfo("Waiting for saving to finish...");
+                if (logger != null)
+                {
+                    logger.LogInfo("Exiting when everything is saved...");
+                    logger.LogInfo($"Logs were saved to {logger.LogFilePath}");
+                }
                 finishCTS.Cancel();
                 if (logger != null)
                 {
-                    Console.WriteLine($"Logs were saved to {logger.LogFilePath}");
                     Thread.Sleep(500);
                 }
                 finishCTS.Dispose();
                 logger?.Dispose();
                 if (saveThread != null && !saveThread.Join(TimeSpan.FromMinutes(1)))
                 {
-                    Console.WriteLine("Save thread can't finish, aborting");
+                    Console.WriteLine("Save thread doesn't finish, aborting");
                 }
                 Console.ForegroundColor = ConsoleColor.White;
                 Environment.Exit(0);
