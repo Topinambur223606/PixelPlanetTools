@@ -168,6 +168,7 @@ namespace PixelPlanetWatcher
         {
             DateTime now = DateTime.Now;
             cache.DownloadChunks();
+            byte[] mapBytes = BinaryConversion.GetRectangle(cache, options.LeftX, options.TopY, options.RightX, options.BottomY);
             using (FileStream fileStream = File.Open(options.FileName, FileMode.Create, FileAccess.Write))
             {
                 using (BinaryWriter writer = new BinaryWriter(fileStream))
@@ -177,8 +178,6 @@ namespace PixelPlanetWatcher
                     writer.Write(options.RightX);
                     writer.Write(options.BottomY);
                     writer.Write(now.ToBinary());
-
-                    byte[] mapBytes = BinaryConversion.GetRectangle(cache, options.LeftX, options.TopY, options.RightX, options.BottomY);
                     using (MemoryStream memoryStream = new MemoryStream())
                     {
                         using (DeflateStream compressionStream = new DeflateStream(memoryStream, CompressionLevel.Optimal, true))

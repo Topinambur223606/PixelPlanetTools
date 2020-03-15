@@ -75,7 +75,7 @@ namespace PixelPlanetUtils.Canvas
                             for (int chunkLine = yBlockStartChunkOffset; chunkLine < yBlockEndExclusiveChunkOffset; chunkLine++)
                             {
                                 Buffer.MemoryCopy(inputCurrentPosition, outputCurrentPosition, blockWidth, blockWidth);
-                                inputCurrentPosition += blockWidth;
+                                inputCurrentPosition += PixelMap.ChunkSideSize;
                                 outputCurrentPosition += width;
                             }
                         }
