@@ -48,11 +48,11 @@ namespace PixelPlanetUtils.Updates
             lastCheckFilePath = Path.Combine(PathTo.LastCheckFolder, AppInfo.Name + ".lastcheck");
         }
 
-        public static bool IsStartingUpdate(Logger logger)
+        public static bool IsStartingUpdate(Logger logger, bool forceCheck = false)
         {
             using (UpdateChecker checker = new UpdateChecker(logger))
             {
-                if (checker.NeedsToCheckUpdates())
+                if (forceCheck || checker.NeedsToCheckUpdates())
                 {
                     logger.LogUpdate("Checking for updates...");
                     if (checker.UpdateIsAvailable(out string version, out bool isCompatible, out string description))
@@ -86,6 +86,10 @@ namespace PixelPlanetUtils.Updates
                         {
                             logger.LogError("Cannot check for updates");
                         }
+                        else
+                        {
+                            logger.LogUpdate("Already up to date");
+                        }
                     }
                 }
             }
@@ -106,19 +110,7 @@ namespace PixelPlanetUtils.Updates
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(lastCheckFilePath));
-                while (lastCheckFileStream == null)
-                {
-                    try
-                    {
-                        logger.LogDebug("NeedsToCheckUpdates(): trying to access last check file");
-                        lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                    }
-                    catch (IOException ex)
-                    {
-                        logger.LogDebug($"NeedsToCheckUpdates(): cannot access last check file: {ex.Message}");
-                        Thread.Sleep(300);
-                    }
-                }
+                OpenLastCheckFile();
                 if (lastCheckFileStream.Length > 0)
                 {
                     using (BinaryReader br = new BinaryReader(lastCheckFileStream, Encoding.Default, true))
@@ -126,7 +118,6 @@ namespace PixelPlanetUtils.Updates
                         DateTime lastCheck = DateTime.FromBinary(br.ReadInt64());
                         if (DateTime.Now - lastCheck < TimeSpan.FromHours(1))
                         {
-                            lastCheckFileStream.Dispose();
                             return false;
                         }
                     }
@@ -140,36 +131,53 @@ namespace PixelPlanetUtils.Updates
             }
         }
 
+        private void OpenLastCheckFile()
+        {
+            while (lastCheckFileStream == null)
+            {
+                try
+                {
+                    logger.LogDebug("NeedsToCheckUpdates(): trying to access last check file");
+                    lastCheckFileStream = File.Open(lastCheckFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                }
+                catch (IOException ex)
+                {
+                    logger.LogDebug($"NeedsToCheckUpdates(): cannot access last check file: {ex.Message}");
+                    Thread.Sleep(100);
+                }
+            }
+            lastCheckFileStream.Seek(0, SeekOrigin.Begin);
+        }
+
         private bool UpdateIsAvailable(out string availableVersion, out bool isCompatible, out string description)
         {
             try
             {
-                JObject release, versions;
+                JObject release, releaseDetails;
                 using (WebClient wc = new WebClient())
                 {
                     wc.Headers[HttpRequestHeader.UserAgent] = "PixelPlanetTools";
                     release = JObject.Parse(wc.DownloadString(latestReleaseUrl));
-                    string versionsJsonUrl = release["assets"].
+                    string releaseJsonUrl = release["assets"].
                         Single(t => t["name"].ToString().StartsWith("release", StringComparison.InvariantCultureIgnoreCase))
                         ["browser_download_url"].ToString();
-                    versions = JObject.Parse(wc.DownloadString(versionsJsonUrl));
+                    releaseDetails = JObject.Parse(wc.DownloadString(releaseJsonUrl));
                 }
 
                 downloadUrl = release["assets"].
                     Single(t => t["name"].ToString().StartsWith(AppInfo.Name, StringComparison.InvariantCultureIgnoreCase))
                     ["browser_download_url"].ToString();
 
-                Version appVersion = AppInfo.Version;
-                availableVersion = versions[AppInfo.Name]["version"].ToString();
-                description = versions[AppInfo.Name]["description"].ToString();
+                availableVersion = releaseDetails[AppInfo.Name]["version"].ToString();
+                description = releaseDetails[AppInfo.Name]["description"].ToString();
                 Version upToDateVersion = Version.Parse(availableVersion);
-                isCompatible = this.isCompatible = upToDateVersion.Major == appVersion.Major;
-                lastCheckFileStream.Seek(0, SeekOrigin.Begin);
-                using (BinaryWriter br = new BinaryWriter(lastCheckFileStream))
+                isCompatible = this.isCompatible = upToDateVersion.Major == AppInfo.Version.Major;
+                OpenLastCheckFile();
+                using (BinaryWriter br = new BinaryWriter(lastCheckFileStream, Encoding.Default, true))
                 {
                     br.Write(DateTime.Now.ToBinary());
                 }
-                return appVersion < upToDateVersion;
+                return AppInfo.Version < upToDateVersion;
             }
             catch (Exception ex)
             {

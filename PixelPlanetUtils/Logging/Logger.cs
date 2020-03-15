@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace PixelPlanetUtils.Logging
 {
@@ -39,23 +40,9 @@ namespace PixelPlanetUtils.Logging
 
         static Logger()
         {
-            TimeSpan maxLogAge = TimeSpan.FromDays(7);
-            DirectoryInfo di = Directory.CreateDirectory(PathTo.LogsFolder);
-            try
-            {
-                foreach (FileInfo logFile in di.EnumerateFiles("*.log", SearchOption.AllDirectories)
-                                               .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
-                {
-                    try
-                    {
-                        logFile.Delete();
-                    }
-                    catch
-                    { }
-                }
-            }
-            catch
-            { }
+            Task.Run(ClearOldLogs);
+            ConsoleColor startColor = Console.ForegroundColor;
+            AppDomain.CurrentDomain.DomainUnload += (o, e) => Console.ForegroundColor = startColor;
         }
 
         public Logger(string logFilePath, CancellationToken finishToken)
@@ -220,6 +207,27 @@ namespace PixelPlanetUtils.Logging
                                         $"[{group.ToString().ToUpper()}]".PadRight(msgGroupPadLength), largeSpace,
                                         msg);
             }
+        }
+
+        private static void ClearOldLogs()
+        {
+            TimeSpan maxLogAge = TimeSpan.FromDays(7);
+            DirectoryInfo di = Directory.CreateDirectory(PathTo.LogsFolder);
+            try
+            {
+                foreach (FileInfo logFile in di.EnumerateFiles("*.log", SearchOption.AllDirectories)
+                                   .Where(logFile => DateTime.Now - logFile.LastWriteTime > maxLogAge))
+                {
+                    try
+                    {
+                        logFile.Delete();
+                    }
+                    catch
+                    { }
+                }
+            }
+            catch
+            { }
         }
 
         public void Dispose()

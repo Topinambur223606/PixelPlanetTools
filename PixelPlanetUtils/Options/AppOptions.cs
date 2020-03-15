@@ -7,8 +7,11 @@ namespace PixelPlanetUtils.Options
         [Option("logFilePath", Default = null, HelpText = "If specified, is used to write logs; otherwise, logs are written to %appdata%/PixelPlanetTools/logs/<app name>")]
         public string LogFilePath { get; set; }
 
-        [Option("disableUpdates", Default = false, HelpText = "If specified, updates are disabled")]
+        [Option("disableUpdates", Default = false, HelpText = "If specified, updates check is skipped")]
         public bool DisableUpdates { get; set; }
+
+        [Option("checkUpdates", Default = false, HelpText = "If specified, application does nothing but updates check")]
+        public bool CheckUpdates { get; set; }
 
         [Option("showDebug", Default = false, HelpText = "Toggles debug output to console window")]
         public bool ShowDebugLogs { get; set; }

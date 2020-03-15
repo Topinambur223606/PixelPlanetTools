@@ -8,6 +8,7 @@ using PixelPlanetUtils.Updates;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -57,9 +58,9 @@ namespace PixelPlanetBot
                 logger.LogDebug("Command line: " + Environment.CommandLine);
                 HttpWrapper.Logger = logger;
 
-                if (!options.DisableUpdates)
+                if (options.CheckUpdates || !options.DisableUpdates)
                 {
-                    if (UpdateChecker.IsStartingUpdate(logger))
+                    if (UpdateChecker.IsStartingUpdate(logger, options.CheckUpdates) || options.CheckUpdates)
                     {
                         return;
                     }
@@ -201,7 +202,12 @@ namespace PixelPlanetBot
                         options = o;
                         if (!string.IsNullOrWhiteSpace(o.Proxy))
                         {
-                            HttpWrapper.Proxy = new WebProxy(o.Proxy);
+                            var proxy = new WebProxy(o.Proxy);
+                            if (o.ProxyUsername != null)
+                            {
+                                proxy.Credentials = new NetworkCredential(o.ProxyUsername, o.ProxyPassword);
+                            }
+                            HttpWrapper.Proxy = proxy;
                             if (o.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
                                 Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
@@ -223,7 +229,7 @@ namespace PixelPlanetBot
                             UrlManager.BaseUrl = o.ServerUrl;
                         }
                     });
-                return success;
+                return options.CheckUpdates || success;
             }
         }
 

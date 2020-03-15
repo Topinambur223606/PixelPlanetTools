@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetWatcher</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>2.2.1.2</FileVersion>
-    <AssemblyVersion>2.2.1.2</AssemblyVersion>
-    <Version>2.2</Version>
+    <FileVersion>2.3.0.1</FileVersion>
+    <AssemblyVersion>2.3.0.1</AssemblyVersion>
+    <Version>2.3</Version>
     <RootNamespace>PixelPlanetWatcher</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>
@@ -21,7 +21,7 @@
 
   <PropertyGroup>
     <PostBuildEvent>if $(Configuration) == Release (
-..\..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /wildcards /out:..\..\..\..\executable\PixelPlanetWatcher.exe PixelPlanetWatcher.exe Newtonsoft.Json.dll websocket-sharp.dll PixelPlanetUtils.dll CommandLine.dll
+..\..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /out:..\..\..\..\executable\PixelPlanetWatcher.exe PixelPlanetWatcher.exe Newtonsoft.Json.dll websocket-sharp.dll PixelPlanetUtils.dll CommandLine.dll
 del ..\..\..\..\executable\*.config
 )
     </PostBuildEvent>

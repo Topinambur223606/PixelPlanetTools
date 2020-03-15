@@ -25,5 +25,11 @@ namespace PixelPlanetBot
 
         [Option("proxyAddress", Default = null, HelpText = "Proxy address that is used for placing pixels")]
         public string Proxy { get; set; }
+
+        [Option("proxyUsername", Default = null, HelpText = "Username for connecting to proxy if specified")]
+        public string ProxyUsername { get; set; }
+
+        [Option("proxyPassword", Default = null, HelpText = "Password for connecting to proxy if specified")]
+        public string ProxyPassword { get; set; }
     }
 }
