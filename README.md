@@ -23,8 +23,9 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 - To specify path to your own log file, use `--logFilePath` (if log file exists, new lines are appended);
 - To display debug logs in console (a lot of useless info), specify `--showDebug` parameter;
 - To disable updates, specify `--disableUpdates` parameter;
-- To get help screen, launch it with `--help` argument;
-- To get app version, launch it with `--version` argument.
+- To check for updates manually, specify `--checkUpdates` parameter;
+- To get help screen, launch it with `--help` parameter;
+- To get app version, launch it with `--version` parameter.
 
 # PixelPlanetBot
 Program that builds picture (surprisingly).
@@ -36,7 +37,9 @@ Program that builds picture (surprisingly).
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
 - `--notificationMode` - defines bot behaviour when captcha appears, possible values: `sound` (default value), `browser`, `both`;
 - `--placingOrder` - determines pixels priority for bot, possible values: `random` (default value), `left`, `right`, `top`, `bottom`, `outline`;
-- `--proxyAddress` - proxy that is used by bot, address includes port, empty by default, no credentials supported but soon will be;
+- `--proxyAddress` - proxy that is used by bot, address includes port, empty by default;
+- `--proxyUsername` - username for connecting to proxy, empty by default, no proxy authorization if not specified;
+- `--proxyPassword` - password for connecting to proxy, empty by default;
 - `--useMirror` - if specified, changes base address to [fuckyouarkeros.fun](https://fuckyouarkeros.fun) (site mirror);
 - `--serverUrl` - if specified, changes base address to your custom one - for those who deployed their own PixelPlanet copy;
 
