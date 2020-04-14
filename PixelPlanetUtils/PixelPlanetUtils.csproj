@@ -6,7 +6,6 @@
     <FileVersion>4.3.0.1</FileVersion>
     <AssemblyVersion>4.3.0.1</AssemblyVersion>
     <Version>4.3</Version>
-    <Deterministic>false</Deterministic>
     <OutputType>Library</OutputType>
     <RootNamespace>PixelPlanetUtils</RootNamespace>
     <Authors>Topinambur223606</Authors>

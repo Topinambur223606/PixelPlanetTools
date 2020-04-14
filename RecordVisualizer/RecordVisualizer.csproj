@@ -20,11 +20,10 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <PostBuildEvent>
-      if $(Configuration) == Release (
-      ..\..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /out:..\..\..\..\executable\RecordVisualizer.exe RecordVisualizer.exe CommandLine.dll Newtonsoft.Json.dll PixelPlanetUtils.dll SixLabors.Core.dll SixLabors.ImageSharp.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll
-      del ..\..\..\..\executable\*.config
-      )
+    <PostBuildEvent>if $(Configuration) == Release (
+..\..\..\..\executable\ILRepack.exe /parallel /target:exe /ndebug /targetplatform:"v4,C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2" /out:..\..\..\..\executable\RecordVisualizer.exe RecordVisualizer.exe CommandLine.dll Newtonsoft.Json.dll PixelPlanetUtils.dll SixLabors.Core.dll SixLabors.ImageSharp.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll
+del ..\..\..\..\executable\*.config
+)
     </PostBuildEvent>
   </PropertyGroup>
 </Project>
