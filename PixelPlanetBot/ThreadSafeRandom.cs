@@ -7,7 +7,7 @@ namespace PixelPlanetBot
         [ThreadStatic]
         private static Random threadInstance;
 
-        public static int Next()
+        public static double NextDouble()
         {
             Random random = threadInstance;
             if (threadInstance == null)
@@ -15,7 +15,7 @@ namespace PixelPlanetBot
                 int seed = Guid.NewGuid().GetHashCode();
                 threadInstance = random = new Random(seed);
             }
-            return random.Next();
+            return random.NextDouble();
         }
     }
 }
