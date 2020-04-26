@@ -15,8 +15,8 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 - After mass attack of russian griefers with proxies in 2019, May captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.
 - Moon canvas support will not be implemented in bot. That canvas is created for veteran users who build with their hands a lot, so it is supposed to be a bot-free area.
 
-### Usage:
-# For all apps:
+# Usage:
+## For all apps:
 - Param order is not important;
 - By default logs are saved to `%appdata%/PixelPlanetTools/logs/<app name>`;
 - Log files are deleted from `%appdata%/PixelPlanetTools/logs` folder and all subfolders (recursively) if older than one week;
@@ -27,7 +27,7 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 - To get help screen, launch it with `--help` parameter;
 - To get app version, launch it with `--version` parameter.
 
-# PixelPlanetBot
+## PixelPlanetBot
 Program that builds picture (surprisingly).
 
 ### Usage:
@@ -52,7 +52,7 @@ Program that builds picture (surprisingly).
 - `--useMirror` and `--serverUrl` options are not compatible;
 - Fully transparent parts of image are ignored.
 
-# PixelPlanetWatcher
+## PixelPlanetWatcher
 Program that logs updates in given rectangle to the binary file.
 
 ### Usage:
@@ -68,7 +68,7 @@ Program that logs updates in given rectangle to the binary file.
 - When closing with Ctrl+C, changes are also written to the file.
 - DO NOT close app with `X` button if you do not want to lose pixels placed after last save.
 
-# RecordVisualizer
+## RecordVisualizer
 Program that creates image sequence from files created by **Watcher**.
 
 ### Usage:
