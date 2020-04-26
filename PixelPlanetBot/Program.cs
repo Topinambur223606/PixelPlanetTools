@@ -232,6 +232,39 @@ namespace PixelPlanetBot
                 return options.CheckUpdates || success;
             }
         }
+        private static double OutlineCriteria(Pixel p)
+        {
+            const int radius = 3;
+            double score = ThreadSafeRandom.NextDouble() * 125D;
+            (short x, short y, EarthPixelColor c) = p;
+            for (int i = -radius; i <= radius; i++)
+            {
+                for (int j = -radius; j <= radius; j++)
+                {
+                    int ox = x + i;
+                    int oy = y + j;
+                    double dist = Math.Sqrt(i * i + j * j);
+                    if (ox >= 0 && oy >= 0 && ox < width && oy < height)
+                    {
+                        EarthPixelColor c2 = imagePixels[ox, oy];
+                        if (c2 == EarthPixelColor.None)
+                        {
+                            score += ImageProcessing.NoneColorDistance / dist;
+                        }
+                        else if (c != c2)
+                        {
+
+                            score += ImageProcessing.RgbCubeDistance(c, c2) / dist;
+                        }
+                    }
+                    else
+                    {
+                        score += ImageProcessing.NoneColorDistance / dist;
+                    }
+                }
+            }
+            return score;
+        }
 
         private static bool CalculatePixelOrder()
         {
@@ -242,6 +275,7 @@ namespace PixelPlanetBot
                 SelectMany(X => allY.Select(Y =>
                     ((short)X, (short)Y, C: imagePixels[X, Y]))).
                 Where(xyc => xyc.C != EarthPixelColor.None).ToList();
+
             try
             {
                 switch (options.PlacingOrderMode)
@@ -259,46 +293,13 @@ namespace PixelPlanetBot
                         relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
                         break;
                     case PlacingOrderMode.Outline:
-                        Random rnd = new Random();
-                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(p =>
-                        {
-                            const int radius = 3;
-                            double score = rnd.NextDouble() * 125D;
-                            (short x, short y, EarthPixelColor c) = p;
-                            for (int i = -radius; i <= radius; i++)
-                            {
-                                for (int j = -radius; j <= radius; j++)
-                                {
-                                    int ox = x + i;
-                                    int oy = y + j;
-                                    double dist = Math.Sqrt(i * i + j * j);
-                                    if (ox >= 0 && oy >= 0 && ox < width && oy < height)
-                                    {
-                                        EarthPixelColor c2 = imagePixels[x + i, y + j];
-                                        if (c2 == EarthPixelColor.None)
-                                        {
-                                            score += ImageProcessing.NoneColorDistance / dist;
-                                        }
-                                        else if (c != c2)
-                                        {
-
-                                            score += ImageProcessing.RgbCubeDistance(c, c2) / dist;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        score += ImageProcessing.NoneColorDistance / dist;
-                                    }
-                                }
-                            }
-                            return score;
-                        });
+                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(OutlineCriteria);
                         break;
                     default:
-                        Random rand = new Random();
+                        Random rnd = new Random();
                         for (int i = 0; i < nonEmptyPixels.Count; i++)
                         {
-                            int r = rand.Next(i, nonEmptyPixels.Count);
+                            int r = rnd.Next(i, nonEmptyPixels.Count);
                             Pixel tmp = nonEmptyPixels[r];
                             nonEmptyPixels[r] = nonEmptyPixels[i];
                             nonEmptyPixels[i] = tmp;
