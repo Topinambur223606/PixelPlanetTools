@@ -229,7 +229,7 @@ namespace PixelPlanetBot
                             UrlManager.BaseUrl = o.ServerUrl;
                         }
                     });
-                return options.CheckUpdates || success;
+                return success || (options?.CheckUpdates ?? false);
             }
         }
         private static double OutlineCriteria(Pixel p)
