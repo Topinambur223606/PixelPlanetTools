@@ -10,9 +10,6 @@ namespace PixelPlanetUtils.Options
         [Option("disableUpdates", Default = false, HelpText = "If specified, updates check is skipped")]
         public bool DisableUpdates { get; set; }
 
-        [Option("checkUpdates", Default = false, HelpText = "If specified, application does nothing but updates check")]
-        public bool CheckUpdates { get; set; }
-
         [Option("showDebug", Default = false, HelpText = "Toggles debug output to console window")]
         public bool ShowDebugLogs { get; set; }
 

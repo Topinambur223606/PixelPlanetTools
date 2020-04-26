@@ -3,11 +3,13 @@ using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.Options;
 using PixelPlanetUtils.Updates;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,6 +28,7 @@ namespace PixelPlanetWatcher
         private static Thread saveThread;
         private static Action stopListening;
         private static Task<FileStream> lockingStreamTask;
+        private static bool checkUpdates;
         private static readonly object listLockObj = new object();
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
@@ -33,21 +36,46 @@ namespace PixelPlanetWatcher
         {
             try
             {
-                if (!ParseArguments(args))
+                if (!ParseArguments(args, out bool isVerbError))
                 {
-                    return;
+                    bool exit = true;
+                    if (isVerbError)
+                    {
+                        Console.WriteLine("No command were found");
+                        Console.WriteLine("Check if your scripts are updated with 'run' command before other parameters");
+                        Console.WriteLine();
+                        Console.WriteLine("If you want to start app with 'run' command added, press Enter");
+                        Console.WriteLine("Please note that this option is added for compatibility with older scripts and will be removed soon");
+                        Console.WriteLine("Press any other key to exit");
+                        while (Console.KeyAvailable)
+                        {
+                            Console.ReadKey(true);
+                        }
+                        if (Console.ReadKey(true).Key == ConsoleKey.Enter)
+                        {
+                            Console.Clear();
+                            if (ParseArguments(args.Prepend("run"), out _))
+                            {
+                                exit = false;
+                            }
+                        }
+                    }
+                    if (exit)
+                    {
+                        return;
+                    }
                 }
 
-                logger = new Logger(options.LogFilePath, finishCTS.Token)
+                logger = new Logger(options?.LogFilePath, finishCTS.Token)
                 {
-                    ShowDebugLogs = options.ShowDebugLogs
+                    ShowDebugLogs = options?.ShowDebugLogs ?? false
                 };
                 logger.LogDebug("Command line: " + Environment.CommandLine);
                 HttpWrapper.Logger = logger;
 
-                if (!options.DisableUpdates)
+                if (checkUpdates || !options.DisableUpdates)
                 {
-                    if (UpdateChecker.IsStartingUpdate(logger))
+                    if (UpdateChecker.IsStartingUpdate(logger, checkUpdates) || checkUpdates)
                     {
                         return;
                     }
@@ -123,8 +151,9 @@ namespace PixelPlanetWatcher
             }
         }
 
-        private static bool ParseArguments(string[] args)
+        private static bool ParseArguments(IEnumerable<string> args, out bool isVerbError)
         {
+            bool noVerb = false;
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -132,9 +161,14 @@ namespace PixelPlanetWatcher
             }))
             {
                 bool success = true;
-                parser.ParseArguments<WatcherOptions>(args)
-                    .WithNotParsed(e => success = false)
-                    .WithParsed(o =>
+                parser.ParseArguments<WatcherOptions, CheckUpdatesOption>(args)
+                    .WithNotParsed(e =>
+                    {
+                        noVerb = e.Any(err => err.Tag == ErrorType.NoVerbSelectedError || err.Tag == ErrorType.BadVerbSelectedError);
+                        success = false;
+                    })
+                    .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
+                    .WithParsed<WatcherOptions>(o =>
                     {
                         options = o;
 
@@ -147,19 +181,14 @@ namespace PixelPlanetWatcher
 
                         if (o.UseMirror)
                         {
-                            if (o.ServerUrl != null)
-                            {
-                                Console.WriteLine("Invalid args: mirror usage and custom server address are specified");
-                                success = false;
-                                return;
-                            }
-                            UrlManager.MirrorMode = true;
+                            UrlManager.MirrorMode = o.UseMirror;
                         }
                         if (o.ServerUrl != null)
                         {
                             UrlManager.BaseUrl = o.ServerUrl;
                         }
                     });
+                isVerbError = noVerb;
                 return success;
             }
         }

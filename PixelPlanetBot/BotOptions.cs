@@ -3,6 +3,7 @@ using PixelPlanetUtils.Options;
 
 namespace PixelPlanetBot
 {
+    [Verb("run", HelpText = "Runs the bot")]
     class BotOptions : NetworkAppOptions
     {
         [Option('x', "leftX", Required = true, HelpText = "X coord of left picture pixel")]

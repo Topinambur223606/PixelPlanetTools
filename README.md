@@ -17,20 +17,21 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 
 # Usage:
 ## For all apps:
-- Param order is not important;
-- By default logs are saved to `%appdata%/PixelPlanetTools/logs/<app name>`;
-- Log files are deleted from `%appdata%/PixelPlanetTools/logs` folder and all subfolders (recursively) if older than one week;
-- To specify path to your own log file, use `--logFilePath` (if log file exists, new lines are appended);
-- To display debug logs in console (a lot of useless info), specify `--showDebug` parameter;
-- To disable updates, specify `--disableUpdates` parameter;
-- To check for updates manually, specify `--checkUpdates` parameter;
-- To get help screen, launch it with `--help` parameter;
-- To get app version, launch it with `--version` parameter.
+- To get help, launch app with `help` command;
+- To get app version, launch it with `version` command;
+- To get updates without running, launch app with `checkUpdates` command;
+- To start app, launch it with `run` command:
+    - Parameter order is not important;
+    - By default logs are saved to `%appdata%/PixelPlanetTools/logs/<app name>`;
+    - Log files are deleted from default log folder if older than one week;
+    - To specify path to your own log file, use `--logFilePath` (if log file exists, new lines are appended);
+    - To display debug logs in console (a lot of useless info), specify `--showDebug` parameter;
+    - To disable automatic updates before running, specify `--disableUpdates` parameter.
 
 ## PixelPlanetBot
 Program that builds picture (surprisingly).
 
-### Usage:
+### Parameters:
 - `-x, --leftX` - **required**, X coordinate of left picture pixel;
 - `-y, --topY` - **required**, Y coordinate of top picture pixel;
 - `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
@@ -44,9 +45,9 @@ Program that builds picture (surprisingly).
 - `--serverUrl` - if specified, changes base address to your custom one - for those who deployed their own PixelPlanet copy;
 
 ### Examples
-- `bot.exe -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in one folder with bot.
-- `bot.exe --useMirror --imagePath http://imagehosting.example/image.png --leftX -123 -d --topY -456 --logFilePath D:\myLogs\bot.log`
-- `bot.exe --notificationMode both --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
+- `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in one folder with bot.
+- `bot.exe run --useMirror --imagePath http://imagehosting.example/image.png --leftX -123 -d --topY -456 --logFilePath D:\myLogs\bot.log`
+- `bot.exe run --notificationMode both --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
 
 ### Notes:
 - `--useMirror` and `--serverUrl` options are not compatible;
@@ -55,7 +56,7 @@ Program that builds picture (surprisingly).
 ## PixelPlanetWatcher
 Program that logs updates in given rectangle to the binary file.
 
-### Usage:
+### Parameters:
 - `-l, --leftX` - **required**, X coordinate of left rectangle boundary;
 - `-r, --rightX` - **required**, X coordinate of right rectangle boundary;
 - `-t, --topY` - **required**, Y coordinate of top rectangle boundary;
@@ -71,6 +72,6 @@ Program that logs updates in given rectangle to the binary file.
 ## RecordVisualizer
 Program that creates image sequence from files created by **Watcher**.
 
-### Usage:
+### Parameters:
 - `-f, --fileName` - **required**, path (relative/absolute) to file that is visualized;
 - `--oldRecordFile` - enables old format mode (if file was recorded with version older than 2.0);

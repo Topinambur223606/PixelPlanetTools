@@ -2,6 +2,7 @@
 using PixelPlanetUtils;
 using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.Options;
 using PixelPlanetUtils.Updates;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -9,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,26 +29,51 @@ namespace RecordVisualizer
 
         private static Logger logger;
         private static VisualizerOptions options;
-
+        private static bool checkUpdates;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private static void Main(string[] args)
         {
             try
             {
-                if (!ParseArguments(args))
+                if (!ParseArguments(args, out bool isVerbError))
                 {
-                    return;
+                    bool exit = true;
+                    if (isVerbError)
+                    {
+                        Console.WriteLine("No command were found");
+                        Console.WriteLine("Check if your scripts are updated with 'run' command before other parameters");
+                        Console.WriteLine();
+                        Console.WriteLine("If you want to start app with 'run' command added, press Enter");
+                        Console.WriteLine("Please note that this option is added for compatibility with older scripts and will be removed soon");
+                        Console.WriteLine("Press any other key to exit");
+                        while (Console.KeyAvailable)
+                        {
+                            Console.ReadKey(true);
+                        }
+                        if (Console.ReadKey(true).Key == ConsoleKey.Enter)
+                        {
+                            Console.Clear();
+                            if (ParseArguments(args.Prepend("run"), out _))
+                            {
+                                exit = false;
+                            }
+                        }
+                    }
+                    if (exit)
+                    {
+                        return;
+                    }
                 }
 
-                logger = new Logger(options.LogFilePath, finishCTS.Token)
+                logger = new Logger(options?.LogFilePath, finishCTS.Token)
                 {
-                    ShowDebugLogs = options.ShowDebugLogs
+                    ShowDebugLogs = options?.ShowDebugLogs ?? false
                 };
 
-                if (!options.DisableUpdates)
+                if (checkUpdates || !options.DisableUpdates)
                 {
-                    if (UpdateChecker.IsStartingUpdate(logger))
+                    if (UpdateChecker.IsStartingUpdate(logger, checkUpdates) || checkUpdates)
                     {
                         return;
                     }
@@ -97,8 +124,9 @@ namespace RecordVisualizer
             }
         }
 
-        private static bool ParseArguments(string[] args)
+        private static bool ParseArguments(IEnumerable<string> args, out bool isVerbError)
         {
+            bool noVerb = false;
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -106,9 +134,14 @@ namespace RecordVisualizer
             }))
             {
                 bool success = true;
-                parser.ParseArguments<VisualizerOptions>(args)
-                    .WithNotParsed(e => success = false)
-                    .WithParsed(o =>
+                parser.ParseArguments<VisualizerOptions, CheckUpdatesOption>(args)
+                    .WithNotParsed(e =>
+                    {
+                        noVerb = e.Any(err => err.Tag == ErrorType.NoVerbSelectedError || err.Tag == ErrorType.BadVerbSelectedError);
+                        success = false;
+                    })
+                    .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
+                    .WithParsed<VisualizerOptions>(o =>
                     {
                         options = o;
                         if (!File.Exists(o.FileName))
@@ -117,6 +150,7 @@ namespace RecordVisualizer
                             success = false;
                         }
                     });
+                isVerbError = noVerb;
                 return success;
             }
         }

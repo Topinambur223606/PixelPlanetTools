@@ -3,6 +3,7 @@ using PixelPlanetUtils.Options;
 
 namespace RecordVisualizer
 {
+    [Verb("run", HelpText = "Runs the visualizer")]
     class VisualizerOptions : AppOptions
     {
         [Option('f', "fileName", Required = true, HelpText = "Input file")]
