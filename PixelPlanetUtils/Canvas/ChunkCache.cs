@@ -16,16 +16,16 @@ namespace PixelPlanetUtils.Canvas
     public class ChunkCache
     {
         private static readonly TimeSpan maxOffline = TimeSpan.FromMinutes(1);
-        
+
         private WebsocketWrapper wrapper;
         private readonly Logger logger;
-        
+
         private readonly List<XY> chunks;
-        
-        internal ConcurrentDictionary<XY, EarthPixelColor[,]> CachedChunks { get; }  = new ConcurrentDictionary<XY, EarthPixelColor[,]>();
-        
+
+        internal ConcurrentDictionary<XY, EarthPixelColor[,]> CachedChunks { get; } = new ConcurrentDictionary<XY, EarthPixelColor[,]>();
+
         private readonly bool interactiveMode;
-        
+
         public event EventHandler OnMapUpdated;
 
         public WebsocketWrapper Wrapper
@@ -144,7 +144,7 @@ namespace PixelPlanetUtils.Canvas
             }
             else
             {
-                logger.LogDebug($"Wrapper_OnConnectionRestored(): {e.OfflinePeriod.TotalSeconds.ToString("F2")} seconds offline");
+                logger.LogDebug($"Wrapper_OnConnectionRestored(): {e.OfflinePeriod.TotalSeconds:F2} seconds offline");
                 OnMapUpdated(this, null);
             }
         }

@@ -6,7 +6,7 @@ namespace PixelPlanetUtils.NetworkInteraction
     {
         private const string mainUrl = "pixelplanet.fun";
         private const string mirrorUrl = "fuckyouarkeros.fun";
-        
+
         private static bool? mirrorMode = false;
         private static string baseUrl;
 
@@ -36,7 +36,7 @@ namespace PixelPlanetUtils.NetworkInteraction
         }
 
         public static string BaseHttpAdress => $"https://{BaseUrl}";
-        
+
         public static string WebSocketUrl => $"wss://{BaseUrl}/ws";
 
     }

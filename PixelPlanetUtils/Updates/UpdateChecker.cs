@@ -14,7 +14,7 @@ namespace PixelPlanetUtils.Updates
     {
         private const string latestReleaseUrl = "https://api.github.com/repos/Topinambur223606/PixelPlanetTools/releases/latest";
         private const string updaterFileName = "Updater.exe";
-        
+
         private readonly static string updaterPath = Path.Combine(PathTo.AppFolder, updaterFileName);
         private readonly string lastCheckFilePath;
         private static readonly Version updaterVersion = new Version(3, 1);

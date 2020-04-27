@@ -211,7 +211,7 @@ namespace PixelPlanetBot
                 Environment.Exit(0);
             }
         }
-        
+
         private static bool ParseArguments(IEnumerable<string> args, out bool isVerbError)
         {
             bool noVerb = false;
@@ -444,7 +444,7 @@ namespace PixelPlanetBot
             captchaCts?.Cancel();
             captchaCts?.Dispose();
         }
-        
+
         private static void BeepThreadBody()
         {
             logger.LogDebug("BeepThreadBody() started");
@@ -476,7 +476,7 @@ namespace PixelPlanetBot
                 }
             }
         }
-        
+
         private static void StatsCollectionThreadBody()
         {
             int CountDone() => pixelsToBuild.

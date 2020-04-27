@@ -217,9 +217,9 @@ namespace PixelPlanetWatcher
                         memoryStream.Seek(0, SeekOrigin.Begin);
                         memoryStream.CopyTo(fileStream);
                     }
-                
+
                 }
-               
+
             }
             logger.Log("Chunk data is saved to file", MessageGroup.TechInfo);
             return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
@@ -311,7 +311,7 @@ namespace PixelPlanetWatcher
                 }
                 logger.LogInfo($"{pixels.Count} pixel updates are saved to file");
             }
-            
+
         }
 
         private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)

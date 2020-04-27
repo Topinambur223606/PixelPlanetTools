@@ -62,7 +62,7 @@ namespace PixelPlanetUtils
             }
             return colors[(byte)color - 2];
         }
-        
+
         public static double RgbCubeDistance(EarthPixelColor c1, EarthPixelColor c2)
         {
             if (c1 == EarthPixelColor.None || c2 == EarthPixelColor.None)

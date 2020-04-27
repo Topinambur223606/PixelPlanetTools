@@ -54,7 +54,7 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         public void WaitWebsocketConnected()
         {
-            logger.LogDebug("WaitWebsocketConnected(): waiting websocket connection");
+            logger.LogDebug("WaitWebsocketConnected(): waiting for websocket connection");
             websocketResetEvent.WaitOne();
         }
 

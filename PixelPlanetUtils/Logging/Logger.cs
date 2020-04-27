@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace PixelPlanetUtils.Logging
@@ -24,7 +24,7 @@ namespace PixelPlanetUtils.Logging
         private ConcurrentQueue<ConsoleLogEntry> printableConsoleMessages;
         private readonly ConcurrentQueue<LogEntry> messages = new ConcurrentQueue<LogEntry>();
         private ConcurrentQueue<ConsoleLogEntry> incomingConsoleMessages = new ConcurrentQueue<ConsoleLogEntry>();
-        
+
         private bool disposed;
         private bool consolePaused = false;
         private readonly CancellationToken finishToken;
@@ -57,7 +57,7 @@ namespace PixelPlanetUtils.Logging
             {
                 logFilePath = Path.Combine(PathTo.LogsFolder,
                                             Assembly.GetEntryAssembly().GetName().Name,
-                                            $"{DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}_{Guid.NewGuid().ToString("N")}.log");
+                                            $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}_{Guid.NewGuid():N}.log");
             }
             try
             {
@@ -79,7 +79,7 @@ namespace PixelPlanetUtils.Logging
             messages.Enqueue((msg, group, time));
             messagesAvailable.Set();
         }
-        
+
         public void LogAndPause(string msg, MessageGroup group)
         {
             if (!consolePaused)
@@ -166,7 +166,7 @@ namespace PixelPlanetUtils.Logging
                 }
             }
         }
-        
+
         private static ConsoleColor ColorOf(MessageGroup group)
         {
             switch (group)
