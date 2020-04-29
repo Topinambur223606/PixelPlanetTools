@@ -12,6 +12,7 @@ using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetUtils.NetworkInteraction
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0019:Use pattern matching", Justification = "using 'using' is needed")]
     public static class HttpWrapper
     {
         private static bool multiplePlacingFails = false;
@@ -19,6 +20,7 @@ namespace PixelPlanetUtils.NetworkInteraction
         public static WebProxy Proxy { get; set; }
         public static Logger Logger { get; set; }
 
+        
         public static void ConnectToApi()
         {
             while (true)

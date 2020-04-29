@@ -8,6 +8,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -211,6 +212,8 @@ namespace RecordVisualizer
             }
         }
 
+        [SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "strange IDE suggestion")]
+        [SuppressMessage("Style", "IDE0071WithoutSuggestion:Simplify interpolation", Justification = "strange IDE suggestion")]
         private static void SaveLoadedData(string filePathTemplate)
         {
             string initMapFileName = string.Format(filePathTemplate, startTime);

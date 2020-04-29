@@ -5,5 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Design", "CA1063:Implement IDisposable Correctly", Justification = "No unmanaged resources are used")]
 [assembly: SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Code should be fail-safe")]

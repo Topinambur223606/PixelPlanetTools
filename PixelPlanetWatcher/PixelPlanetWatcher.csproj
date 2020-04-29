@@ -3,8 +3,8 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetWatcher</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>3.0.0.2</FileVersion>
-    <AssemblyVersion>3.0.0.2</AssemblyVersion>
+    <FileVersion>3.0.0.3</FileVersion>
+    <AssemblyVersion>3.0.0.3</AssemblyVersion>
     <Version>3.0</Version>
     <RootNamespace>PixelPlanetWatcher</RootNamespace>
     <Authors>Topinambur223606</Authors>
