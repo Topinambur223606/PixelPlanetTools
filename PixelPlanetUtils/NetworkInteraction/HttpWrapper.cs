@@ -83,7 +83,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                                 using (StreamReader sr = new StreamReader(response.GetResponseStream()))
                                 {
                                     string responseString = sr.ReadToEnd();
-                                    Logger.LogDebug($"PlacePixel(): response - {responseString}");
+                                    Logger?.LogDebug($"PlacePixel(): response - {responseString}");
                                     JObject json = JObject.Parse(responseString);
                                     if (bool.TryParse(json["success"].ToString(), out bool success) && success)
                                     {
@@ -199,7 +199,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             catch (AggregateException ex)
             {
-                Logger.LogDebug($"SendRequest(): aggregate exception while sending request, {ex.InnerExceptions.Count} exceptions: {string.Join("; ", ex.InnerExceptions.Select(e => e.Message))}");
+                Logger?.LogDebug($"SendRequest(): aggregate exception while sending request, {ex.InnerExceptions.Count} exceptions: {string.Join("; ", ex.InnerExceptions.Select(e => e.Message))}");
                 throw ex.GetBaseException();
             }
         }
