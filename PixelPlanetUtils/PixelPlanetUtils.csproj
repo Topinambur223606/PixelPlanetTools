@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetUtils</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>5.0.0.3</FileVersion>
-    <AssemblyVersion>5.0.0.3</AssemblyVersion>
-    <Version>5.0</Version>
+    <FileVersion>5.0.1.1</FileVersion>
+    <AssemblyVersion>5.0.1.1</AssemblyVersion>
+    <Version>5.0.1</Version>
     <OutputType>Library</OutputType>
     <RootNamespace>PixelPlanetUtils</RootNamespace>
     <Authors>Topinambur223606</Authors>
