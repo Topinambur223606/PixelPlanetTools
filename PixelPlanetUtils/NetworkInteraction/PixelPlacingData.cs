@@ -12,9 +12,6 @@ namespace PixelPlanetUtils.NetworkInteraction
         [DataMember(Name = "clr")]
         public EarthPixelColor Color { get; set; }
 
-        [DataMember(Name = "a")]
-        public int ValidationSum => AbsoluteX + AbsoluteY + 8;
-
         [DataMember(Name = "x")]
         public int AbsoluteX;
 
