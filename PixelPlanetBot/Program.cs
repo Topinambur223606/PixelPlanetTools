@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -38,6 +39,7 @@ namespace PixelPlanetBot
         private static volatile int builtInLastMinute = 0;
         private static volatile int griefedInLastMinute = 0;
         private static bool checkUpdates;
+        private static ProxySettings proxySettings;
         private static readonly Queue<int> doneInPast = new Queue<int>();
         private static readonly Queue<int> builtInPast = new Queue<int>();
         private static readonly Queue<int> griefedInPast = new Queue<int>();
@@ -82,7 +84,6 @@ namespace PixelPlanetBot
                     ShowDebugLogs = options?.ShowDebugLogs ?? false
                 };
                 logger.LogDebug("Command line: " + Environment.CommandLine);
-                HttpWrapper.Logger = logger;
 
                 if (checkUpdates || !options.DisableUpdates)
                 {
@@ -154,23 +155,12 @@ namespace PixelPlanetBot
                 {
                     try
                     {
-                        HttpWrapper.ConnectToApi();
                         MainWorkingBody();
                         return;
                     }
-                    catch (PausingException ex)
-                    {
-                        logger.LogError($"Unhandled exception: {ex.Message}");
-                        logger.LogInfo($"Check that problem is resolved and press any key to continue");
-                        while (Console.KeyAvailable)
-                        {
-                            Console.ReadKey(true);
-                        }
-                        Console.ReadKey(true);
-                    }
                     catch (Exception ex)
                     {
-                        logger.LogError($"Unhandled exception: {ex.Message}");
+                        logger.LogError($"Unhandled exception: {ex.GetBaseException().Message}");
                         int delay = repeatingFails ? 30 : 10;
                         repeatingFails = true;
                         logger.LogTechState($"Reconnecting in {delay} seconds...");
@@ -181,7 +171,7 @@ namespace PixelPlanetBot
             }
             catch (Exception ex)
             {
-                string msg = $"Unhandled app level exception: {ex.Message}";
+                string msg = $"Unhandled app level exception: {ex.GetBaseException().Message}";
                 if (logger != null)
                 {
                     logger.LogError(msg);
@@ -232,14 +222,14 @@ namespace PixelPlanetBot
                     .WithParsed<BotOptions>(o =>
                     {
                         options = o;
-                        if (!string.IsNullOrWhiteSpace(o.Proxy))
+                        if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
                         {
-                            var proxy = new WebProxy(o.Proxy);
-                            if (o.ProxyUsername != null)
+                            proxySettings = new ProxySettings
                             {
-                                proxy.Credentials = new NetworkCredential(o.ProxyUsername, o.ProxyPassword);
-                            }
-                            HttpWrapper.Proxy = proxy;
+                                Address = o.ProxyAddress,
+                                Username = o.ProxyUsername,
+                                Password = o.ProxyPassword
+                            };
                             if (o.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
                             {
                                 Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
@@ -347,7 +337,7 @@ namespace PixelPlanetBot
 
         private static void MainWorkingBody()
         {
-            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false))
+            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false, proxySettings))
             {
                 wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
                 cache.Wrapper = wrapper;
@@ -375,25 +365,40 @@ namespace PixelPlanetBot
                             do
                             {
                                 wrapper.WaitWebsocketConnected();
-                                success = HttpWrapper.PlacePixel(x, y, color, out double cd, out double totalCd, out string error);
+                                wrapper.PlacePixel(x, y, color);
+                                var response = wrapper.GetPlacePixelResponse();
+
+                                success = response.ReturnCode == ReturnCode.Success;
                                 if (success)
                                 {
-                                    logger.LogPixel($"{(cd == 4 ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
-                                    Thread.Sleep(TimeSpan.FromSeconds(totalCd < 53 ? 1 : cd));
+                                    bool placed = actualColor == EarthPixelColor.UnsetLand || actualColor == EarthPixelColor.UnsetOcean;
+                                    logger.LogPixel($"{(placed ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
+                                    if (response.Wait < 53000)
+                                    {
+                                        Thread.Sleep(TimeSpan.FromSeconds(1));
+                                    }
+                                    else
+                                    {
+                                        Thread.Sleep(TimeSpan.FromSeconds(response.CoolDownSeconds));
+                                    }
                                 }
                                 else
                                 {
-                                    logger.LogDebug($"MainWorkingBody(): pixel placing handled error {error}");
-                                    if (error == "captcha")
+                                    logger.LogDebug($"MainWorkingBody(): pixel placing handled error {response.ReturnCode}");
+                                    if (response.ReturnCode == ReturnCode.Captcha)
                                     {
                                         ProcessCaptcha();
                                     }
                                     else
                                     {
-                                        logger.Log($"Failed to place pixel: {error}", MessageGroup.PixelFail);
+                                        logger.LogPixelFail(response.ReturnCode);
+                                        if (response.ReturnCode != ReturnCode.IpOverused)
+                                        {
+                                            return;
+                                        }
                                     }
-                                    logger.LogDebug($"MainWorkingBody(): sleep {cd:F2} seconds");
-                                    Thread.Sleep(TimeSpan.FromSeconds(cd));
+                                    logger.LogDebug($"MainWorkingBody(): sleep {response.Wait} milliseconds");
+                                    Thread.Sleep(TimeSpan.FromMilliseconds(response.Wait));
                                 }
                             } while (!success);
                         }
@@ -410,7 +415,7 @@ namespace PixelPlanetBot
                                 gotGriefed.WaitOne();
                             }
                             logger.LogDebug("MainWorkingBody(): got griefed");
-                            Thread.Sleep(new Random().Next(500, 3000));
+                            Thread.Sleep(ThreadSafeRandom.Next(500, 3000));
                         }
                     }
                 } while (options.DefenseMode || wasChanged);

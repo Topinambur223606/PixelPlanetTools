@@ -71,7 +71,6 @@ namespace PixelPlanetWatcher
                     ShowDebugLogs = options?.ShowDebugLogs ?? false
                 };
                 logger.LogDebug("Command line: " + Environment.CommandLine);
-                HttpWrapper.Logger = logger;
 
                 if (checkUpdates || !options.DisableUpdates)
                 {
@@ -94,7 +93,6 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        HttpWrapper.ConnectToApi();
                         using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true))
                         {
                             cache.Wrapper = wrapper;

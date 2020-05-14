@@ -1,5 +1,7 @@
 ﻿using PixelPlanetUtils.Canvas;
+using PixelPlanetUtils.NetworkInteraction;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
@@ -56,6 +58,25 @@ namespace PixelPlanetUtils.Logging
         {
             logger.Log(msg, MessageGroup.Update);
         }
+
+        public static void LogPixelFail(this Logger logger, ReturnCode returnCode)
+        {
+            logger.Log($"Failed to place pixel: {errorReasons[returnCode]}", MessageGroup.PixelFail);
+        }
+
+        private static readonly Dictionary<ReturnCode, string> errorReasons = new Dictionary<ReturnCode, string>
+        {
+            [ReturnCode.InvalidCanvas] = "invalid canvas",
+            [ReturnCode.InvalidCoordinateX] = "invalid x coordinate",
+            [ReturnCode.InvalidCoordinateY] = "invalid y coordinate",
+            [ReturnCode.InvalidCoordinateZ] = "invalid z coordinate",
+            [ReturnCode.InvalidColor] = "invalid color",
+            [ReturnCode.RegisteredUsersOnly] = "canvas is for registered users only",
+            [ReturnCode.NotEnoughPlacedForThisCanvas] = "no access to canvas because not enough pixels placed at main canvas",
+            [ReturnCode.ProtectedPixel] = "pixel is protected",
+            [ReturnCode.IpOverused] = "IP is overused",
+            [ReturnCode.ProxyDetected] = "proxy usage is detected"
+        };
 
     }
 

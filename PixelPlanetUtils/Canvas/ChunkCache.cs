@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using XY = System.ValueTuple<byte, byte>;
@@ -96,7 +97,7 @@ namespace PixelPlanetUtils.Canvas
                     try
                     {
                         logger.LogDebug($"DownloadChunks(): downloading chunk {chunkXY}");
-                        byte[] data = HttpWrapper.GetChunkData(chunkXY);
+                        byte[] data = GetChunkData(chunkXY, 0);
                         BinaryConversion.DropPixelProtectionInfo(data);
                         CachedChunks[chunkXY] = BinaryConversion.ToColorRectangle(data, PixelMap.ChunkSideSize, PixelMap.ChunkSideSize);
                         logger.LogDebug($"DownloadChunks(): downloaded chunk  {chunkXY}");
@@ -160,6 +161,15 @@ namespace PixelPlanetUtils.Canvas
             else
             {
                 logger.LogDebug("Wrapper_OnPixelChanged(): pixel is not in loaded area");
+            }
+        }
+
+        private static byte[] GetChunkData(XY chunk, byte canvas)
+        {
+            string url = $"{UrlManager.BaseHttpAdress}/chunks/{canvas}/{chunk.Item1}/{chunk.Item2}.bmp";
+            using (WebClient wc = new WebClient())
+            {
+                return wc.DownloadData(url);
             }
         }
     }

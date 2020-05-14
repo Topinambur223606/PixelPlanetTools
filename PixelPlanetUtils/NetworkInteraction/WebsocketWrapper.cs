@@ -2,6 +2,7 @@
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,12 +19,15 @@ namespace PixelPlanetUtils.NetworkInteraction
     public class WebsocketWrapper : IDisposable
     {
         private readonly Logging.Logger logger;
+        private readonly ProxySettings proxySettings;
 
-        private WebSocket webSocket;
-        private readonly Timer preemptiveWebsocketReplacingTimer = new Timer(29 * 60 * 1000);
+        private readonly WebSocket webSocket;
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
         private readonly HashSet<XY> trackedChunks = new HashSet<XY>();
+        
+        private readonly ConcurrentQueue<PixelReturnData> pixelReturnData = new ConcurrentQueue<PixelReturnData>();
+        private readonly ManualResetEvent pixelReturnResetEvent = new ManualResetEvent(false);
 
         private DateTime disconnectionTime;
         private bool isConnectingNow = false;
@@ -36,16 +40,20 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         private readonly bool listeningMode;
 
-        public WebsocketWrapper(Logging.Logger logger, bool listeningMode)
+        public WebsocketWrapper(Logging.Logger logger, bool listeningMode, ProxySettings proxySettings)
         {
             if (this.listeningMode = listeningMode)
             {
                 listeningResetEvent = new ManualResetEvent(false);
             }
             this.logger = logger;
-            preemptiveWebsocketReplacingTimer.Elapsed += PreemptiveWebsocketReplacingTimer_Elapsed;
+            this.proxySettings = proxySettings;
             webSocket = new WebSocket(UrlManager.WebSocketUrl);
             webSocket.Log.Output = LogWebsocketOutput;
+            if (proxySettings != null)
+            {
+                webSocket.SetProxy(proxySettings.Address, proxySettings.Username, proxySettings.Password);
+            }
             webSocket.OnOpen += WebSocket_OnOpen;
             webSocket.OnMessage += WebSocket_OnMessage;
             webSocket.OnClose += WebSocket_OnClose;
@@ -71,6 +79,47 @@ namespace PixelPlanetUtils.NetworkInteraction
                     RegisterChunk(chunk);
                 }
             }
+        }
+
+        public void PlacePixel(short x, short y, EarthPixelColor color)
+        {
+            logger.LogDebug($"PlacePixel(): {color} at ({x};{y})");
+            WaitWebsocketConnected();
+            if (disposed)
+            {
+                logger.LogDebug($"PlacePixel(): already disposed");
+                return;
+            }
+            PixelMap.ConvertToRelative(x, out byte chunkX, out byte relativeX);
+            PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);
+            byte[] data = new byte[7]
+            {
+                (byte)Opcode.PixelUpdated,
+                chunkX,
+                chunkY,
+                0,
+                relativeY,
+                relativeX,
+                (byte)color
+            };
+            logger.LogDebug($"PlacePixel(): Sending data {DataToString(data)}");
+            webSocket.Send(data);
+        }
+
+        public PixelReturnData GetPlacePixelResponse(int timeout = 5000)
+        {
+            logger.LogDebug("GetPlacePixelResponse(): waiting for response");
+            bool received = pixelReturnResetEvent.WaitOne(timeout);
+            if (!received || !pixelReturnData.TryDequeue(out PixelReturnData result))
+            {
+                logger.LogError("No response after placing pixel");
+                return null;
+            }
+            if (pixelReturnData.Count == 0)
+            {
+                pixelReturnResetEvent.Reset();
+            }
+            return result;
         }
 
         public void StartListening()
@@ -176,42 +225,9 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
-        private void PreemptiveWebsocketReplacingTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed() started");
-            preemptiveWebsocketReplacingTimer.Stop();
-            WebSocket newWebSocket = new WebSocket(UrlManager.WebSocketUrl);
-            newWebSocket.Log.Output = LogWebsocketOutput;
-            newWebSocket.Connect();
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): new websocket connected");
-            preemptiveWebsocketReplacingTimer.Start();
-            WebSocket oldWebSocket = webSocket;
-            webSocket = newWebSocket;
-            SubscribeToCanvas();
-            if (trackedChunks.Count == 1)
-            {
-                RegisterChunk(trackedChunks.Single());
-            }
-            else
-            {
-                RegisterMultipleChunks(trackedChunks);
-            }
-            logger.LogDebug("PreemptiveWebsocketReplacingTimer_Elapsed(): event resubscribing");
-            newWebSocket.OnOpen += WebSocket_OnOpen;
-            oldWebSocket.OnOpen -= WebSocket_OnOpen;
-            newWebSocket.OnMessage += WebSocket_OnMessage;
-            oldWebSocket.OnMessage -= WebSocket_OnMessage;
-            newWebSocket.OnClose += WebSocket_OnClose;
-            oldWebSocket.OnClose -= WebSocket_OnClose;
-            newWebSocket.OnError += WebSocket_OnError;
-            oldWebSocket.OnError -= WebSocket_OnError;
-            (oldWebSocket as IDisposable).Dispose();
-        }
-
         private void WebSocket_OnClose(object sender, CloseEventArgs e)
         {
             logger.LogDebug("WebSocket_OnClose(): start");
-            preemptiveWebsocketReplacingTimer.Stop();
             if (!isConnectingNow)
             {
                 disconnectionTime = DateTime.Now;
@@ -257,6 +273,30 @@ namespace PixelPlanetUtils.NetworkInteraction
                 logger.LogDebug($"WebSocket_OnMessage(): pixel update: {args.Color} at {args.Chunk}:{args.Pixel}");
                 OnPixelChanged?.Invoke(this, args);
             }
+            else if (data[0] == (byte)Opcode.PixelReturn)
+            {
+                logger.LogDebug($"WebSocket_OnMessage(): got pixel return {DataToString(data)}");
+                byte returnCode = data[1];
+                byte[] wait, coolDown;
+                if (BitConverter.IsLittleEndian)
+                {
+                    wait = new byte[4] { data[5], data[4], data[3], data[2] };
+                    coolDown = new byte[2] { data[7], data[6] };
+                }
+                else
+                {
+                    wait = new byte[4] { data[2], data[3], data[4], data[5] };
+                    coolDown = new byte[2] { data[6], data[7] };
+                }
+                PixelReturnData received = new PixelReturnData
+                {
+                    ReturnCode = (ReturnCode)returnCode,
+                    Wait = BitConverter.ToUInt32(wait, 0),
+                    CoolDownSeconds = BitConverter.ToInt16(coolDown, 0)
+                };
+                pixelReturnData.Enqueue(received);
+                pixelReturnResetEvent.Set();
+            }
             else if (!listeningMode && data[0] == (byte)Opcode.Cooldown)
             {
                 logger.LogDebug($"WebSocket_OnMessage(): got cooldown {DataToString(data)}");
@@ -289,9 +329,6 @@ namespace PixelPlanetUtils.NetworkInteraction
                 OnConnectionRestored?.Invoke(this, new ConnectionRestoredEventArgs(disconnectionTime));
             }
             initialConnection = false;
-            logger.LogDebug($"WebSocket_OnOpen(): preemptive reconnection timer reset");
-            preemptiveWebsocketReplacingTimer.Stop();
-            preemptiveWebsocketReplacingTimer.Start();
         }
 
         private void LogWebsocketOutput(LogData d, string s)
@@ -326,9 +363,9 @@ namespace PixelPlanetUtils.NetworkInteraction
                 webSocket.OnError -= WebSocket_OnError;
                 webSocket.OnClose -= WebSocket_OnClose;
                 (webSocket as IDisposable).Dispose();
-                preemptiveWebsocketReplacingTimer.Dispose();
                 OnPixelChanged = null;
                 websocketResetEvent.Dispose();
+                pixelReturnResetEvent.Dispose();
                 if (listeningMode)
                 {
                     listeningResetEvent.Dispose();
