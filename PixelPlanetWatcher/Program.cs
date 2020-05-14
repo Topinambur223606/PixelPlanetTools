@@ -93,7 +93,7 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true))
+                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true, null))
                         {
                             cache.Wrapper = wrapper;
                             if (!initialMapSavingStarted)
