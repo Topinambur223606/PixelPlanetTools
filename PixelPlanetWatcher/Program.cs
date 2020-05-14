@@ -140,12 +140,12 @@ namespace PixelPlanetWatcher
                 }
                 finishCTS.Dispose();
                 logger?.Dispose();
+                Console.ForegroundColor = ConsoleColor.White;
                 if (saveThread != null && !saveThread.Join(TimeSpan.FromMinutes(1)))
                 {
                     Console.WriteLine("Save thread doesn't finish, aborting");
+                    Environment.Exit(0);
                 }
-                Console.ForegroundColor = ConsoleColor.White;
-                Environment.Exit(0);
             }
         }
 

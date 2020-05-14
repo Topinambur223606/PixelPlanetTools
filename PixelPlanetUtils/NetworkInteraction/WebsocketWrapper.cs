@@ -94,7 +94,7 @@ namespace PixelPlanetUtils.NetworkInteraction
             PixelMap.ConvertToRelative(y, out byte chunkY, out byte relativeY);
             byte[] data = new byte[7]
             {
-                (byte)Opcode.PixelUpdated,
+                (byte)Opcode.PixelUpdate,
                 chunkX,
                 chunkY,
                 0,
@@ -251,11 +251,11 @@ namespace PixelPlanetUtils.NetworkInteraction
         private void WebSocket_OnMessage(object sender, MessageEventArgs e)
         {
             byte[] data = e.RawData;
-            if (data.Length == 0)
+            if (!e.IsBinary || data.Length == 0)
             {
                 return;
             }
-            if (data[0] == (byte)Opcode.PixelUpdated)
+            if (data[0] == (byte)Opcode.PixelUpdate)
             {
                 logger.LogDebug($"WebSocket_OnMessage(): got pixel update {DataToString(data)}");
                 byte chunkX = data[1];

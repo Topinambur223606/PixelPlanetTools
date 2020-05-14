@@ -198,7 +198,6 @@ namespace PixelPlanetBot
                 logger?.Dispose();
                 finishCTS.Dispose();
                 Console.ForegroundColor = ConsoleColor.White;
-                Environment.Exit(0);
             }
         }
 
@@ -249,6 +248,7 @@ namespace PixelPlanetBot
                 return success;
             }
         }
+        
         private static double OutlineCriteria(Pixel p)
         {
             const int radius = 3;
