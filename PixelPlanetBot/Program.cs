@@ -368,6 +368,13 @@ namespace PixelPlanetBot
                                 wrapper.PlacePixel(x, y, color);
                                 var response = wrapper.GetPlacePixelResponse();
 
+                                if (response == null)
+                                {
+                                    logger.LogError("Site didn't respond after placing pixel");
+                                    success = false;
+                                    continue;
+                                }
+
                                 success = response.ReturnCode == ReturnCode.Success;
                                 if (success)
                                 {
