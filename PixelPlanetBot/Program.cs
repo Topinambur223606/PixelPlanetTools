@@ -11,7 +11,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -248,7 +247,7 @@ namespace PixelPlanetBot
                 return success;
             }
         }
-        
+
         private static double OutlineCriteria(Pixel p)
         {
             const int radius = 3;
@@ -370,7 +369,6 @@ namespace PixelPlanetBot
 
                                 if (response == null)
                                 {
-                                    logger.LogError("Site didn't respond after placing pixel");
                                     success = false;
                                     continue;
                                 }

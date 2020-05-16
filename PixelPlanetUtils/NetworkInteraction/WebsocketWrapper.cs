@@ -9,9 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 using WebSocketSharp;
-using Timer = System.Timers.Timer;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetUtils.NetworkInteraction
@@ -19,13 +17,12 @@ namespace PixelPlanetUtils.NetworkInteraction
     public class WebsocketWrapper : IDisposable
     {
         private readonly Logging.Logger logger;
-        private readonly ProxySettings proxySettings;
 
         private readonly WebSocket webSocket;
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
         private readonly ManualResetEvent listeningResetEvent;
         private readonly HashSet<XY> trackedChunks = new HashSet<XY>();
-        
+
         private readonly ConcurrentQueue<PixelReturnData> pixelReturnData = new ConcurrentQueue<PixelReturnData>();
         private readonly ManualResetEvent pixelReturnResetEvent = new ManualResetEvent(false);
 
@@ -47,7 +44,6 @@ namespace PixelPlanetUtils.NetworkInteraction
                 listeningResetEvent = new ManualResetEvent(false);
             }
             this.logger = logger;
-            this.proxySettings = proxySettings;
             webSocket = new WebSocket(UrlManager.WebSocketUrl);
             webSocket.Log.Output = LogWebsocketOutput;
             if (proxySettings != null)
