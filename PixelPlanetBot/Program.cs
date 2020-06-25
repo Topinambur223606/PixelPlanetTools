@@ -378,13 +378,13 @@ namespace PixelPlanetBot
                                 {
                                     bool placed = actualColor == EarthPixelColor.UnsetLand || actualColor == EarthPixelColor.UnsetOcean;
                                     logger.LogPixel($"{(placed ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, color);
-                                    if (response.Wait < 53000)
+                                    if (response.Wait > 53000 || response.CoolDownSeconds > 7)
                                     {
-                                        Thread.Sleep(TimeSpan.FromSeconds(1));
+                                        Thread.Sleep(TimeSpan.FromSeconds(response.CoolDownSeconds));
                                     }
                                     else
                                     {
-                                        Thread.Sleep(TimeSpan.FromSeconds(response.CoolDownSeconds));
+                                        Thread.Sleep(TimeSpan.FromSeconds(1));
                                     }
                                 }
                                 else
