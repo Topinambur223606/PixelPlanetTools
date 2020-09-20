@@ -36,7 +36,7 @@ Program that builds picture (surprisingly).
 - `-y, --topY` - **required**, Y coordinate of top picture pixel;
 - `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
-- `--notificationMode` - defines bot behaviour when captcha appears, possible values: `sound` (default value), `browser`, `both`;
+- `--notificationMode` - defines bot behaviour when captcha appears, possible values: `none`, `sound` (default value), `browser`, `both`;
 - `--placingOrder` - determines pixels priority for bot, possible values: `random` (default value), `left`, `right`, `top`, `bottom`, `outline`;
 - `--proxyAddress` - proxy that is used by bot, address includes port, empty by default;
 - `--proxyUsername` - username for connecting to proxy, empty by default, no proxy authorization if not specified;
