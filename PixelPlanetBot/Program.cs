@@ -222,6 +222,24 @@ namespace PixelPlanetBot
                         options = o;
                         if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
                         {
+                            var protocolLength = o.ProxyAddress.IndexOf("://");
+                            if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                if (protocolLength > -1)
+                                {
+                                    o.ProxyAddress = "http" + o.ProxyAddress.Substring(protocolLength);
+                                }
+                                else
+                                {
+                                    o.ProxyAddress = "http://" + o.ProxyAddress;
+                                }
+                            }
+                            if (!Uri.IsWellFormedUriString(o.ProxyAddress, UriKind.Absolute))
+                            {
+                                Console.WriteLine("Invalid proxy address");
+                                success = false;
+                            }
+
                             proxySettings = new ProxySettings
                             {
                                 Address = o.ProxyAddress,
