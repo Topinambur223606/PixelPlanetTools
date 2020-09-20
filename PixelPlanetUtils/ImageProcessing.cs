@@ -14,12 +14,12 @@ namespace PixelPlanetUtils
 
         private static readonly Rgba32[] colors = new Rgba32[30]
         {
-           Rgba32.White,
+           Color.White,
            new Rgba32(228, 228, 228),
            new Rgba32(196, 196, 196),
            new Rgba32(136, 136, 136),
            new Rgba32(78, 78, 78),
-           Rgba32.Black,
+           Color.Black,
            new Rgba32(244, 179, 174),
            new Rgba32(255, 167, 209),
            new Rgba32(255,  84, 178),
@@ -50,7 +50,7 @@ namespace PixelPlanetUtils
         {
             if (color == EarthPixelColor.None)
             {
-                return Rgba32.Transparent;
+                return Color.Transparent;
             }
             if (color == EarthPixelColor.UnsetOcean)
             {

@@ -3,8 +3,8 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetBot</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>5.1.1.2</FileVersion>
-    <AssemblyVersion>5.1.1.2</AssemblyVersion>
+    <FileVersion>5.1.1.3</FileVersion>
+    <AssemblyVersion>5.1.1.3</AssemblyVersion>
     <Version>5.1.1</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
     <Authors>Topinambur223606</Authors>
@@ -12,7 +12,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" Version="2.7.82" />
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
   </ItemGroup>
 
   <ItemGroup>
