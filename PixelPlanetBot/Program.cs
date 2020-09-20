@@ -48,34 +48,9 @@ namespace PixelPlanetBot
         {
             try
             {
-                if (!ParseArguments(args, out bool isVerbError))
+                if (!ParseArguments(args))
                 {
-                    bool exit = true;
-                    if (isVerbError)
-                    {
-                        Console.WriteLine("No command was found");
-                        Console.WriteLine("Check if your scripts are updated with 'run' command before other parameters");
-                        Console.WriteLine();
-                        Console.WriteLine("If you want to start bot with 'run' command added, press Enter");
-                        Console.WriteLine("Please note that this option is added for compatibility with older scripts and will be removed soon");
-                        Console.WriteLine("Press any other key to exit");
-                        while (Console.KeyAvailable)
-                        {
-                            Console.ReadKey(true);
-                        }
-                        if (Console.ReadKey(true).Key == ConsoleKey.Enter)
-                        {
-                            Console.Clear();
-                            if (ParseArguments(args.Prepend("run"), out _))
-                            {
-                                exit = false;
-                            }
-                        }
-                    }
-                    if (exit)
-                    {
-                        return;
-                    }
+                    return;
                 }
 
                 logger = new Logger(options?.LogFilePath, finishCTS.Token)
@@ -200,9 +175,8 @@ namespace PixelPlanetBot
             }
         }
 
-        private static bool ParseArguments(IEnumerable<string> args, out bool isVerbError)
+        private static bool ParseArguments(IEnumerable<string> args)
         {
-            bool noVerb = false;
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -211,11 +185,7 @@ namespace PixelPlanetBot
             {
                 bool success = true;
                 parser.ParseArguments<BotOptions, CheckUpdatesOption>(args)
-                    .WithNotParsed(e =>
-                    {
-                        noVerb = e.Any(err => err.Tag == ErrorType.NoVerbSelectedError || err.Tag == ErrorType.BadVerbSelectedError);
-                        success = false;
-                    })
+                    .WithNotParsed(e => success = false)
                     .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
                     .WithParsed<BotOptions>(o =>
                     {
@@ -261,7 +231,6 @@ namespace PixelPlanetBot
                             UrlManager.BaseUrl = o.ServerUrl;
                         }
                     });
-                isVerbError = noVerb;
                 return success;
             }
         }
