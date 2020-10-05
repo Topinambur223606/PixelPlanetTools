@@ -18,10 +18,10 @@ namespace PixelPlanetBot
         [Option('d', "defenseMode", Default = false, HelpText = "Determines whether app continues observation and defense after picture building is finished")]
         public bool DefenseMode { get; set; }
 
-        [Option("notificationMode", Default = CaptchaNotificationMode.Sound, HelpText = "Determines how app reacts to captcha (sound, browser, both)")]
+        [Option("notificationMode", Default = CaptchaNotificationMode.Sound, HelpText = "Determines how app reacts to captcha. Available options: sound, browser, both, none")]
         public CaptchaNotificationMode NotificationMode { get; set; }
 
-        [Option("placingOrder", Default = PlacingOrderMode.Random, HelpText = "Determines how app places pixels (random, left, right, top, bottom, outline)")]
+        [Option("placingOrder", Default = PlacingOrderMode.Random, HelpText = "Determines how app places pixels. Available options: random, outline,\r\nleft, right, top, bottom, combined directional (e.g. leftTop, bottomRight)")]
         public PlacingOrderMode PlacingOrderMode { get; set; }
 
         [Option("proxyAddress", Default = null, HelpText = "Proxy address that is used for placing pixels")]

@@ -281,34 +281,70 @@ namespace PixelPlanetBot
 
             try
             {
-                switch (options.PlacingOrderMode)
+
+                if (options.PlacingOrderMode == PlacingOrderMode.Outline)
                 {
-                    case PlacingOrderMode.Left:
-                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
-                        break;
-                    case PlacingOrderMode.Right:
-                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item1).ThenBy(e => Guid.NewGuid());
-                        break;
-                    case PlacingOrderMode.Top:
-                        relativePixelsToBuild = nonEmptyPixels.OrderBy(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
-                        break;
-                    case PlacingOrderMode.Bottom:
-                        relativePixelsToBuild = nonEmptyPixels.OrderByDescending(xy => xy.Item2).ThenBy(e => Guid.NewGuid());
-                        break;
-                    case PlacingOrderMode.Outline:
-                        relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(OutlineCriteria);
-                        break;
-                    default:
-                        Random rnd = new Random();
-                        for (int i = 0; i < nonEmptyPixels.Count; i++)
-                        {
-                            int r = rnd.Next(i, nonEmptyPixels.Count);
-                            Pixel tmp = nonEmptyPixels[r];
-                            nonEmptyPixels[r] = nonEmptyPixels[i];
-                            nonEmptyPixels[i] = tmp;
-                        }
-                        relativePixelsToBuild = nonEmptyPixels;
-                        break;
+                    relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(OutlineCriteria);
+                }
+                else if (options.PlacingOrderMode == PlacingOrderMode.Random)
+                {
+                    Random rnd = new Random();
+                    for (int i = 0; i < nonEmptyPixels.Count; i++)
+                    {
+                        int r = rnd.Next(i, nonEmptyPixels.Count);
+                        Pixel tmp = nonEmptyPixels[r];
+                        nonEmptyPixels[r] = nonEmptyPixels[i];
+                        nonEmptyPixels[i] = tmp;
+                    }
+                    relativePixelsToBuild = nonEmptyPixels;
+                }
+                else
+                {
+                    OrderedParallelQuery<Pixel> sortedParallel;
+                    ParallelQuery<Pixel> nonEmptyParallel = nonEmptyPixels.AsParallel();
+
+                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Left))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item1);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Right))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item1);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Top))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item2);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Bottom))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item2);
+                    }
+                    else
+                    {
+                        throw new Exception($"{options.PlacingOrderMode} is not valid placing order mode");
+                    }
+
+                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenLeft))
+                    {
+                        sortedParallel = sortedParallel.ThenBy(xy => xy.Item1);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenRight))
+                    {
+                        sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item1);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenTop))
+                    {
+                        sortedParallel = sortedParallel.ThenBy(xy => xy.Item2);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenBottom))
+                    {
+                        sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item2);
+                    }
+                    else
+                    {
+                        sortedParallel = sortedParallel.ThenBy(e => Guid.NewGuid());
+                    }
+                    relativePixelsToBuild = sortedParallel;
                 }
                 pixelsToBuild = relativePixelsToBuild
                     .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
