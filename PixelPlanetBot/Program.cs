@@ -319,6 +319,23 @@ namespace PixelPlanetBot
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item2);
                     }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Color))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item3);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorDsc))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item3);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorRnd))
+                    {
+                        Dictionary<EarthPixelColor, Guid> colorOrder =
+                            Enum.GetValues(typeof(EarthPixelColor))
+                                .Cast<EarthPixelColor>()
+                                .ToDictionary(c => c, c => Guid.NewGuid());
+
+                        sortedParallel = nonEmptyParallel.OrderBy(xy => colorOrder[xy.Item3]);
+                    }
                     else
                     {
                         throw new Exception($"{options.PlacingOrderMode} is not valid placing order mode");
