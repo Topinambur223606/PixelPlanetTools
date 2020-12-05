@@ -7,9 +7,31 @@ namespace PixelPlanetUtils.Canvas
     {
         public static void DropPixelProtectionInfo(byte[] rawData)
         {
-            for (int j = 0; j < rawData.Length; j++)
+            if (rawData.Length == 0)
             {
-                rawData[j] &= 0x3F; //remove first 2 bits that indicate if pixel is protected
+                return;
+            }
+
+            const byte mask8 = 0x3f; //first 2 bits contain flags
+            const ulong mask64 = 0x3f3f3f3f3f3f3f3f;
+
+            int length64 = rawData.Length / sizeof(ulong);
+
+            unsafe
+            {
+                fixed (byte* arr = &rawData[0])
+                {
+                    ulong* longArr = (ulong*)arr;
+                    for (int j = 0; j < length64; j++)
+                    {
+                        longArr[j] &= mask64;
+                    }
+                }
+            }
+
+            for (int j = sizeof(ulong) * length64; j < rawData.Length; j++)
+            {
+                rawData[j] &= mask8;
             }
         }
 
