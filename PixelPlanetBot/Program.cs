@@ -192,7 +192,7 @@ namespace PixelPlanetBot
                         options = o;
                         if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
                         {
-                            var protocolLength = o.ProxyAddress.IndexOf("://");
+                            int protocolLength = o.ProxyAddress.IndexOf("://");
                             if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
                             {
                                 if (protocolLength > -1)
@@ -323,7 +323,7 @@ namespace PixelPlanetBot
                     {
                         sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item3);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorDsc))
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorDesc))
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item3);
                     }
@@ -405,7 +405,7 @@ namespace PixelPlanetBot
                             {
                                 wrapper.WaitWebsocketConnected();
                                 wrapper.PlacePixel(x, y, color);
-                                var response = wrapper.GetPlacePixelResponse();
+                                PixelReturnData response = wrapper.GetPlacePixelResponse();
 
                                 if (response == null)
                                 {

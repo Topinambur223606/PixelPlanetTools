@@ -21,7 +21,7 @@ namespace PixelPlanetBot
         [Option("notificationMode", Default = CaptchaNotificationMode.Sound, HelpText = "Determines how app reacts to captcha. Available options: sound, browser, both, none")]
         public CaptchaNotificationMode NotificationMode { get; set; }
 
-        [Option("placingOrder", Default = PlacingOrderMode.Random, HelpText = "Determines how app places pixels. Available options: random, outline,\r\nleft, right, top, bottom, combined directional (e.g. leftTop, bottomRight)")]
+        [Option("placingOrder", Default = PlacingOrderMode.Random, HelpText = "Determines how app places pixels. Available options: random, outline, left, right, top, bottom, color, colorDsc, colorRnd, combined directional (e.g. leftTop, bottomRight), color-directional (e.g. colorTop, colorDescBottom, colorRndRight)")]
         public PlacingOrderMode PlacingOrderMode { get; set; }
 
         [Option("proxyAddress", Default = null, HelpText = "Proxy address that is used for placing pixels")]
