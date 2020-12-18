@@ -33,6 +33,7 @@ namespace PixelPlanetBot
         private static ChunkCache cache;
         private static ushort width, height;
         private static EarthPixelColor[,] imagePixels;
+        private static ushort[,] brightnessOrderMask;
         private static IEnumerable<Pixel> pixelsToBuild;
 
         private static volatile int builtInLastMinute = 0;
@@ -70,6 +71,10 @@ namespace PixelPlanetBot
                 try
                 {
                     imagePixels = ImageProcessing.PixelColorsByUri(options.ImagePath, logger);
+                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
+                    {
+                        brightnessOrderMask = ImageProcessing.GetBrightnessOrder(options.BrightnessMaskImagePath, logger);
+                    }
                 }
                 catch (WebException ex)
                 {
@@ -336,6 +341,10 @@ namespace PixelPlanetBot
 
                         sortedParallel = nonEmptyParallel.OrderBy(xy => colorOrder[xy.Item3]);
                     }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
+                    {
+                        sortedParallel = nonEmptyParallel.OrderBy(xy => brightnessOrderMask[xy.Item1, xy.Item2]);
+                    }
                     else
                     {
                         throw new Exception($"{options.PlacingOrderMode} is not valid placing order mode");
@@ -356,6 +365,23 @@ namespace PixelPlanetBot
                     else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenBottom))
                     {
                         sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item2);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColor))
+                    {
+                        sortedParallel = sortedParallel.ThenBy(xy => xy.Item3);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorDesc))
+                    {
+                        sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item3);
+                    }
+                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorRnd))
+                    {
+                        Dictionary<EarthPixelColor, Guid> colorOrder =
+                            Enum.GetValues(typeof(EarthPixelColor))
+                                .Cast<EarthPixelColor>()
+                                .ToDictionary(c => c, c => Guid.NewGuid());
+
+                        sortedParallel = sortedParallel.ThenBy(xy => colorOrder[xy.Item3]);
                     }
                     else
                     {

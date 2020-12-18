@@ -133,5 +133,32 @@ namespace PixelPlanetUtils
             }
             return (EarthPixelColor)(index + 2);
         }
+
+        public static ushort[,] GetBrightnessOrder(string imageUri, Logger logger)
+        {
+            logger.LogTechState("Downloading brightness order image...");
+            using (WebClient wc = new WebClient())
+            {
+                logger.LogDebug($"GetBrightnessOrder(): URI - {imageUri}");
+                byte[] data = wc.DownloadData(imageUri);
+                using (Image<L16> image = Image.Load<L16>(data))
+                {
+                    logger.LogTechInfo("Image is downloaded");
+                    logger.LogTechState("Converting image...");
+                    int w = image.Width;
+                    int h = image.Height;
+                    ushort[,] res = new ushort[w, h];
+                    Parallel.For(0, w, x =>
+                    {
+                        for (int y = 0; y < h; y++)
+                        {
+                            res[x, y] = image[x, y].PackedValue;
+                        }
+                    });
+                    logger.LogTechInfo("Image is converted");
+                    return res;
+                }
+            }
+        }
     }
 }

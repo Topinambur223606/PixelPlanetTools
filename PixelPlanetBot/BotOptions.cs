@@ -32,5 +32,8 @@ namespace PixelPlanetBot
 
         [Option("proxyPassword", Default = null, HelpText = "Password for connecting to proxy if specified")]
         public string ProxyPassword { get; set; }
+
+        [Option("brightnessMaskPath", HelpText = "Path to the image for advanced pixel placing order management, URL, local absolute or relative")]
+        public string BrightnessMaskImagePath { get; set; }
     }
 }

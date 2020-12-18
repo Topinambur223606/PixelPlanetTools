@@ -5,22 +5,42 @@ namespace PixelPlanetBot
     [Flags]
     enum PlacingOrderMode
     {
-        Random = 0b10_0000_000_0000,
-        Outline = 0b01_0000_000_0000,
+        #region self-sufficient modes
 
-        Left = 0b00_1000_000_0000,
-        Right = 0b00_0100_000_0000,
-        Top = 0b00_0010_000_0000,
-        Bottom = 0b00_0001_000_0000,
+        Random =        0b10__0_0000_000__0000_000,
+        Outline =       0b01__0_0000_000__0000_000,
 
-        Color = 0b00_0000_100_0000,
-        ColorDesc = 0b00_0000_010_0000,
-        ColorRnd = 0b00_0000_001_0000,
+        #endregion
 
-        ThenLeft = 0b00_0000_000_1000,
-        ThenRight = 0b00_0000_000_0100,
-        ThenTop = 0b00_0000_000_0010,
-        ThenBottom = 0b00_0000_000_0001,
+        #region "first by" modes
+
+        Mask =          0b00__1_0000_000__0000_000,
+
+        Left =          0b00__0_1000_000__0000_000,
+        Right =         0b00__0_0100_000__0000_000,
+        Top =           0b00__0_0010_000__0000_000,
+        Bottom =        0b00__0_0001_000__0000_000,
+
+        Color =         0b00__0_0000_100__0000_000,
+        ColorDesc =     0b00__0_0000_010__0000_000,
+        ColorRnd =      0b00__0_0000_001__0000_000,
+
+        #endregion
+
+        #region "then by" modes
+
+        ThenLeft =      0b00__0_0000_000__1000_000,
+        ThenRight =     0b00__0_0000_000__0100_000,
+        ThenTop =       0b00__0_0000_000__0010_000,
+        ThenBottom =    0b00__0_0000_000__0001_000,
+
+        ThenColor =     0b00__0_0000_000__0000_100,
+        ThenColorDesc = 0b00__0_0000_000__0000_010,
+        ThenColorRnd =  0b00__0_0000_000__0000_001,
+
+        #endregion
+
+        #region "first"-"then" modes combined
 
         LeftTop = Left | ThenTop,
         LeftBottom = Left | ThenBottom,
@@ -47,6 +67,16 @@ namespace PixelPlanetBot
         ColorRndTop = ColorRnd | ThenTop,
         ColorRndBottom = ColorRnd | ThenBottom,
         ColorRndLeft = ColorRnd | ThenLeft,
-        ColorRndRight = ColorRnd | ThenRight
+        ColorRndRight = ColorRnd | ThenRight,
+
+        MaskTop = Mask | ThenTop,
+        MaskBottom = Mask | ThenBottom,
+        MaskLeft = Mask | ThenLeft,
+        MaskRight = Mask | ThenRight,
+        MaskColor = Mask | ThenColor,
+        MaskColorDesc = Mask | ThenColorDesc,
+        MaskColorRnd = Mask | ThenColorRnd
+
+        #endregion
     }
 }
