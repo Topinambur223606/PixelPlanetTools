@@ -13,6 +13,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using MaskInvalidSizeException = PixelPlanetUtils.ImageProcessing.MaskInvalidSizeException;
 
 namespace PixelPlanetBot
 {
@@ -71,9 +72,28 @@ namespace PixelPlanetBot
                 try
                 {
                     imagePixels = ImageProcessing.PixelColorsByUri(options.ImagePath, logger);
+                    try
+                    {
+                        checked
+                        {
+                            width = (ushort)imagePixels.GetLength(0);
+                            height = (ushort)imagePixels.GetLength(1);
+                            short check;
+                            check = (short)(options.LeftX + width);
+                            check = (short)(options.TopY + height);
+                        }
+
+                    }
+                    catch (OverflowException ex)
+                    {
+                        logger.LogError("Entire image should be inside the map");
+                        logger.LogDebug($"Main(): error checking boundaries - {ex.Message}");
+                        return;
+                    }
+
                     if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
                     {
-                        brightnessOrderMask = ImageProcessing.GetBrightnessOrder(options.BrightnessMaskImagePath, logger);
+                        brightnessOrderMask = ImageProcessing.GetBrightnessOrderMask(options.BrightnessMaskImagePath, logger, width, height);
                     }
                 }
                 catch (WebException ex)
@@ -88,25 +108,12 @@ namespace PixelPlanetBot
                     logger.LogDebug($"Main(): error converting image - {ex.Message}");
                     return;
                 }
-
-                try
+                catch (MaskInvalidSizeException ex)
                 {
-                    checked
-                    {
-                        width = (ushort)imagePixels.GetLength(0);
-                        height = (ushort)imagePixels.GetLength(1);
-                        short check;
-                        check = (short)(options.LeftX + width);
-                        check = (short)(options.TopY + height);
-                    }
-
-                }
-                catch (OverflowException ex)
-                {
-                    logger.LogError("Entire image should be inside the map");
-                    logger.LogDebug($"Main(): error checking boundaries - {ex.Message}");
+                    logger.LogError("Image and mask sizes are not equal");
                     return;
                 }
+
 
                 logger.LogTechState("Calculating pixel placing order...");
                 if (!CalculatePixelOrder())
@@ -343,7 +350,7 @@ namespace PixelPlanetBot
                     }
                     else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
                     {
-                        sortedParallel = nonEmptyParallel.OrderBy(xy => brightnessOrderMask[xy.Item1, xy.Item2]);
+                        sortedParallel = nonEmptyParallel.OrderByDescending(xy => brightnessOrderMask[xy.Item1, xy.Item2]);
                     }
                     else
                     {

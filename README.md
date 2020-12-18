@@ -43,6 +43,7 @@ Program that builds picture (surprisingly).
 - `--proxyPassword` - password for connecting to proxy, empty by default;
 - `--useMirror` - if specified, changes base address to [fuckyouarkeros.fun](https://fuckyouarkeros.fun) (site mirror);
 - `--serverUrl` - if specified, changes base address to your custom one - for those who deployed their own PixelPlanet copy;
+- `brightnessMaskPath` - brightness mask for mask placing modes, should be of same size as image that is being built; the brighter is pixel at mask, the earlier corresponding pixel is placed. 16-bit color is supported for this option.
 
 ### Examples
 - `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in one folder with bot.

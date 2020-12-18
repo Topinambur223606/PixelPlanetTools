@@ -134,19 +134,25 @@ namespace PixelPlanetUtils
             return (EarthPixelColor)(index + 2);
         }
 
-        public static ushort[,] GetBrightnessOrder(string imageUri, Logger logger)
+        public static ushort[,] GetBrightnessOrderMask(string maskUri, Logger logger, int width, int height)
         {
-            logger.LogTechState("Downloading brightness order image...");
+            logger.LogTechState("Downloading brightness order mask...");
             using (WebClient wc = new WebClient())
             {
-                logger.LogDebug($"GetBrightnessOrder(): URI - {imageUri}");
-                byte[] data = wc.DownloadData(imageUri);
+                logger.LogDebug($"GetBrightnessOrder(): URI - {maskUri}");
+                byte[] data = wc.DownloadData(maskUri);
                 using (Image<L16> image = Image.Load<L16>(data))
                 {
-                    logger.LogTechInfo("Image is downloaded");
-                    logger.LogTechState("Converting image...");
+                    logger.LogTechInfo("Mask is downloaded");
+                    logger.LogTechState("Converting mask...");
                     int w = image.Width;
                     int h = image.Height;
+
+                    if (width != w || height != h)
+                    {
+                        throw new MaskInvalidSizeException();
+                    }
+
                     ushort[,] res = new ushort[w, h];
                     Parallel.For(0, w, x =>
                     {
@@ -155,10 +161,13 @@ namespace PixelPlanetUtils
                             res[x, y] = image[x, y].PackedValue;
                         }
                     });
-                    logger.LogTechInfo("Image is converted");
+                    logger.LogTechInfo("Mask is converted");
                     return res;
                 }
             }
         }
+
+        public class MaskInvalidSizeException : Exception
+        { }
     }
 }
