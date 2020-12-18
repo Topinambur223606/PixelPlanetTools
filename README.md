@@ -37,16 +37,17 @@ Program that builds picture (surprisingly).
 - `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
 - `--notificationMode` - defines bot behaviour when captcha appears, possible values: `none`, `sound` (default value), `browser`, `both`;
-- `--placingOrder` - determines pixels priority for bot, possible values: `random` (default value), `left`, `right`, `top`, `bottom`, `outline`, `color`, `colorDesc`, `colorRnd`, combined directional (e.g. `leftTop`, `bottomRight`), color-directional (e.g. `colorTop`, `colorDescBottom`, `colorRndRight`), `mask`, mask modes with color or direction criteria (e.g. `maskTop`, `maskColorDesc`)
+- `--placingOrder` - determines pixels priority for bot, possible values: `random` (default value), `left`, `right`, `top`, `bottom`, `outline`, `color`, `colorDesc`, `colorRnd`, combined directional (e.g. `leftTop`, `bottomRight`), color-directional (e.g. `colorTop`, `colorDescBottom`, `colorRndRight`), `mask`, mask modes with color or direction criteria (e.g. `maskTop`, `maskColorDesc`).  
+All possible modes are listed [here](./ModeList.md);
 - `--proxyAddress` - proxy that is used by bot, address includes port, empty by default;
 - `--proxyUsername` - username for connecting to proxy, empty by default, no proxy authorization if not specified;
 - `--proxyPassword` - password for connecting to proxy, empty by default;
 - `--useMirror` - if specified, changes base address to [fuckyouarkeros.fun](https://fuckyouarkeros.fun) (site mirror);
 - `--serverUrl` - if specified, changes base address to your custom one - for those who deployed their own PixelPlanet copy;
-- `brightnessMaskPath` - brightness mask for mask placing modes, should be of same size as image that is being built; the brighter is pixel at mask, the earlier corresponding pixel is placed. 16-bit color is supported for this option.
+- `--brightnessMaskPath` - brightness mask for mask placing modes, should be of same size as image that is being built; the brighter is pixel at mask, the earlier corresponding pixel is placed. 16-bit color is supported for this option.
 
 ### Examples
-- `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in one folder with bot.
+- `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in same folder with bot executable.
 - `bot.exe run --useMirror --imagePath http://imagehosting.example/image.png --leftX -123 -d --topY -456 --logFilePath D:\myLogs\bot.log`
 - `bot.exe run --notificationMode both --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
 
