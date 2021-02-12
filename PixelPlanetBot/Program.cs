@@ -517,12 +517,19 @@ namespace PixelPlanetBot
                 logger.LogDebug("ProcessCaptcha(): starting browser");
                 Process.Start(UrlManager.BaseHttpAdress);
             }
-            while (Console.KeyAvailable)
+            if (options.HarassMode)
             {
-                Console.ReadKey(true);
+                Thread.Sleep(TimeSpan.FromSeconds(30));
             }
-            Console.ReadKey(true);
-            logger.LogDebug("ProcessCaptcha(): got keypress");
+            else
+            {
+                while (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                }
+                Console.ReadKey(true);
+                logger.LogDebug("ProcessCaptcha(): got keypress");
+            }
             logger.ResumeLogging();
             captchaCts?.Cancel();
             captchaCts?.Dispose();

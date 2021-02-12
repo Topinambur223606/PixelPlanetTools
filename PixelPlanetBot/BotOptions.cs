@@ -35,5 +35,8 @@ namespace PixelPlanetBot
 
         [Option("brightnessMaskPath", HelpText = "Path to the image for advanced pixel placing order management, URL, local absolute or relative")]
         public string BrightnessMaskImagePath { get; set; }
+
+        [Option('h', "harassCaptchaMode", Default = false, HelpText = "Determines whether app retries to place pixel every 30 seconds after a captcha appears")]
+        public bool HarassMode { get; set; }
     }
 }
