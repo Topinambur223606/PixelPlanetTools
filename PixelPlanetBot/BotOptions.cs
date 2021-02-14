@@ -35,5 +35,8 @@ namespace PixelPlanetBot
 
         [Option("brightnessMaskPath", HelpText = "Path to the image for advanced pixel placing order management, URL, local absolute or relative")]
         public string BrightnessMaskImagePath { get; set; }
+
+        [Option("captchaTimeout", HelpText = "If specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press", Default = 0)]
+        public int CaptchaTimeout { get; set; }
     }
 }

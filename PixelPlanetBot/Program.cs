@@ -465,7 +465,14 @@ namespace PixelPlanetBot
                                     logger.LogDebug($"MainWorkingBody(): pixel placing handled error {response.ReturnCode}");
                                     if (response.ReturnCode == ReturnCode.Captcha)
                                     {
-                                        ProcessCaptcha();
+                                        if (options.CaptchaTimeout > 0)
+                                        {
+                                            ProcessCaptchaTimeout();
+                                        }
+                                        else
+                                        {
+                                            ProcessCaptcha();
+                                        }
                                     }
                                     else
                                     {
@@ -528,6 +535,30 @@ namespace PixelPlanetBot
             captchaCts?.Dispose();
         }
 
+        private static void ProcessCaptchaTimeout()
+        {
+            logger.Log("Got captcha, waiting...", MessageGroup.Captcha);
+            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            {
+                Beep();
+            }
+            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            {
+                logger.LogDebug("ProcessCaptchaTimeout(): starting browser");
+                Process.Start(UrlManager.BaseHttpAdress);
+            }
+            Thread.Sleep(TimeSpan.FromSeconds(options.CaptchaTimeout));
+            logger.LogTechInfo("Captcha timeout");
+        }
+
+        private static void Beep()
+        {
+            for (int j = 0; j < 7; j++)
+            {
+                Console.Beep(1000, 100);
+            }
+        }
+
         private static void BeepThreadBody()
         {
             logger.LogDebug("BeepThreadBody() started");
@@ -535,10 +566,7 @@ namespace PixelPlanetBot
             while (!token.IsCancellationRequested)
             {
                 logger.LogDebug("BeepThreadBody(): beeping");
-                for (int j = 0; j < 7; j++)
-                {
-                    Console.Beep(1000, 100);
-                }
+                Beep();
                 try
                 {
                     Task.Delay(TimeSpan.FromMinutes(1), token).Wait();
