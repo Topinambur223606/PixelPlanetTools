@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetUtils</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>5.2.1.1</FileVersion>
-    <AssemblyVersion>5.2.1.1</AssemblyVersion>
-    <Version>5.2.1</Version>
+    <FileVersion>5.3.0.0</FileVersion>
+    <AssemblyVersion>5.3.0.0</AssemblyVersion>
+    <Version>5.3</Version>
     <OutputType>Library</OutputType>
     <RootNamespace>PixelPlanetUtils</RootNamespace>
     <Authors>Topinambur223606</Authors>
@@ -16,12 +16,15 @@
     <PackageReference Include="CommandLineParser" Version="2.8.0" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.2" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="System.Memory" Version="4.5.4" />
-    <PackageReference Include="WebSocketSharpFork" Version="1.0.4" />
   </ItemGroup>
 
-  <ItemGroup>
+    <ItemGroup>
+      <Reference Include="websocket-sharp">
+        <HintPath>..\..\Third party libraries\websocket-sharp\websocket-sharp\bin\Release\net472\websocket-sharp.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+  
+    <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
