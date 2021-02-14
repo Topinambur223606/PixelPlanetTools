@@ -15,10 +15,4 @@
         Captcha = 10,
         ProxyDetected = 11
     }
-
-    static class ReturnCodeInfo
-    {
-        public const byte MaxValue = (byte)ReturnCode.ProxyDetected;
-    }
-
 }

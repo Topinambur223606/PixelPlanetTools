@@ -108,7 +108,7 @@ namespace PixelPlanetBot
                     logger.LogDebug($"Main(): error converting image - {ex.Message}");
                     return;
                 }
-                catch (MaskInvalidSizeException ex)
+                catch (MaskInvalidSizeException)
                 {
                     logger.LogError("Image and mask sizes are not equal");
                     return;
