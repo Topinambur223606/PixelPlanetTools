@@ -11,9 +11,9 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 - PixelPlanet recognizes user by IP, so launching multiple bots on same computer \/ from computers in same LAN would not work.
 - Admins does not allow building botted arts in active map segment, especially photos and large images. It's not strictly prohibited, but image can be removed any time. Only safe areas for botting are ocean and south.
 - Dithering or something similar is not provided in bot, color is picked as closest available; use [PixelPlanet converter](https://pixelplanet.fun/convert) or Photoshop "to web" export to get image for building.
-- To build EXE with third party DLLs included by yourself, copy [ILRepack utility](https://www.nuget.org/packages/ILRepack/) to `executable` directory, launch "release" profile compilation and combined EXE will appear in that folder.
 - After mass attack of russian griefers with proxies in 2019, May captcha was introduced at site, so you should deal with it for bot. When bot asks to pass captcha, you should just open site as usual, place pixel anywhere and then press any key in bot shell window.
 - Moon canvas support will not be implemented in bot. That canvas is created for veteran users who build with their hands a lot, so it is supposed to be a bot-free area.
+- To build EXE by yourself, look [here](./Build.md).
 
 # Usage:
 ## For all apps:
