@@ -166,7 +166,7 @@ namespace PixelPlanetUtils.Canvas
 
         private static byte[] GetChunkData(XY chunk, byte canvas)
         {
-            string url = $"{UrlManager.BaseHttpAdress}/chunks/{canvas}/{chunk.Item1}/{chunk.Item2}.bmp";
+            string url = UrlManager.ChunkUrl(canvas, chunk.Item1, chunk.Item2);
             using (WebClient wc = new WebClient())
             {
                 return wc.DownloadData(url);

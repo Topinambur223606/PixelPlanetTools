@@ -11,5 +11,7 @@ namespace PixelPlanetUtils
         public static readonly string LastCheckFolder = Path.Combine(AppFolder, "lastcheck");
 
         public static readonly string LogsFolder = Path.Combine(AppFolder, "logs");
+
+        public static readonly string AccountsFolder = Path.Combine(AppFolder, "accounts");
     }
 }

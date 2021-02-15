@@ -1,9 +1,11 @@
 ﻿using CommandLine;
+using PixelPlanetBot.Options;
 using PixelPlanetUtils;
 using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.NetworkInteraction.Accounts;
 using PixelPlanetUtils.Options;
 using PixelPlanetUtils.Updates;
 using System;
@@ -14,11 +16,10 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using MaskInvalidSizeException = PixelPlanetUtils.ImageProcessing.MaskInvalidSizeException;
+using Pixel = System.ValueTuple<short, short, PixelPlanetUtils.Canvas.EarthPixelColor>;
 
 namespace PixelPlanetBot
 {
-    using Pixel = ValueTuple<short, short, EarthPixelColor>;
-
     static partial class Program
     {
         private static Thread statsThread;
@@ -29,8 +30,11 @@ namespace PixelPlanetBot
         private static ManualResetEvent mapUpdatedResetEvent;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
+        private static List<Cookie> cookies;
         private static Logger logger;
-        private static BotOptions options;
+        private static RunOptions runOptions;
+        private static SessionsOptions accountsOptions;
+        private static AppOptions appOptions;
         private static ChunkCache cache;
         private static ushort width, height;
         private static EarthPixelColor[,] imagePixels;
@@ -55,13 +59,13 @@ namespace PixelPlanetBot
                     return;
                 }
 
-                logger = new Logger(options?.LogFilePath, finishCTS.Token)
+                logger = new Logger(appOptions?.LogFilePath, finishCTS.Token)
                 {
-                    ShowDebugLogs = options?.ShowDebugLogs ?? false
+                    ShowDebugLogs = appOptions?.ShowDebugLogs ?? false
                 };
                 logger.LogDebug("Command line: " + Environment.CommandLine);
 
-                if (checkUpdates || !options.DisableUpdates)
+                if (checkUpdates || !appOptions.DisableUpdates)
                 {
                     if (UpdateChecker.IsStartingUpdate(logger, checkUpdates) || checkUpdates)
                     {
@@ -69,91 +73,14 @@ namespace PixelPlanetBot
                     }
                 }
 
-                try
+                if (runOptions != null)
                 {
-                    imagePixels = ImageProcessing.PixelColorsByUri(options.ImagePath, logger);
-                    try
-                    {
-                        checked
-                        {
-                            width = (ushort)imagePixels.GetLength(0);
-                            height = (ushort)imagePixels.GetLength(1);
-                            short check;
-                            check = (short)(options.LeftX + width);
-                            check = (short)(options.TopY + height);
-                        }
-
-                    }
-                    catch (OverflowException ex)
-                    {
-                        logger.LogError("Entire image should be inside the map");
-                        logger.LogDebug($"Main(): error checking boundaries - {ex.Message}");
-                        return;
-                    }
-
-                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
-                    {
-                        brightnessOrderMask = ImageProcessing.GetBrightnessOrderMask(options.BrightnessMaskImagePath, logger, width, height);
-                    }
+                    RunPixelActivity();
                 }
-                catch (WebException ex)
+                else if (accountsOptions != null)
                 {
-                    logger.LogError("Cannot download image");
-                    logger.LogDebug($"Main(): error downloading image - {ex.Message}");
-                    return;
+                    RunAccountActivity();
                 }
-                catch (ArgumentException ex)
-                {
-                    logger.LogError("Cannot convert image");
-                    logger.LogDebug($"Main(): error converting image - {ex.Message}");
-                    return;
-                }
-                catch (MaskInvalidSizeException)
-                {
-                    logger.LogError("Image and mask sizes are not equal");
-                    return;
-                }
-
-
-                logger.LogTechState("Calculating pixel placing order...");
-                if (!CalculatePixelOrder())
-                {
-                    return;
-                }
-                logger.LogTechInfo("Pixel placing order is calculated");
-
-                cache = new ChunkCache(pixelsToBuild, logger);
-                mapUpdatedResetEvent = new ManualResetEvent(false);
-                cache.OnMapUpdated += (o, e) =>
-                {
-                    logger.LogDebug("Cache.OnMapUpdated handler: Map updated event received");
-                    mapUpdatedResetEvent.Set();
-                };
-                if (options.DefenseMode)
-                {
-                    gotGriefed = new AutoResetEvent(false);
-                    cache.OnMapUpdated += (o, e) => gotGriefed.Set();
-                    waitingGriefLock = new object();
-                }
-                statsThread = new Thread(StatsCollectionThreadBody);
-                statsThread.Start();
-                do
-                {
-                    try
-                    {
-                        MainWorkingBody();
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError($"Unhandled exception: {ex.GetBaseException().Message}");
-                        int delay = repeatingFails ? 30 : 10;
-                        repeatingFails = true;
-                        logger.LogTechState($"Reconnecting in {delay} seconds...");
-                        Thread.Sleep(TimeSpan.FromSeconds(delay));
-                        continue;
-                    }
-                } while (true);
             }
             catch (Exception ex)
             {
@@ -187,8 +114,197 @@ namespace PixelPlanetBot
             }
         }
 
+        private static void RunAccountActivity()
+        {
+            if (accountsOptions.Add)
+            {
+                logger.LogTechState("Logging in...");
+                Task<string> task = AccountManager.Login(accountsOptions.UserName, accountsOptions.Password, accountsOptions.SessionName);
+                try
+                {
+                    task.Wait();
+                }
+                catch (AggregateException a)
+                {
+                    throw a.InnerException;
+                }
+                logger.LogTechInfo($"Successfully logged in with session name \"{task.Result}\"");
+            }
+
+            if (accountsOptions.Remove)
+            {
+                logger.LogTechState("Logging out...");
+                Task task = AccountManager.Logout(accountsOptions.SessionName);
+                try
+                {
+                    task.Wait();
+                }
+                catch (AggregateException a)
+                {
+                    throw a.InnerException;
+                }
+                logger.LogTechInfo("Successfully logged out");
+            }
+
+            if (accountsOptions.PrintSessionList)
+            {
+                List<string> sessions = AccountManager.GetSessions();
+                Console.ForegroundColor = ConsoleColor.White;
+                if (sessions.Count > 0)
+                {
+                    Console.WriteLine("All sessions:");
+                    foreach (string session in sessions.OrderBy(s => s.ToLower()))
+                    {
+                        Console.WriteLine(session);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No sessions found");
+                }
+            }
+        }
+
+        private static void RunPixelActivity()
+        {
+            try
+            {
+                if (runOptions.SessionName != null)
+                {
+                    logger.LogTechState("Loading session...");
+                    cookies = AccountManager.GetSessionCookies(runOptions.SessionName);
+                    logger.LogTechInfo("Session loaded");
+                    logger.LogTechState("Checking session...");
+                    AccountManager.CheckSession(cookies).Wait();
+                    logger.LogTechInfo("Session is alive");
+                }
+
+                imagePixels = ImageProcessing.PixelColorsByUri(runOptions.ImagePath, logger);
+                try
+                {
+                    checked
+                    {
+                        width = (ushort)imagePixels.GetLength(0);
+                        height = (ushort)imagePixels.GetLength(1);
+                        short check;
+                        check = (short)(runOptions.LeftX + width);
+                        check = (short)(runOptions.TopY + height);
+                    }
+
+                }
+                catch (OverflowException ex)
+                {
+                    logger.LogError("Entire image should be inside the map");
+                    logger.LogDebug($"Main(): error checking boundaries - {ex.Message}");
+                    return;
+                }
+
+                if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
+                {
+                    brightnessOrderMask = ImageProcessing.GetBrightnessOrderMask(runOptions.BrightnessMaskImagePath, logger, width, height);
+                }
+            }
+            catch (WebException ex)
+            {
+                logger.LogError("Cannot download image");
+                logger.LogDebug($"Main(): error downloading image - {ex.Message}");
+                return;
+            }
+            catch (ArgumentException ex)
+            {
+                logger.LogError("Cannot convert image");
+                logger.LogDebug($"Main(): error converting image - {ex.Message}");
+                return;
+            }
+            catch (MaskInvalidSizeException)
+            {
+                logger.LogError("Image and mask sizes are not equal");
+                return;
+            }
+
+            logger.LogTechState("Calculating pixel placing order...");
+            if (!CalculatePixelOrder())
+            {
+                return;
+            }
+            logger.LogTechInfo("Pixel placing order is calculated");
+
+            cache = new ChunkCache(pixelsToBuild, logger);
+            mapUpdatedResetEvent = new ManualResetEvent(false);
+            cache.OnMapUpdated += (o, e) =>
+            {
+                logger.LogDebug("Cache.OnMapUpdated handler: Map updated event received");
+                mapUpdatedResetEvent.Set();
+            };
+            if (runOptions.DefenseMode)
+            {
+                gotGriefed = new AutoResetEvent(false);
+                cache.OnMapUpdated += (o, e) => gotGriefed.Set();
+                waitingGriefLock = new object();
+            }
+            statsThread = new Thread(StatsCollectionThreadBody);
+            statsThread.Start();
+            do
+            {
+                try
+                {
+                    MainWorkingBody();
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Unhandled exception: {ex.GetBaseException().Message}");
+                    int delay = repeatingFails ? 30 : 10;
+                    repeatingFails = true;
+                    logger.LogTechState($"Reconnecting in {delay} seconds...");
+                    Thread.Sleep(TimeSpan.FromSeconds(delay));
+                    continue;
+                }
+            } while (true);
+        }
+
         private static bool ParseArguments(IEnumerable<string> args)
         {
+            bool ProcessBotOptions(BotOptions o)
+            {
+                if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
+                {
+                    int protocolLength = o.ProxyAddress.IndexOf("://");
+                    if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        if (protocolLength > -1)
+                        {
+                            o.ProxyAddress = "http" + o.ProxyAddress.Substring(protocolLength);
+                        }
+                        else
+                        {
+                            o.ProxyAddress = "http://" + o.ProxyAddress;
+                        }
+                    }
+                    if (!Uri.IsWellFormedUriString(o.ProxyAddress, UriKind.Absolute))
+                    {
+                        Console.WriteLine("Invalid proxy address");
+                        return false;
+                    }
+
+                    proxySettings = new ProxySettings
+                    {
+                        Address = o.ProxyAddress,
+                        Username = o.ProxyUsername,
+                        Password = o.ProxyPassword
+                    };
+                }
+                if (o.UseMirror)
+                {
+                    UrlManager.MirrorMode = o.UseMirror;
+                }
+                if (o.ServerUrl != null)
+                {
+                    UrlManager.BaseUrl = o.ServerUrl;
+                }
+                return true;
+            }
+
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -196,51 +312,52 @@ namespace PixelPlanetBot
             }))
             {
                 bool success = true;
-                parser.ParseArguments<BotOptions, CheckUpdatesOption>(args)
+                parser.ParseArguments<RunOptions, CheckUpdatesOption, SessionsOptions>(args)
                     .WithNotParsed(e => success = false)
                     .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
-                    .WithParsed<BotOptions>(o =>
+                    .WithParsed<RunOptions>(o =>
                     {
-                        options = o;
-                        if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
+                        appOptions = runOptions = o;
+                        if (!ProcessBotOptions(o))
                         {
-                            int protocolLength = o.ProxyAddress.IndexOf("://");
-                            if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
-                            {
-                                if (protocolLength > -1)
-                                {
-                                    o.ProxyAddress = "http" + o.ProxyAddress.Substring(protocolLength);
-                                }
-                                else
-                                {
-                                    o.ProxyAddress = "http://" + o.ProxyAddress;
-                                }
-                            }
-                            if (!Uri.IsWellFormedUriString(o.ProxyAddress, UriKind.Absolute))
-                            {
-                                Console.WriteLine("Invalid proxy address");
-                                success = false;
-                            }
+                            return;
+                        }
+                        if (o.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask) && o.BrightnessMaskImagePath == null)
+                        {
+                            Console.WriteLine("Mask path not specified");
+                            success = false;
+                            return;
+                        }
+                        if (proxySettings != null && o.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                        {
+                            Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
+                                "Ensure that same proxy settings are set in your default browser");
+                        }
 
-                            proxySettings = new ProxySettings
-                            {
-                                Address = o.ProxyAddress,
-                                Username = o.ProxyUsername,
-                                Password = o.ProxyPassword
-                            };
-                            if (o.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
-                            {
-                                Console.WriteLine($"Warning: proxy usage in browser notification mode is detected{Environment.NewLine}" +
-                                    "Ensure that same proxy settings are set in your default browser");
-                            }
-                        }
-                        if (o.UseMirror)
+                    })
+                    .WithParsed<SessionsOptions>(o =>
+                    {
+                        appOptions = accountsOptions = o;
+                        if (!ProcessBotOptions(o))
                         {
-                            UrlManager.MirrorMode = o.UseMirror;
+                            return;
                         }
-                        if (o.ServerUrl != null)
+                        if (!(o.Add || o.Remove || o.PrintSessionList))
                         {
-                            UrlManager.BaseUrl = o.ServerUrl;
+                            o.PrintSessionList = true;
+                            return;
+                        }
+                        if (o.Add && (o.UserName == null || o.Password == null))
+                        {
+                            success = false;
+                            Console.WriteLine("Both username and password should be specified to log in");
+                            return;
+                        }
+                        if (o.Remove && o.SessionName == null)
+                        {
+                            success = false;
+                            Console.WriteLine("Session name to remove should be specified");
+                            return;
                         }
                     });
                 return success;
@@ -294,11 +411,11 @@ namespace PixelPlanetBot
             try
             {
 
-                if (options.PlacingOrderMode == PlacingOrderMode.Outline)
+                if (runOptions.PlacingOrderMode == PlacingOrderMode.Outline)
                 {
                     relativePixelsToBuild = nonEmptyPixels.AsParallel().OrderByDescending(OutlineCriteria);
                 }
-                else if (options.PlacingOrderMode == PlacingOrderMode.Random)
+                else if (runOptions.PlacingOrderMode == PlacingOrderMode.Random)
                 {
                     Random rnd = new Random();
                     for (int i = 0; i < nonEmptyPixels.Count; i++)
@@ -315,31 +432,31 @@ namespace PixelPlanetBot
                     OrderedParallelQuery<Pixel> sortedParallel;
                     ParallelQuery<Pixel> nonEmptyParallel = nonEmptyPixels.AsParallel();
 
-                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Left))
+                    if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Left))
                     {
                         sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item1);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Right))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Right))
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item1);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Top))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Top))
                     {
                         sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item2);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Bottom))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Bottom))
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item2);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Color))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Color))
                     {
                         sortedParallel = nonEmptyParallel.OrderBy(xy => xy.Item3);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorDesc))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorDesc))
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => xy.Item3);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorRnd))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ColorRnd))
                     {
                         Dictionary<EarthPixelColor, Guid> colorOrder =
                             Enum.GetValues(typeof(EarthPixelColor))
@@ -348,40 +465,40 @@ namespace PixelPlanetBot
 
                         sortedParallel = nonEmptyParallel.OrderBy(xy => colorOrder[xy.Item3]);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.Mask))
                     {
                         sortedParallel = nonEmptyParallel.OrderByDescending(xy => brightnessOrderMask[xy.Item1, xy.Item2]);
                     }
                     else
                     {
-                        throw new Exception($"{options.PlacingOrderMode} is not valid placing order mode");
+                        throw new Exception($"{runOptions.PlacingOrderMode} is not valid placing order mode");
                     }
 
-                    if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenLeft))
+                    if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenLeft))
                     {
                         sortedParallel = sortedParallel.ThenBy(xy => xy.Item1);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenRight))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenRight))
                     {
                         sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item1);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenTop))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenTop))
                     {
                         sortedParallel = sortedParallel.ThenBy(xy => xy.Item2);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenBottom))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenBottom))
                     {
                         sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item2);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColor))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColor))
                     {
                         sortedParallel = sortedParallel.ThenBy(xy => xy.Item3);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorDesc))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorDesc))
                     {
                         sortedParallel = sortedParallel.ThenByDescending(xy => xy.Item3);
                     }
-                    else if (options.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorRnd))
+                    else if (runOptions.PlacingOrderMode.HasFlag(PlacingOrderMode.ThenColorRnd))
                     {
                         Dictionary<EarthPixelColor, Guid> colorOrder =
                             Enum.GetValues(typeof(EarthPixelColor))
@@ -397,7 +514,7 @@ namespace PixelPlanetBot
                     relativePixelsToBuild = sortedParallel;
                 }
                 pixelsToBuild = relativePixelsToBuild
-                    .Select(p => ((short)(p.Item1 + options.LeftX), (short)(p.Item2 + options.TopY), p.Item3)).ToList();
+                    .Select(p => ((short)(p.Item1 + runOptions.LeftX), (short)(p.Item2 + runOptions.TopY), p.Item3)).ToList();
             }
             catch (Exception ex)
             {
@@ -409,7 +526,7 @@ namespace PixelPlanetBot
 
         private static void MainWorkingBody()
         {
-            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false, proxySettings))
+            using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, false, proxySettings, cookies))
             {
                 wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
                 cache.Wrapper = wrapper;
@@ -465,7 +582,7 @@ namespace PixelPlanetBot
                                     logger.LogDebug($"MainWorkingBody(): pixel placing handled error {response.ReturnCode}");
                                     if (response.ReturnCode == ReturnCode.Captcha)
                                     {
-                                        if (options.CaptchaTimeout > 0)
+                                        if (runOptions.CaptchaTimeout > 0)
                                         {
                                             ProcessCaptchaTimeout();
                                         }
@@ -488,7 +605,7 @@ namespace PixelPlanetBot
                             } while (!success);
                         }
                     }
-                    if (options.DefenseMode)
+                    if (runOptions.DefenseMode)
                     {
                         if (!wasChanged)
                         {
@@ -503,9 +620,8 @@ namespace PixelPlanetBot
                             Thread.Sleep(ThreadSafeRandom.Next(500, 3000));
                         }
                     }
-                } while (options.DefenseMode || wasChanged);
+                } while (runOptions.DefenseMode || wasChanged);
                 logger.Log("Building is finished", MessageGroup.Info);
-                return;
             }
         }
 
@@ -513,13 +629,13 @@ namespace PixelPlanetBot
         {
             logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
             captchaCts = null;
-            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            if (runOptions.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
                 logger.LogDebug("ProcessCaptcha(): starting beep thread");
                 captchaCts = new CancellationTokenSource();
                 new Thread(BeepThreadBody).Start();
             }
-            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            if (runOptions.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
             {
                 logger.LogDebug("ProcessCaptcha(): starting browser");
                 Process.Start(UrlManager.BaseHttpAdress);
@@ -538,16 +654,16 @@ namespace PixelPlanetBot
         private static void ProcessCaptchaTimeout()
         {
             logger.Log("Got captcha, waiting...", MessageGroup.Captcha);
-            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
+            if (runOptions.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
                 Beep();
             }
-            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+            if (runOptions.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
             {
                 logger.LogDebug("ProcessCaptchaTimeout(): starting browser");
                 Process.Start(UrlManager.BaseHttpAdress);
             }
-            Thread.Sleep(TimeSpan.FromSeconds(options.CaptchaTimeout));
+            Thread.Sleep(TimeSpan.FromSeconds(runOptions.CaptchaTimeout));
             logger.LogTechInfo("Captcha timeout");
         }
 
@@ -659,7 +775,7 @@ namespace PixelPlanetBot
                         logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested (S4), finishing");
                         return;
                     }
-                    if (options.DefenseMode)
+                    if (runOptions.DefenseMode)
                     {
                         logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
                         logger.LogDebug($"StatsCollectionThreadBody(): acquiring grief lock");
@@ -707,7 +823,7 @@ namespace PixelPlanetBot
             {
                 try
                 {
-                    EarthPixelColor desiredColor = imagePixels[x - options.LeftX, y - options.TopY];
+                    EarthPixelColor desiredColor = imagePixels[x - runOptions.LeftX, y - runOptions.TopY];
                     if (desiredColor == EarthPixelColor.None)
                     {
                         msgGroup = MessageGroup.PixelInfo;

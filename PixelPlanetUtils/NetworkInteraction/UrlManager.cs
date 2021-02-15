@@ -39,5 +39,12 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         public static string WebSocketUrl => $"wss://{BaseUrl}/ws";
 
+        public static string ChunkUrl(byte canvas, byte x, byte y) => $"{BaseHttpAdress}/chunks/{canvas}/{x}/{y}.bmp";
+
+        public static string LoginUrl => $"{BaseHttpAdress}/api/auth/local";
+
+        public static string LogoutUrl => $"{BaseHttpAdress}/api/auth/logout";
+
+        public static string MeUrl => $"{BaseHttpAdress}/api/me";
     }
 }

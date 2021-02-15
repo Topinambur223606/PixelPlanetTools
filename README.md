@@ -30,12 +30,14 @@ You can download executable files [here](https://github.com/Topinambur223606/Pix
 
 ## PixelPlanetBot
 Program that builds picture (surprisingly).
+Besides `run` command, it also has `sessions` command used for logging in.
 
-### Parameters:
+### Run parameters:
 - `-x, --leftX` - **required**, X coordinate of left picture pixel;
 - `-y, --topY` - **required**, Y coordinate of top picture pixel;
 - `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
+- `-s, --session` - name of already created session to be loaded;
 - `--notificationMode` - defines bot behaviour when captcha appears, possible values: `none`, `sound` (default value), `browser`, `both`;
 - `--placingOrder` - determines pixels priority for bot, possible values: `random` (default value), `left`, `right`, `top`, `bottom`, `outline`, `color`, `colorDesc`, `colorRnd`, combined directional (e.g. `leftTop`, `bottomRight`), color-directional (e.g. `colorTop`, `colorDescBottom`, `colorRndRight`), `mask`, mask modes with color or direction criteria (e.g. `maskTop`, `maskColorDesc`).  
 All possible modes are listed [here](./ModeList.md);
@@ -47,10 +49,19 @@ All possible modes are listed [here](./ModeList.md);
 - `--brightnessMaskPath` - brightness mask for mask placing modes, should be of same size as image that is being built; the brighter is pixel at mask, the earlier corresponding pixel is placed. 16-bit color is supported for this option;
 - `--captchaTimeout` - if specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press.
 
+### Session parameters:
+- `-a, --add` - if specified, new session is created, username and password are required, session name is optional (default - PixelPlanet user name);
+- `-r, --remove` - if specified, existing session is logged out and deleted, session name is required;
+- `-u, --username` - username or email for logging in;
+- `-p, --password` - password for logging in;
+- `-s, --session` - custom name for new session or name of session to be deleted, depending on context;
+- `-l, --list` - if specified and other operations do not cause error (or are absent), all existing session names are printed before exit;
+
 ### Examples
 - `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in same folder with bot executable.
 - `bot.exe run --useMirror --imagePath http://imagehosting.example/image.png --leftX -123 -d --topY -456 --logFilePath D:\myLogs\bot.log --captchaTimeout 30`
 - `bot.exe run --notificationMode both --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
+- `bot.exe sessions --list -a -u "email@sample.text" -p "password" -s "mySession"`
 
 ### Notes:
 - `--useMirror` and `--serverUrl` options are not compatible;

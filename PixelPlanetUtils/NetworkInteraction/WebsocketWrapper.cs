@@ -6,17 +6,20 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WebSocketSharp;
+using Logger = PixelPlanetUtils.Logging.Logger;
+using WebsocketCookie = WebSocketSharp.Net.Cookie;
 using XY = System.ValueTuple<byte, byte>;
 
 namespace PixelPlanetUtils.NetworkInteraction
 {
     public class WebsocketWrapper : IDisposable
     {
-        private readonly Logging.Logger logger;
+        private readonly Logger logger;
 
         private readonly WebSocket webSocket;
         private readonly ManualResetEvent websocketResetEvent = new ManualResetEvent(false);
@@ -37,7 +40,12 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         private readonly bool listeningMode;
 
-        public WebsocketWrapper(Logging.Logger logger, bool listeningMode, ProxySettings proxySettings)
+        private static WebsocketCookie ConvertCookie(Cookie cookie)
+        {
+            return new WebsocketCookie(cookie.Name, cookie.Value, cookie.Path, cookie.Domain);
+        }
+
+        public WebsocketWrapper(Logger logger, bool listeningMode, ProxySettings proxySettings, List<Cookie> cookies)
         {
             if (this.listeningMode = listeningMode)
             {
@@ -45,9 +53,16 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
             this.logger = logger;
             webSocket = new WebSocket(UrlManager.WebSocketUrl);
-            webSocket.Origin = "https://pixelplanet.fun";
-            webSocket.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
             webSocket.Log.Output = LogWebsocketOutput;
+            webSocket.Origin = UrlManager.BaseHttpAdress;
+            webSocket.UserAgent = HttpHeaderValues.UserAgent;
+            if (cookies != null)
+            {
+                foreach (WebsocketCookie cookie in cookies.Select(ConvertCookie))
+                {
+                    webSocket.SetCookie(cookie);
+                }
+            }
             if (proxySettings != null)
             {
                 webSocket.SetProxy(proxySettings.Address, proxySettings.Username, proxySettings.Password);

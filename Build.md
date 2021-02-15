@@ -30,11 +30,11 @@ if (UserAgent != null)
 </Project>
 ```
 - Switch solution from "ubuntu" related to regular configs;
-- Build it;
+- Load target project back and build it;
 - Open PixelPlanetUtils project, delete `websocket-sharp` reference and add reference to DLL you just built instead;
-- Change paths to ILRepack.exe and to output folder in app projects you want to build;
 - Deal with update checker, updater, class `PathTo`, app options to match your goals;
-  - Create `Resources` folder in PixelPlanetUtils project folder if you are going to use updater;
+  - Create `Resources` folder in PixelPlanetUtils project folder if you are going to use updater - its EXE file is copied there to be included as resource;
+- Change paths to ILRepack.exe and to output folder in app projects you want to build;
 - Build solution in release mode;
 
 If anything, I could forget to mention something.

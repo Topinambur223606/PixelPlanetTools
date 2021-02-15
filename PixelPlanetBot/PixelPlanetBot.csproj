@@ -3,13 +3,18 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetBot</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>5.4.1.0</FileVersion>
-    <AssemblyVersion>5.4.1.0</AssemblyVersion>
-    <Version>5.4.1</Version>
+    <FileVersion>5.5.0.0</FileVersion>
+    <AssemblyVersion>5.5.0.0</AssemblyVersion>
+    <Version>5.5</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
+  
+  <ItemGroup>
+    <Compile Remove="GlobalSuppressions.cs" />
+    <None Include="GlobalSuppressions.cs" />
+  </ItemGroup>
   
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.8.0" />
@@ -17,6 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PixelPlanetUtils\PixelPlanetUtils.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
   <PropertyGroup>

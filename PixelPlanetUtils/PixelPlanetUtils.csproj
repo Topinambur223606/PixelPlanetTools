@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetUtils</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>5.3.0.0</FileVersion>
-    <AssemblyVersion>5.3.0.0</AssemblyVersion>
-    <Version>5.3</Version>
+    <FileVersion>5.4.0.0</FileVersion>
+    <AssemblyVersion>5.4.0.0</AssemblyVersion>
+    <Version>5.4</Version>
     <OutputType>Library</OutputType>
     <RootNamespace>PixelPlanetUtils</RootNamespace>
     <Authors>Topinambur223606</Authors>
@@ -13,18 +13,27 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="GlobalSuppressions.cs" />
+    <None Include="GlobalSuppressions.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.8.0" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.2" />
   </ItemGroup>
 
-    <ItemGroup>
-      <Reference Include="websocket-sharp">
-        <HintPath>..\..\Third party libraries\websocket-sharp\websocket-sharp\bin\Release\net472\websocket-sharp.dll</HintPath>
-      </Reference>
-    </ItemGroup>
-  
-    <ItemGroup>
+  <ItemGroup>
+    <Reference Include="websocket-sharp">
+      <HintPath>..\..\Third party libraries\websocket-sharp\websocket-sharp\bin\Release\net472\websocket-sharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>

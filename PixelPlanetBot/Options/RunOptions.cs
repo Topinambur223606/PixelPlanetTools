@@ -1,10 +1,9 @@
 ﻿using CommandLine;
-using PixelPlanetUtils.Options;
 
-namespace PixelPlanetBot
+namespace PixelPlanetBot.Options
 {
     [Verb("run", HelpText = "Runs the bot")]
-    class BotOptions : NetworkAppOptions
+    class RunOptions : BotOptions
     {
         [Option('x', "leftX", Required = true, HelpText = "X coord of left picture pixel")]
         public short LeftX { get; set; }
@@ -24,19 +23,13 @@ namespace PixelPlanetBot
         [Option("placingOrder", Default = PlacingOrderMode.Random, HelpText = "Determines how app places pixels. Available options: random, outline, left, right, top, bottom, color, colorDsc, colorRnd, combined directional (e.g. leftTop, bottomRight), color-directional (e.g. colorTop, colorDescBottom, colorRndRight), mask-dependent (e.g. maskTop, maskColor)")]
         public PlacingOrderMode PlacingOrderMode { get; set; }
 
-        [Option("proxyAddress", Default = null, HelpText = "Proxy address that is used for placing pixels")]
-        public string ProxyAddress { get; set; }
-
-        [Option("proxyUsername", Default = null, HelpText = "Username for connecting to proxy if specified")]
-        public string ProxyUsername { get; set; }
-
-        [Option("proxyPassword", Default = null, HelpText = "Password for connecting to proxy if specified")]
-        public string ProxyPassword { get; set; }
-
         [Option("brightnessMaskPath", HelpText = "Path to the image for advanced pixel placing order management, URL, local absolute or relative")]
         public string BrightnessMaskImagePath { get; set; }
 
         [Option("captchaTimeout", HelpText = "If specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press", Default = 0)]
         public int CaptchaTimeout { get; set; }
+
+        [Option('s', "session", HelpText = "Name of previously created session")]
+        public string SessionName { get; set; }
     }
 }
