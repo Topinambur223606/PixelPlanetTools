@@ -22,7 +22,7 @@ You can download executable files [here](../../releases/latest).
   - Parameter order is not important;
   - By default logs are saved to `%appdata%/PixelPlanetTools/logs/<app name>`;
   - Log files are deleted from default log folder if older than one week;
-  - To specify canvas, use `-c` or `--canvas`, possible values: earth, moon, voxel, covid, oneBit;
+  - To specify canvas, use `-c` or `--canvas`, possible values: `earth`, `moon`, `voxel`, `covid`, `oneBit`;
   - To specify path to your own log file, use `--logFilePath` (if log file exists, new lines are appended);
   - To display debug logs in console (a lot of useless info), specify `--showDebug` parameter;
   - To disable automatic updates before running, specify `--disableUpdates` parameter.

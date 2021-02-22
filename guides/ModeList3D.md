@@ -18,7 +18,7 @@ Kinds of sort by some criteria, can be combined with second criteria. If no seco
   - `ColorRnd` - palette are mixed randomly before sort.
 
 ## "Then, sort by this" modes
-Defines order of pixels that have same value by first criteria; do not use these alone - bot will refuse to launch.
+Defines order of voxels that have same value by first criteria; do not use these alone - bot will refuse to launch.
 - By direction:
   - `ThenAscX`;
   - `ThenDescX`;
