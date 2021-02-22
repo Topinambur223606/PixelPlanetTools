@@ -4,7 +4,7 @@ using PixelPlanetUtils.Options;
 namespace PixelPlanetWatcher
 {
     [Verb("run", HelpText = "Runs the watcher")]
-    class WatcherOptions : NetworkAppOptions
+    class WatcherOptions : AppOptions
     {
         [Option('l', "leftX", Required = true, HelpText = "Left boundary of recorded rectangle")]
         public short LeftX { get; set; }

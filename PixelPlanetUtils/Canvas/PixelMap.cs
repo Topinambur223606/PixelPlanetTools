@@ -2,19 +2,32 @@
 {
     public static class PixelMap
     {
-        public const int ChunkSideSize = 0x100;
-        private const int ChunksPerSide = 0x100;
+        public const int ChunkSize = 256;
 
-        public static short ConvertToAbsolute(int chunk, int relative)
+        public static int MapSize { get; set; }
+
+        public static short RelativeToAbsolute(int chunk, int relative)
         {
-            return (short)((chunk - ChunksPerSide / 2) * ChunkSideSize + relative);
+            return (short)(chunk * ChunkSize + relative - MapSize / 2);
         }
 
-        public static void ConvertToRelative(short absolute, out byte chunk, out byte relative)
+        public static void AbsoluteToRelative(short absolute, out byte chunk, out byte relative)
         {
-            int shifted = absolute + ChunksPerSide * ChunkSideSize / 2;
-            chunk = (byte)(shifted / ChunkSideSize);
-            relative = (byte)(shifted % ChunkSideSize);
+            int shifted = absolute + MapSize / 2;
+            chunk = (byte)(shifted / ChunkSize);
+            relative = (byte)(shifted % ChunkSize);
+        }
+
+        public static int RelativeToOffset(byte relativeX, byte relativeY)
+        {
+            return relativeY * ChunkSize + relativeX;
+        }
+
+        public static void OffsetToRelative(uint offset, out byte rx, out byte ry)
+        {
+            rx = (byte)(offset % ChunkSize);
+            offset /= ChunkSize;
+            ry = (byte)(offset % ChunkSize);
         }
     }
 }

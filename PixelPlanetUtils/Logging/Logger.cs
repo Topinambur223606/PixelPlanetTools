@@ -17,7 +17,7 @@ namespace PixelPlanetUtils.Logging
         private static readonly string space = new string(' ', 2);
         private static readonly string largeSpace = new string(' ', 5);
         private readonly static int msgGroupPadLength = 2 + //brackets
-            Enum.GetValues(typeof(MessageGroup)).Cast<MessageGroup>().Max(mg => mg.ToString().Length);
+            Enum.GetNames(typeof(MessageGroup)).Max(mg => mg.Length);
 
         private readonly StreamWriter logFileWriter;
 
@@ -55,8 +55,7 @@ namespace PixelPlanetUtils.Logging
             consoleThread.Start();
             if (string.IsNullOrWhiteSpace(logFilePath))
             {
-                logFilePath = Path.Combine(PathTo.LogsFolder,
-                                            Assembly.GetEntryAssembly().GetName().Name,
+                logFilePath = Path.Combine(PathTo.LogsFolder, AppInfo.Name,
                                             $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}_{Guid.NewGuid():N}.log");
             }
             try
@@ -173,7 +172,7 @@ namespace PixelPlanetUtils.Logging
             {
                 case MessageGroup.Attack:
                 case MessageGroup.Captcha:
-                case MessageGroup.PixelFail:
+                case MessageGroup.PlaceFail:
                 case MessageGroup.Error:
                     return ConsoleColor.Red;
                 case MessageGroup.Assist:

@@ -1,8 +1,12 @@
 ﻿using CommandLine;
 using PixelPlanetUtils.Canvas;
+using PixelPlanetUtils.Canvas.Cache;
+using PixelPlanetUtils.Canvas.Colors;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.NetworkInteraction.Models;
+using PixelPlanetUtils.NetworkInteraction.Websocket;
 using PixelPlanetUtils.Options;
 using PixelPlanetUtils.Updates;
 using System;
@@ -14,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace PixelPlanetWatcher
 {
-    using Pixel = ValueTuple<short, short, EarthPixelColor>;
+    using Pixel = ValueTuple<short, short, byte>;
 
     class Program
     {
@@ -22,16 +26,19 @@ namespace PixelPlanetWatcher
 
         private static Logger logger;
         private static WatcherOptions options;
-        private static ChunkCache cache;
+        private static ChunkCache2D cache;
 
         private static Thread saveThread;
         private static Action stopListening;
         private static Task<FileStream> lockingStreamTask;
         private static bool checkUpdates;
+        private static UserModel user;
+        private static ColorNameResolver colorNameResolver;
+        private static ProxySettings proxySettings;
         private static readonly object listLockObj = new object();
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
-        private static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
             try
             {
@@ -46,6 +53,45 @@ namespace PixelPlanetWatcher
                 };
                 logger.LogDebug("Command line: " + Environment.CommandLine);
 
+                logger.LogTechState("Connecting to API...");
+                PixelPlanetHttpApi api = new PixelPlanetHttpApi
+                {
+                    ProxySettings = proxySettings
+                };
+
+                user = await api.GetMeAsync();
+                logger.LogTechInfo("Successfully connected");
+
+                CanvasModel canvas = user.Canvases[options.Canvas];
+
+                if (canvas.Is3D)
+                {
+                    throw new Exception("3D canvas is not supported");
+                }
+
+                LoggerExtensions.MaxCoordXYLength = 1 + (int)Math.Log10(canvas.Size / 2);
+
+                PixelMap.MapSize = canvas.Size;
+
+                try
+                {
+                    if (options.LeftX < -(canvas.Size / 2) || options.RightX >= canvas.Size / 2)
+                    {
+                        throw new Exception("X");
+                    }
+
+                    if (options.TopY < -(canvas.Size / 2) || options.BottomY >= canvas.Size / 2)
+                    {
+                        throw new Exception("Y");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Entire rectangle should be inside the map (failed by {ex.Message})");
+                }
+
+                colorNameResolver = new ColorNameResolver(options.Canvas);
+
                 if (checkUpdates || !options.DisableUpdates)
                 {
                     if (UpdateChecker.IsStartingUpdate(logger, checkUpdates) || checkUpdates)
@@ -54,7 +100,7 @@ namespace PixelPlanetWatcher
                     }
                 }
 
-                cache = new ChunkCache(options.LeftX, options.TopY, options.RightX, options.BottomY, logger);
+                cache = new ChunkCache2D(options.LeftX, options.TopY, options.RightX, options.BottomY, logger, options.Canvas);
                 bool initialMapSavingStarted = false;
                 saveThread = new Thread(SaveChangesThreadBody);
                 saveThread.Start();
@@ -67,7 +113,7 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true, null, null))
+                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true, null, null, options.Canvas))
                         {
                             cache.Wrapper = wrapper;
                             if (!initialMapSavingStarted)
@@ -76,7 +122,7 @@ namespace PixelPlanetWatcher
                                 initialMapSavingStarted = true;
                                 lockingStreamTask = Task.Run(SaveInitialMapState);
                             }
-                            wrapper.OnPixelChanged += Wrapper_OnPixelChanged;
+                            wrapper.OnMapChanged += Wrapper_OnMapChanged;
                             stopListening = wrapper.StopListening;
                             Console.CancelKeyPress += (o, e) =>
                             {
@@ -99,6 +145,7 @@ namespace PixelPlanetWatcher
             catch (Exception ex)
             {
                 logger?.LogError($"Unhandled app level exception: {ex.Message}");
+                logger?.LogDebug(ex.ToString());
             }
             finally
             {
@@ -125,6 +172,46 @@ namespace PixelPlanetWatcher
 
         private static bool ParseArguments(IEnumerable<string> args)
         {
+            bool ProcessAppOptions(AppOptions o)
+            {
+                if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
+                {
+                    int protocolLength = o.ProxyAddress.IndexOf("://");
+                    if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        if (protocolLength > -1)
+                        {
+                            o.ProxyAddress = "http" + o.ProxyAddress.Substring(protocolLength);
+                        }
+                        else
+                        {
+                            o.ProxyAddress = "http://" + o.ProxyAddress;
+                        }
+                    }
+                    if (!Uri.IsWellFormedUriString(o.ProxyAddress, UriKind.Absolute))
+                    {
+                        Console.WriteLine("Invalid proxy address");
+                        return false;
+                    }
+
+                    proxySettings = new ProxySettings
+                    {
+                        Address = o.ProxyAddress,
+                        Username = o.ProxyUsername,
+                        Password = o.ProxyPassword
+                    };
+                }
+                if (o.UseMirror)
+                {
+                    UrlManager.MirrorMode = o.UseMirror;
+                }
+                if (o.ServerUrl != null)
+                {
+                    UrlManager.BaseUrl = o.ServerUrl;
+                }
+                return true;
+            }
+
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -137,22 +224,16 @@ namespace PixelPlanetWatcher
                     .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
                     .WithParsed<WatcherOptions>(o =>
                     {
+                        if (!ProcessAppOptions(o))
+                        {
+                            return;
+                        }
                         options = o;
-
                         if (o.LeftX > o.RightX || o.TopY > o.BottomY)
                         {
                             Console.WriteLine("Invalid args: check rectangle borders");
                             success = false;
                             return;
-                        }
-
-                        if (o.UseMirror)
-                        {
-                            UrlManager.MirrorMode = o.UseMirror;
-                        }
-                        if (o.ServerUrl != null)
-                        {
-                            UrlManager.BaseUrl = o.ServerUrl;
                         }
                     });
                 return success;
@@ -161,6 +242,7 @@ namespace PixelPlanetWatcher
 
         private static FileStream SaveInitialMapState()
         {
+            const byte version = 1;
             DateTime now = DateTime.Now;
             cache.DownloadChunks();
             byte[] mapBytes = BinaryConversion.GetRectangle(cache, options.LeftX, options.TopY, options.RightX, options.BottomY);
@@ -168,6 +250,8 @@ namespace PixelPlanetWatcher
             {
                 using (BinaryWriter writer = new BinaryWriter(fileStream))
                 {
+                    writer.Write(version);
+                    writer.Write((byte)options.Canvas);
                     writer.Write(options.LeftX);
                     writer.Write(options.TopY);
                     writer.Write(options.RightX);
@@ -191,7 +275,7 @@ namespace PixelPlanetWatcher
             return new FileStream(options.FileName, FileMode.Open, FileAccess.Read, FileShare.None);
         }
 
-        private static void SaveChangesThreadBody()
+        private static async void SaveChangesThreadBody()
         {
             Task GetDelayTask() => Task.Delay(TimeSpan.FromMinutes(1), finishCTS.Token);
 
@@ -202,7 +286,7 @@ namespace PixelPlanetWatcher
                 {
                     do
                     {
-                        delayTask.Wait();
+                        await delayTask;
                         delayTask = GetDelayTask();
                         List<Pixel> saved;
                         lock (listLockObj)
@@ -231,17 +315,9 @@ namespace PixelPlanetWatcher
                     } while (true);
                 }
                 catch (ThreadInterruptedException)
-                {
-                    logger.LogDebug("SaveChangesThreadBody(): cancelling (1)");
-                }
-                catch (TaskCanceledException)
-                {
-                    logger.LogDebug("SaveChangesThreadBody(): cancelling (2)");
-                }
-                catch (AggregateException ae) when (ae.GetBaseException() is TaskCanceledException)
-                {
-                    logger.LogDebug("SaveChangesThreadBody(): cancelling (3)");
-                }
+                { }
+                catch (OperationCanceledException)
+                { }
                 lockingStreamTask.Result.Close();
 
                 if (updates.Count > 0)
@@ -256,6 +332,7 @@ namespace PixelPlanetWatcher
             catch (Exception ex)
             {
                 logger.LogError($"Unhandled exception during saving: {ex.GetBaseException().Message}");
+                logger.LogDebug(ex.ToString());
                 stopListening();
             }
 
@@ -267,11 +344,11 @@ namespace PixelPlanetWatcher
                     {
                         writer.Write(DateTime.Now.ToBinary());
                         writer.Write((uint)pixels.Count);
-                        foreach ((short, short, EarthPixelColor) pixel in pixels)
+                        foreach (Pixel pixel in pixels)
                         {
                             writer.Write(pixel.Item1);
                             writer.Write(pixel.Item2);
-                            writer.Write((byte)pixel.Item3);
+                            writer.Write(pixel.Item3);
                         }
                     }
                 }
@@ -280,16 +357,20 @@ namespace PixelPlanetWatcher
 
         }
 
-        private static void Wrapper_OnPixelChanged(object sender, PixelChangedEventArgs e)
+        private static void Wrapper_OnMapChanged(object sender, MapChangedEventArgs e)
         {
-            short x = PixelMap.ConvertToAbsolute(e.Chunk.Item1, e.Pixel.Item1);
-            short y = PixelMap.ConvertToAbsolute(e.Chunk.Item2, e.Pixel.Item2);
-            if (x <= options.RightX && x >= options.LeftX && y <= options.BottomY && y >= options.TopY)
+            foreach (MapChange c in e.Changes)
             {
-                logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, e.Color);
-                lock (listLockObj)
+                PixelMap.OffsetToRelative(c.Offset, out byte rx, out byte ry);
+                short x = PixelMap.RelativeToAbsolute(e.Chunk.Item1, rx);
+                short y = PixelMap.RelativeToAbsolute(e.Chunk.Item2, ry);
+                if (x <= options.RightX && x >= options.LeftX && y <= options.BottomY && y >= options.TopY)
                 {
-                    updates.Add((x, y, e.Color));
+                    logger.LogPixel("Received pixel update:", e.DateTime, MessageGroup.PixelInfo, x, y, colorNameResolver.GetName(c.Color));
+                    lock (listLockObj)
+                    {
+                        updates.Add((x, y, c.Color));
+                    }
                 }
             }
         }

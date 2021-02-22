@@ -2,7 +2,7 @@
 
 namespace PixelPlanetUtils.Eventing
 {
-    public class ConnectionRestoredEventArgs : EventArgs
+    class ConnectionRestoredEventArgs : EventArgs
     {
         public TimeSpan OfflinePeriod { get; }
 

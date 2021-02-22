@@ -1,14 +1,15 @@
 ﻿using CommandLine;
-using PixelPlanetUtils;
 using PixelPlanetUtils.Canvas;
+using PixelPlanetUtils.Imaging;
 using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.NetworkInteraction.Models;
 using PixelPlanetUtils.Options;
 using PixelPlanetUtils.Updates;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -17,22 +18,24 @@ using System.Threading.Tasks;
 
 namespace RecordVisualizer
 {
-    using Pixel = ValueTuple<short, short, EarthPixelColor>;
+    using Pixel = ValueTuple<short, short, byte>;
 
     static class Program
     {
         private static int w, h;
         private static DateTime startTime;
-        private static EarthPixelColor[,] initialMapState;
+        private static byte[,] initialMapState;
         private static short leftX, topY, rightX, bottomY;
         private static readonly List<Delta> deltas = new List<Delta>();
 
+        private static CanvasType canvasType = CanvasType.Earth;
         private static Logger logger;
         private static VisualizerOptions options;
         private static bool checkUpdates;
+        private static Palette palette;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
-        private static void Main(string[] args)
+        private async static Task Main(string[] args)
         {
             try
             {
@@ -65,6 +68,13 @@ namespace RecordVisualizer
                 }
                 logger.LogInfo($"File is loaded: {w}x{h}, {deltas.Count + 1} frames");
 
+                logger.LogTechState("Downloading palette...");
+                PixelPlanetHttpApi api = new PixelPlanetHttpApi();
+                UserModel user = await api.GetMeAsync();
+                logger.LogTechInfo("Palette retrieved");
+                CanvasModel canvas = user.Canvases[canvasType];
+                palette = new Palette(canvas.Colors);
+
                 DirectoryInfo dir = Directory.CreateDirectory($"seq_{startTime:MM.dd_HH-mm}");
                 string pathTemplate = Path.Combine(dir.FullName, "{0:MM.dd_HH-mm-ss}.png");
                 try
@@ -79,6 +89,7 @@ namespace RecordVisualizer
             catch (Exception ex)
             {
                 logger?.LogError($"Unhandled app level exception: {ex.Message}");
+                logger?.LogDebug(ex.ToString());
             }
             finally
             {
@@ -128,8 +139,20 @@ namespace RecordVisualizer
         {
             using (FileStream fileStream = File.OpenRead(path))
             {
+                byte version = 0;
+
                 using (BinaryReader reader = new BinaryReader(fileStream, Encoding.Default, true))
                 {
+                    if (!options.OldRecordFile)
+                    {
+                        version = reader.ReadByte();
+                    }
+
+                    if (version == 1)
+                    {
+                        canvasType = (CanvasType)reader.ReadByte();
+                    }
+
                     leftX = reader.ReadInt16();
                     topY = reader.ReadInt16();
                     rightX = reader.ReadInt16();
@@ -139,49 +162,35 @@ namespace RecordVisualizer
                     startTime = DateTime.FromBinary(reader.ReadInt64());
                 }
 
-                if (options.OldRecordFile)
+
+                using (BinaryReader reader = new BinaryReader(fileStream))
                 {
-                    using (BinaryReader reader = new BinaryReader(fileStream))
+                    long mapLength = reader.ReadInt64();
+
+                    using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
                     {
-                        reader.ReadMap();
-                        logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
-                        while (!reader.ReachedEnd())
+                        using (BinaryReader decompressingReader = new BinaryReader(decompressingStream))
                         {
-                            deltas.Add(reader.ReadDelta());
-                            logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
+                            initialMapState = decompressingReader.ReadMap();
                         }
                     }
-                }
-                else
-                {
-                    using (BinaryReader reader = new BinaryReader(fileStream))
+
+                    int metadataLength = sizeof(short) * 4 + sizeof(long) + sizeof(long); //rect boundaries, start time and map length
+                    if (version == 1)
                     {
-                        long mapLength = reader.ReadInt64();
-
-                        using (DeflateStream decompressingStream = new DeflateStream(fileStream, CompressionMode.Decompress, true))
-                        {
-                            using (BinaryReader decompressingReader = new BinaryReader(decompressingStream))
-                            {
-                                decompressingReader.ReadMap();
-                            }
-                        }
-
-                        const int metadataLength = sizeof(short) * 4 + sizeof(long) + sizeof(long);
-                        logger.LogDebug($"LoadFile(): seeking for deltas at {metadataLength}+{mapLength}");
-                        fileStream.Seek(metadataLength + mapLength, SeekOrigin.Begin);
-
-                        while (fileStream.Length - fileStream.Position > 1)
-                        {
-                            deltas.Add(reader.ReadDelta());
-                            logger.LogDebug($"LoadFile(): stream position {fileStream.Position}/{fileStream.Length}");
-                        }
+                        metadataLength += sizeof(byte) * 2; //version and canvas
                     }
+                    fileStream.Seek(metadataLength + mapLength, SeekOrigin.Begin);
+
+                    while (fileStream.Length - fileStream.Position > 1)
+                    {
+                        deltas.Add(reader.ReadDelta());
+                    }
+
                 }
             }
         }
 
-        [SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "strange IDE suggestion")]
-        [SuppressMessage("Style", "IDE0071WithoutSuggestion:Simplify interpolation", Justification = "strange IDE suggestion")]
         private static void SaveLoadedData(string filePathTemplate)
         {
             string initMapFileName = string.Format(filePathTemplate, startTime);
@@ -196,10 +205,9 @@ namespace RecordVisualizer
                 {
                     foreach (Pixel pixel in delta.Pixels)
                     {
-                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = pixel.Item3.ToRgba32();
+                        image[pixel.Item1 - leftX, pixel.Item2 - topY] = palette[pixel.Item3];
                     }
                     string fileName = string.Format(filePathTemplate, delta.DateTime);
-                    logger.LogDebug($"SaveLoadedData(): saving delta {index} to {fileName}");
                     image.Save(fileName);
                     logger.LogInfo($"Saved delta {index.ToString().PadLeft(padLength)}/{deltas.Count}");
                 }
@@ -216,33 +224,30 @@ namespace RecordVisualizer
                 {
                     for (int x = 0; x < w; x++)
                     {
-                        image[x, y] = initialMapState[y, x].ToRgba32();
+                        image[x, y] = palette[initialMapState[y, x]];
                     }
                 }
-                logger.LogDebug($"SaveLoadedData(): saving initial map to {filename}");
                 image.Save(filename);
                 logger.LogInfo("Initial map state image created");
             }
         }
 
-        private static bool ReachedEnd(this BinaryReader reader) => reader.PeekChar() == -1;
-
-        private static void ReadMap(this BinaryReader reader)
+        private static byte[,] ReadMap(this BinaryReader reader)
         {
             byte[] data = reader.ReadBytes(w * h);
-            initialMapState = BinaryConversion.ToColorRectangle(data, h, w);
+            return BinaryConversion.ToColorRectangle(data, h, w);
         }
 
         private static Delta ReadDelta(this BinaryReader reader)
         {
             DateTime dateTime = DateTime.FromBinary(reader.ReadInt64());
             uint count = reader.ReadUInt32();
-            List<(short, short, EarthPixelColor)> pixels = new List<Pixel>();
+            List<Pixel> pixels = new List<Pixel>();
             for (int j = 0; j < count; j++)
             {
                 short x = reader.ReadInt16();
                 short y = reader.ReadInt16();
-                EarthPixelColor color = (EarthPixelColor)reader.ReadByte();
+                byte color = reader.ReadByte();
                 pixels.Add((x, y, color));
             }
             return new Delta

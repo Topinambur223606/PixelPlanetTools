@@ -1,32 +1,43 @@
-﻿using PixelPlanetUtils.Canvas;
-using PixelPlanetUtils.NetworkInteraction;
+﻿using PixelPlanetUtils.NetworkInteraction.Websocket;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 namespace PixelPlanetUtils.Logging
 {
     public static class LoggerExtensions
     {
-        private static readonly int colorPadLength = Enum.GetValues(typeof(EarthPixelColor)).Cast<EarthPixelColor>().Max(c => c.ToString().Length);
+        public static int MaxCoordXYLength { get; set; } = 6;
+        
+        const int maxCoordZLength = 3;
+        const int maxPixelMsgLength = 22;
 
         public static void Log(this Logger logger, string msg, MessageGroup group)
         {
             logger.Log(msg, group, DateTime.Now);
         }
 
-        public static void LogPixel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, EarthPixelColor color)
+        public static void LogPixel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, string color)
         {
-            const int maxMsgLength = 22;
-            const int maxCoordLength = 6;
             string text = string.Format("{0} {1} at ({2};{3})",
-                                    msg.PadRight(maxMsgLength),
-                                    color.ToString().PadRight(colorPadLength),
-                                    x.ToString().PadLeft(maxCoordLength),
-                                    y.ToString().PadLeft(maxCoordLength));
+                                    msg.PadRight(maxPixelMsgLength),
+                                    color,
+                                    x.ToString().PadLeft(MaxCoordXYLength),
+                                    y.ToString().PadLeft(MaxCoordXYLength));
             logger.Log(text, group, time);
         }
+
+        public static void LogVoxel(this Logger logger, string msg, DateTime time, MessageGroup group, int x, int y, int z, string color)
+        {
+            string text = string.Format("{0} {1} at ({2};{3};{4})",
+                                    msg.PadRight(maxPixelMsgLength),
+                                    color,
+                                    x.ToString().PadLeft(MaxCoordXYLength),
+                                    y.ToString().PadLeft(MaxCoordXYLength),
+                                    z.ToString().PadLeft(maxCoordZLength));
+            logger.Log(text, group, time);
+        }
+
 
         public static void LogDebug(this Logger logger, string msg)
         {
@@ -59,9 +70,9 @@ namespace PixelPlanetUtils.Logging
             logger.Log(msg, MessageGroup.Update);
         }
 
-        public static void LogPixelFail(this Logger logger, ReturnCode returnCode)
+        public static void LogFail(this Logger logger, ReturnCode returnCode)
         {
-            logger.Log($"Failed to place pixel: {errorReasons[returnCode]}", MessageGroup.PixelFail);
+            logger.Log($"Failed to place: {errorReasons[returnCode]}", MessageGroup.PlaceFail);
         }
 
         private static readonly Dictionary<ReturnCode, string> errorReasons = new Dictionary<ReturnCode, string>

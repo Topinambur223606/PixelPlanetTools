@@ -6,7 +6,7 @@
         TechInfo,
         PixelInfo,
         Pixel,
-        PixelFail,
+        PlaceFail,
         Assist,
         Attack,
         Error,

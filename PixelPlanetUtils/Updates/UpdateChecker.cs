@@ -116,7 +116,7 @@ namespace PixelPlanetUtils.Updates
                     using (BinaryReader br = new BinaryReader(lastCheckFileStream, Encoding.Default, true))
                     {
                         DateTime lastCheck = DateTime.FromBinary(br.ReadInt64());
-                        if (DateTime.Now - lastCheck < TimeSpan.FromHours(1))
+                        if (DateTime.Now - lastCheck < TimeSpan.FromDays(1))
                         {
                             return false;
                         }
@@ -189,11 +189,12 @@ namespace PixelPlanetUtils.Updates
             }
         }
 
-        private static void UnpackUpdater()
+        private void UnpackUpdater()
         {
             if (!File.Exists(updaterPath) ||
                 Version.Parse(FileVersionInfo.GetVersionInfo(updaterPath).FileVersion) < updaterVersion)
             {
+                logger.LogDebug("UnpackUpdater(): unpacking updater");
                 Directory.CreateDirectory(Path.GetDirectoryName(updaterPath));
                 File.WriteAllBytes(updaterPath, Properties.Resources.Updater);
             }
@@ -203,7 +204,6 @@ namespace PixelPlanetUtils.Updates
         {
             try
             {
-                logger.LogDebug("StartUpdate(): unpacking updater if needed");
                 UnpackUpdater();
                 string args;
                 int id = Process.GetCurrentProcess().Id;
@@ -219,7 +219,7 @@ namespace PixelPlanetUtils.Updates
             }
             catch (Exception ex)
             {
-                logger.LogDebug($"StartUpdate(): exception during update start - {ex.Message}");
+                logger.LogDebug($"StartUpdate(): exception during update start - {ex}");
             }
         }
 

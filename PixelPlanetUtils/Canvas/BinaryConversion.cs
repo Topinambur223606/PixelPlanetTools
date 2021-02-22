@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PixelPlanetUtils.Canvas.Cache;
+using System;
 using System.Threading.Tasks;
 
 namespace PixelPlanetUtils.Canvas
@@ -35,24 +36,27 @@ namespace PixelPlanetUtils.Canvas
             }
         }
 
-        public static EarthPixelColor[,] ToColorRectangle(byte[] bytes, int height, int width)
+        public static byte[,] ToColorRectangle(byte[] bytes, int height, int width)
         {
-            EarthPixelColor[,] map = new EarthPixelColor[height, width];
+            byte[,] map = new byte[height, width];
             if (bytes.Length != 0)
             {
-                unsafe
-                {
-                    fixed (byte* byteArr = &bytes[0])
-                    fixed (EarthPixelColor* colorArr = &map[0, 0])
-                    {
-                        Buffer.MemoryCopy(byteArr, colorArr, width * height, bytes.Length);
-                    }
-                }
+                Buffer.BlockCopy(bytes, 0, map, 0, bytes.Length);
             }
             return map;
         }
 
-        public static byte[] GetRectangle(ChunkCache cache, short left, short top, short right, short bottom)
+        public static byte[,,] ToColorCuboid(byte[] bytes, int xSize, int ySize, int height)
+        {
+            byte[,,] map = new byte[height, ySize, xSize];
+            if (bytes.Length != 0)
+            {
+                Buffer.BlockCopy(bytes, 0, map, 0, bytes.Length);
+            }
+            return map;
+        }
+
+        public static byte[] GetRectangle(ChunkCache2D cache, short left, short top, short right, short bottom)
         {
             int rightExclusive = right + 1;
             int bottomExclusive = bottom + 1;
@@ -68,13 +72,13 @@ namespace PixelPlanetUtils.Canvas
                     byte* byteArrStartPosition = byteArrPtr;
                     Parallel.ForEach(cache.CachedChunks, chunkEntry =>
                     {
-                        fixed (EarthPixelColor* chunkPtr = &chunkEntry.Value[0, 0])
+                        fixed (byte* chunkPtr = &chunkEntry.Value[0, 0])
                         {
                             (byte chunkX, byte chunkY) = chunkEntry.Key;
-                            short xChunkStart = PixelMap.ConvertToAbsolute(chunkX, 0);
-                            short yChunkStart = PixelMap.ConvertToAbsolute(chunkY, 0);
-                            short xChunkEndExclusive = PixelMap.ConvertToAbsolute(chunkX + 1, 0);
-                            short yChunkEndExclusive = PixelMap.ConvertToAbsolute(chunkY + 1, 0);
+                            short xChunkStart = PixelMap.RelativeToAbsolute(chunkX, 0);
+                            short yChunkStart = PixelMap.RelativeToAbsolute(chunkY, 0);
+                            short xChunkEndExclusive = PixelMap.RelativeToAbsolute(chunkX + 1, 0);
+                            short yChunkEndExclusive = PixelMap.RelativeToAbsolute(chunkY + 1, 0);
 
                             short xBlockStart = Math.Max(xChunkStart, left);
                             short yBlockStart = Math.Max(yChunkStart, top);
@@ -92,12 +96,12 @@ namespace PixelPlanetUtils.Canvas
                             int blockWidth = xBlockEndExclusive - xBlockStart;
 
                             byte* outputCurrentPosition = byteArrStartPosition + xBlockStart - left + (yBlockStart - top) * width;
-                            EarthPixelColor* inputCurrentPosition = chunkPtr + xBlockStartChunkOffset + PixelMap.ChunkSideSize * yBlockStartChunkOffset;
+                            byte* inputCurrentPosition = chunkPtr + xBlockStartChunkOffset + PixelMap.ChunkSize * yBlockStartChunkOffset;
 
                             for (int chunkLine = yBlockStartChunkOffset; chunkLine < yBlockEndExclusiveChunkOffset; chunkLine++)
                             {
                                 Buffer.MemoryCopy(inputCurrentPosition, outputCurrentPosition, blockWidth, blockWidth);
-                                inputCurrentPosition += PixelMap.ChunkSideSize;
+                                inputCurrentPosition += PixelMap.ChunkSize;
                                 outputCurrentPosition += width;
                             }
                         }
