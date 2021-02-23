@@ -17,6 +17,7 @@ namespace PixelPlanetBot
     static partial class Program
     {
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
+        private static readonly CancellationTokenSource loggingCTS = new CancellationTokenSource();
 
         private static Logger logger;
         private static AppOptions appOptions;
@@ -36,7 +37,7 @@ namespace PixelPlanetBot
                     return;
                 }
 
-                logger = new Logger(appOptions?.LogFilePath, finishCTS.Token)
+                logger = new Logger(appOptions?.LogFilePath, loggingCTS.Token)
                 {
                     ShowDebugLogs = appOptions?.ShowDebugLogs ?? false
                 };
@@ -49,6 +50,12 @@ namespace PixelPlanetBot
                         return;
                     }
                 }
+
+                Console.CancelKeyPress += (o, e) =>
+                {
+                    e.Cancel = true;
+                    finishCTS.Cancel();
+                };
 
                 IActivity activity = null;
 
@@ -74,6 +81,8 @@ namespace PixelPlanetBot
                     activity.Dispose();
                 }
             }
+            catch (OperationCanceledException)
+            { }
             catch (Exception ex)
             {
                 string msg = $"Unhandled app level exception: {ex.Message}";
@@ -93,14 +102,12 @@ namespace PixelPlanetBot
                 {
                     logger.LogInfo("Exiting...");
                     logger.LogInfo($"Logs were saved to {logger.LogFilePath}");
-                }
-                finishCTS.Cancel();
-                if (logger != null)
-                {
-                    Thread.Sleep(500);
+                    Thread.Sleep(100);
+                    loggingCTS.Cancel();
                 }
                 logger?.Dispose();
                 finishCTS.Dispose();
+                loggingCTS.Dispose();
                 Console.ForegroundColor = ConsoleColor.White;
             }
         }

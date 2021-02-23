@@ -291,7 +291,7 @@ namespace PixelPlanetBot.Activities
                     .Count(p => palette.IsCorrectPixelColor(cache2d.GetPixelColor(p.Item1, p.Item2), p.Item3));
         }
 
-        protected override bool PerformBuildingCycle(WebsocketWrapper wrapper)
+        protected override async Task<bool> PerformBuildingCycle(WebsocketWrapper wrapper)
         {
             bool changed = false;
             foreach (Pixel pixel in pixelsToBuild)
@@ -324,11 +324,11 @@ namespace PixelPlanetBot.Activities
                             logger.LogPixel($"{(placed ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, colorNameResolver.GetName(color));
                             if (response.Wait > canvas.TimeBuffer || response.CoolDownSeconds * 1000 > Math.Max(canvas.ReplaceCooldown, 1000))
                             {
-                                Thread.Sleep(TimeSpan.FromSeconds(response.CoolDownSeconds));
+                                await Task.Delay(TimeSpan.FromSeconds(response.CoolDownSeconds), finishToken);
                             }
                             else
                             {
-                                Thread.Sleep(TimeSpan.FromMilliseconds(canvas.OptimalCooldown));
+                                await Task.Delay(TimeSpan.FromMilliseconds(canvas.OptimalCooldown), finishToken);
                             }
                         }
                         else
@@ -353,7 +353,7 @@ namespace PixelPlanetBot.Activities
                                     return true;
                                 }
                             }
-                            Thread.Sleep(TimeSpan.FromMilliseconds(response.Wait));
+                            await Task.Delay(TimeSpan.FromMilliseconds(response.Wait), finishToken);
                         }
                     } while (!success);
                 }

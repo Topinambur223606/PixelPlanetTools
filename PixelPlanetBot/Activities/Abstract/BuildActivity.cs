@@ -133,7 +133,7 @@ namespace PixelPlanetBot.Activities.Abstract
                         do
                         {
                             repeatingFails = false;
-                            wasChanged = PerformBuildingCycle(wrapper);
+                            wasChanged = await PerformBuildingCycle(wrapper);
                             if (options.DefenseMode)
                             {
                                 if (!wasChanged)
@@ -330,7 +330,7 @@ namespace PixelPlanetBot.Activities.Abstract
         protected abstract void ClearPlaced();
         protected abstract void CalculateOrder();
         protected abstract int CountDone();
-        protected abstract bool PerformBuildingCycle(WebsocketWrapper wrapper);
+        protected abstract Task<bool> PerformBuildingCycle(WebsocketWrapper wrapper);
 
         public void Dispose()
         {

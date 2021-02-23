@@ -13,7 +13,7 @@ namespace PixelPlanetUtils.Imaging
         private readonly List<Rgba32> colors;
         private readonly byte[] bgColorReplacement;
 
-        public int Size => colors.Count - ColorsSkipped;
+        public int Size => colors.Count;
 
         public double MaxDistance { get; }
 
