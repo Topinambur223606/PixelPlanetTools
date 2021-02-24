@@ -307,7 +307,6 @@ namespace PixelPlanetBot.Activities
                     placed.Add(pixel);
                     do
                     {
-                        wrapper.WaitWebsocketConnected();
                         wrapper.PlacePixel(x, y, color);
                         PixelReturnData response = wrapper.GetPlaceResponse();
 
