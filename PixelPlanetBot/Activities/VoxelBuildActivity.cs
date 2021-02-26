@@ -133,7 +133,14 @@ namespace PixelPlanetBot.Activities
         {
             try
             {
-                imageVoxels = await ImageConverter.VoxelColorsByUri(options.ImagePath, palette, logger);
+                if (options.ImagePath != null)
+                {
+                    imageVoxels = await ImageConverter.VoxelColorsByPngUri(options.ImagePath, palette, logger);
+                }
+                else
+                {
+                    imageVoxels = await ImageConverter.VoxelColorsByCsvUri(options.DocumentPath, palette, logger);
+                }
                 sizeX = imageVoxels.GetLength(0);
                 sizeY = imageVoxels.GetLength(1);
                 height = imageVoxels.GetLength(2);

@@ -8,11 +8,11 @@
 ![X horizontal, Y vertical -> XY intersection in top left corner](https://i.imgur.com/rICbUBq.png)
 
 ### Export as following:
-`File` - `Export` - `File type`:`Sproxel CSV files`
+`File` - `Export` - `File type`:`Sproxel CSV files` or `Sproxel PNG files`
 
-### Explaining the format
+## Explaining the format
 
-Example:  
+### CSV
 ![example of voxel template](https://i.imgur.com/WzgSM1L.png)
 
 Corresponding CSV file (it's just text document) looks like this:
@@ -47,3 +47,16 @@ Every block of lines (there are `height` of them) is a slice by Z - `sizeX * siz
 If color ends with `FF`, it is interpreted as colored voxel, otherwise as empty one (So don't change "alpha" value of color in editor, bot will ignore pixel if alpha is not 255, which is two last `FF` letters).
   
 There are 4 slices in example; each is 3x5. `#000000FF` is black, `#FFFFFFFF` is white and `#00000000` is transparent.
+
+### PNG
+Each horizontal line in PNG is slice by Z that is divided into lines by Y and then concatenated.  
+For example:
+```
+1 2
+3 4  ->  1 2 3 4 5 6
+5 6
+```
+Along with that, such PNG file has text metadata:
+- `SproxelFileVersion` - equals to 1;
+- `VoxelGridDimX`, `VoxelGridDimZ` - horizontal size;
+- `VoxelGridDimY` - height.

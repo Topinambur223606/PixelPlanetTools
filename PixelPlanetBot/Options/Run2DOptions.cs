@@ -6,6 +6,9 @@ namespace PixelPlanetBot.Options
     [Verb("run", HelpText = "Runs the bot")]
     class Run2DOptions : RunOptions
     {
+        [Option('i', "imagePath", Required = true, HelpText = "Path to the image, URL, local absolute or relative")]
+        public string ImagePath { get; set; }
+
         [Option('x', "leftX", Required = true, HelpText = "X coord of left image pixel")]
         public short LeftX { get; set; }
 

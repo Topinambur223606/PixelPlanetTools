@@ -113,7 +113,7 @@ namespace PixelPlanetWatcher
                 {
                     try
                     {
-                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true, null, null, options.Canvas))
+                        using (WebsocketWrapper wrapper = new WebsocketWrapper(logger, true, proxySettings, null, options.Canvas))
                         {
                             cache.Wrapper = wrapper;
                             if (!initialMapSavingStarted)
@@ -226,6 +226,7 @@ namespace PixelPlanetWatcher
                     {
                         if (!ProcessAppOptions(o))
                         {
+                            success = false;
                             return;
                         }
                         options = o;

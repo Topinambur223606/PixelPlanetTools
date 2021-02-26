@@ -2,6 +2,7 @@
 using PixelPlanetUtils.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -46,7 +47,7 @@ namespace PixelPlanetUtils.Imaging
             }
         }
 
-        public async static Task<byte[,,]> VoxelColorsByUri(string csvUri, Palette palette, Logger logger)
+        public async static Task<byte[,,]> VoxelColorsByCsvUri(string csvUri, Palette palette, Logger logger)
         {
             logger.LogTechState("Downloading document...");
             using (WebClient wc = new WebClient())
@@ -116,6 +117,54 @@ namespace PixelPlanetUtils.Imaging
                         }
                     });
                     logger.LogTechInfo("Mask is converted");
+                    return res;
+                }
+            }
+        }
+
+        public async static Task<byte[,,]> VoxelColorsByPngUri(string imageUri, Palette palette, Logger logger)
+        {
+            logger.LogTechState("Downloading image...");
+            using (WebClient wc = new WebClient())
+            {
+                byte[] data = await wc.DownloadDataTaskAsync(imageUri);
+                using (Image<Rgba32> image = Image.Load(data))
+                {
+                    logger.LogTechInfo("Image is downloaded");
+                    logger.LogTechState("Converting image...");
+                    var metadata = image.Metadata.GetPngMetadata().TextData.ToDictionary(d => d.Keyword, d => d.Value);
+                    if (!(metadata.TryGetValue("SproxelFileVersion", out string version) && version == "1"))
+                    {
+                        throw new Exception("not the Sproxel exported PNG");
+                    }
+                    int sx = int.Parse(metadata["VoxelGridDimX"]);
+                    //sproxel Y is bot Z and vice versa
+                    int sz = int.Parse(metadata["VoxelGridDimY"]);
+                    int sy = int.Parse(metadata["VoxelGridDimZ"]);
+
+                    byte[,,] res = new byte[sx, sy, sz];
+                    Dictionary<Rgba32, byte> knownColors = new Dictionary<Rgba32, byte>();
+                    Parallel.For(0, sz, z =>
+                    {
+                        int imageY = sz - z - 1;
+                        for (int y = 0; y < sy; y++)
+                        {
+                            for (int x = 0; x < sx; x++)
+                            {
+                                int imageX = y * sx + x;
+                                var color = image[imageX, imageY];
+                                if (color.A > 0)
+                                {
+                                    if (!knownColors.TryGetValue(color, out byte colorCode))
+                                    {
+                                        knownColors[color] = colorCode = palette.ClosestAvailable(color);
+                                    }
+                                    res[x, y, z] = colorCode;
+                                }
+                            }
+                        }
+                    });
+
                     return res;
                 }
             }

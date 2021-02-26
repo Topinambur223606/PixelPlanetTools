@@ -177,6 +177,7 @@ namespace PixelPlanetBot
                     {
                         if (!ProcessAppOptions(o))
                         {
+                            success = false;
                             return;
                         }
                         appOptions = run2dOptions = o;
@@ -193,8 +194,15 @@ namespace PixelPlanetBot
                     {
                         if (!ProcessAppOptions(o))
                         {
+                            success = false;
                             return;
                         }
+                        if (o.DocumentPath != null && o.ImagePath != null)
+                        {
+                            Console.WriteLine("Both CSV and PNG are passed, aborting");
+                            success = false;
+                            return;
+                        };
                         appOptions = run3dOptions = o;
                         CheckWarnProxy(o);
 
@@ -203,6 +211,7 @@ namespace PixelPlanetBot
                     {
                         if (!ProcessAppOptions(o))
                         {
+                            success = false;
                             return;
                         }
                         appOptions = sessionsOptions = o;

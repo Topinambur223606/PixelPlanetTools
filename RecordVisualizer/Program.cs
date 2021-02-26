@@ -33,6 +33,7 @@ namespace RecordVisualizer
         private static VisualizerOptions options;
         private static bool checkUpdates;
         private static Palette palette;
+        private static ProxySettings proxySettings;
         private static readonly CancellationTokenSource finishCTS = new CancellationTokenSource();
 
         private async static Task Main(string[] args)
@@ -69,7 +70,10 @@ namespace RecordVisualizer
                 logger.LogInfo($"File is loaded: {w}x{h}, {deltas.Count + 1} frames");
 
                 logger.LogTechState("Downloading palette...");
-                PixelPlanetHttpApi api = new PixelPlanetHttpApi();
+                PixelPlanetHttpApi api = new PixelPlanetHttpApi
+                {
+                    ProxySettings = proxySettings
+                };
                 UserModel user = await api.GetMeAsync();
                 logger.LogTechInfo("Palette retrieved");
                 CanvasModel canvas = user.Canvases[canvasType];
@@ -112,6 +116,47 @@ namespace RecordVisualizer
 
         private static bool ParseArguments(IEnumerable<string> args)
         {
+            bool ProcessAppOptions(AppOptions o)
+            {
+                if (!string.IsNullOrWhiteSpace(o.ProxyAddress))
+                {
+                    int protocolLength = o.ProxyAddress.IndexOf("://");
+                    if (!o.ProxyAddress.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        if (protocolLength > -1)
+                        {
+                            o.ProxyAddress = "http" + o.ProxyAddress.Substring(protocolLength);
+                        }
+                        else
+                        {
+                            o.ProxyAddress = "http://" + o.ProxyAddress;
+                        }
+                    }
+                    if (!Uri.IsWellFormedUriString(o.ProxyAddress, UriKind.Absolute))
+                    {
+                        Console.WriteLine("Invalid proxy address");
+                        return false;
+                    }
+
+                    proxySettings = new ProxySettings
+                    {
+                        Address = o.ProxyAddress,
+                        Username = o.ProxyUsername,
+                        Password = o.ProxyPassword
+                    };
+                }
+                if (o.UseMirror)
+                {
+                    UrlManager.MirrorMode = o.UseMirror;
+                }
+                if (o.ServerUrl != null)
+                {
+                    UrlManager.BaseUrl = o.ServerUrl;
+                }
+                return true;
+            }
+
+
             using (Parser parser = new Parser(cfg =>
             {
                 cfg.CaseInsensitiveEnumValues = true;
@@ -124,6 +169,12 @@ namespace RecordVisualizer
                     .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
                     .WithParsed<VisualizerOptions>(o =>
                     {
+                        if (!ProcessAppOptions(o))
+                        {
+                            success = false;
+                            return;
+                        }
+
                         options = o;
                         if (!File.Exists(o.FileName))
                         {

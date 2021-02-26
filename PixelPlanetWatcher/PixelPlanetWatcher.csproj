@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetWatcher</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>4.0.0.0</FileVersion>
-    <AssemblyVersion>4.0.0.0</AssemblyVersion>
-    <Version>4.0</Version>
+    <FileVersion>4.0.1.0</FileVersion>
+    <AssemblyVersion>4.0.1.0</AssemblyVersion>
+    <Version>4.0.1</Version>
     <RootNamespace>PixelPlanetWatcher</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>

@@ -39,23 +39,26 @@ Program that builds picture (surprisingly).
 Besides `run` (and `run3d`) command, it also has `sessions` command used for logging in.
 
 ### Run parameters (both regular and 3D modes):
-- `-i, --imagePath` - **required**, URI (URL or path) of image that is built (or CSV document exported from Sproxel in case of 3D canvas);
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
 - `--notificationMode` - defines bot behaviour when captcha appears, possible values: `none`, `sound` (default value), `browser`, `both`;
 - `--captchaTimeout` - if specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press.
 - `-s, --session` - name of already created session to be loaded;
 
 ### Run parameters (only regular - `run`):
+- `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
 - `-x, --leftX` - **required**, X coordinate of left picture pixel;
 - `-y, --topY` - **required**, Y coordinate of top picture pixel;
 - `--placingOrder` - determines pixels priority for bot;
 - `--brightnessMaskPath` - brightness mask for mask placing modes, should be of same size as image that is being built; the brighter is pixel at mask, the earlier corresponding pixel is placed. 16-bit color is supported for this option;
 
 ### Run parameters (only 3D - `run3d`):
+- `-i, --imagePath` - **required**, URI (URL or path) of Sproxel PNG exported image that is built;
+- `-t, --templatePath` - **required**, URI (URL or path) of Sproxel CSV exported template that is built;
 - `-x, --minX` - **required**, X coordinate of template min-X border;
 - `-y, --minY` - **required**, Y coordinate of template min-Y border;
 - `-z, --bottomZ` - Z coordinate (height) of bottom voxel, 0 by default;
 - `--placingOrder` - determines voxels priority for bot;
+Note that only one of image and template options is needed, bot will refuse to launch if both are present.
 
 ### Session parameters:
 - `-a, --add` - if specified, new session is created, username and password are required, session name is optional (default - PixelPlanet user name);
@@ -79,7 +82,7 @@ Besides `run` (and `run3d`) command, it also has `sessions` command used for log
 - All possible 3D placing modes are listed [here](guides/ModeList3D.md);
 - If account is required to build on canvas, session is required to build there using bot;
 - Default canvas is `voxel` for 3D mode, so you don't have to specify it (unless PixelPlanet dev adds new 3D canvas);
-- PixelPlanet shows height at 3D canvas as second coordinate (Y), but it is third (Z) for bot.
+- PixelPlanet and Sproxel show height as second coordinate (Y), but it is third (Z) for bot.
 
 ## PixelPlanetWatcher
 Program that logs updates in given rectangle to the binary file.
