@@ -354,9 +354,11 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
             }
             else if (!listeningMode && data[0] == (byte)Opcode.Cooldown)
             {
-                if (data[1] + data[2] > 0)
+                Array.Reverse(data, 1, 4);
+                var cooldown = BitConverter.ToUInt32(data, 1);
+                if (cooldown > 0U)
                 {
-                    logger.LogInfo($"Current cooldown: {(data[1] << 8) + data[2]}");
+                    logger.LogInfo($"Current cooldown is {TimeSpan.FromMilliseconds(cooldown):mm\\:ss\\.f}");
                 }
             }
         }
