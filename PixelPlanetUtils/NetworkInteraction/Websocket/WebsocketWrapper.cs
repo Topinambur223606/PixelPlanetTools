@@ -325,14 +325,11 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
                 };
                 for (int i = 3; i < data.Length; i += 4)
                 {
-                    byte color = data[i + 3];
-                    uint offset;
                     byte[] offsetBytes = new byte[] { data[i + 2], data[i + 1], data[i], 0 };
-                    offset = BitConverter.ToUInt32(offsetBytes, 0);
                     args.Changes.Add(new MapChange
                     {
-                        Color = color,
-                        Offset = offset
+                        Color = data[i + 3],
+                        Offset = BitConverter.ToUInt32(offsetBytes, 0)
                     });
                 }
                 OnMapChanged?.Invoke(this, args);
@@ -340,14 +337,12 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
             else if (data[0] == (byte)Opcode.PixelReturn)
             {
                 byte returnCode = data[1];
-                byte[] wait, coolDown;
-                wait = new byte[4] { data[5], data[4], data[3], data[2] };
-                coolDown = new byte[2] { data[7], data[6] };
+                Array.Reverse(data, 2, 6);
                 PixelReturnData received = new PixelReturnData
                 {
                     ReturnCode = (ReturnCode)returnCode,
-                    Wait = BitConverter.ToUInt32(wait, 0),
-                    CoolDownSeconds = BitConverter.ToInt16(coolDown, 0)
+                    Wait = BitConverter.ToUInt32(data, 4),
+                    CoolDownSeconds = BitConverter.ToInt16(data, 2)
                 };
                 pixelReturnData.Enqueue(received);
                 pixelReturnResetEvent.Set();
@@ -355,7 +350,7 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
             else if (!listeningMode && data[0] == (byte)Opcode.Cooldown)
             {
                 Array.Reverse(data, 1, 4);
-                var cooldown = BitConverter.ToUInt32(data, 1);
+                uint cooldown = BitConverter.ToUInt32(data, 1);
                 if (cooldown > 0U)
                 {
                     logger.LogInfo($"Current cooldown is {TimeSpan.FromMilliseconds(cooldown):mm\\:ss\\.f}");

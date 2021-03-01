@@ -3,7 +3,7 @@
     /// <summary>
     /// Names got with https://chir.ag/projects/ntc/ntc.js
     /// </summary>
-    enum MoonPixelColor : byte 
+    enum MoonPixelColor : byte
     {
         UnsetMoon,
         UnsetMoon2,

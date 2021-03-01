@@ -25,29 +25,6 @@ namespace PixelPlanetBot.Activities
 
         public async Task Run()
         {
-            List<string> oldSessions = sessionManager.GetOldSessions();
-            if (oldSessions != null && oldSessions.Count > 0)
-            {
-                Console.WriteLine("Sessions from previous version were found:");
-                oldSessions.ForEach(Console.WriteLine);
-                Console.WriteLine("Would you like to migrate them to new (Y), delete (D) or leave \"as is\" (anything else)?");
-                Console.WriteLine("Note that current launch proxy settings will be used to check each session");
-                Console.Write("Y/D/? > ");
-                char response = Console.ReadLine().ToUpper().FirstOrDefault();
-                if (response == 'Y')
-                {
-                    logger.LogTechState("Migrating old sessions...");
-                    await sessionManager.MigrateOldSessions();
-                    sessionManager.DeleteOldSessionFolder();
-                    logger.LogTechInfo("Sessions migrated");
-                }
-                else if (response == 'D')
-                {
-                    sessionManager.DeleteOldSessionFolder();
-                    logger.LogTechInfo("Old sessions deleted");
-                }
-            }
-
             if (options.Add)
             {
                 await AddSession(logger, options);

@@ -8,7 +8,7 @@ namespace PixelPlanetUtils.Logging
     public static class LoggerExtensions
     {
         public static int MaxCoordXYLength { get; set; } = 6;
-        
+
         const int maxCoordZLength = 3;
         const int maxPixelMsgLength = 22;
 

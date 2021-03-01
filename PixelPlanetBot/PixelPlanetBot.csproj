@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetBot</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>6.1.0.1</FileVersion>
-    <AssemblyVersion>6.1.0.1</AssemblyVersion>
-    <Version>6.1</Version>
+    <FileVersion>6.1.1.0</FileVersion>
+    <AssemblyVersion>6.1.1.0</AssemblyVersion>
+    <Version>6.1.1</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>

@@ -89,7 +89,7 @@ namespace PixelPlanetBot.Activities.Abstract
             }
 
             canvas = user.Canvases[options.Canvas];
-            
+
             LoggerExtensions.MaxCoordXYLength = 1 + (int)Math.Log10(canvas.Size / 2);
             ValidateCanvas();
 
@@ -203,7 +203,7 @@ namespace PixelPlanetBot.Activities.Abstract
                     builtInLastMinute = 0;
                     AddToQueue(griefedInPast, griefedInLastMinute);
                     griefedInLastMinute = 0;
-                    
+
                     done = CountDone();
                     finishToken.ThrowIfCancellationRequested();
 
@@ -215,7 +215,7 @@ namespace PixelPlanetBot.Activities.Abstract
                     double percent = Math.Floor(done * 1000D / total) / 10D;
                     DateTime time = DateTime.Now;
 
-                   
+
                     if (options.DefenseMode)
                     {
                         logger.Log($"Image integrity is {percent:F1}%, {total - done} corrupted pixels", MessageGroup.Info, time);
@@ -320,6 +320,19 @@ namespace PixelPlanetBot.Activities.Abstract
             }
             Thread.Sleep(TimeSpan.FromSeconds(options.CaptchaTimeout));
             logger.LogTechInfo("Captcha timeout");
+        }
+
+        protected async Task WaitAfterPlaced(PixelReturnData response, bool placed)
+        {
+            int expectedCooldown = placed ? canvas.PlaceCooldown : canvas.ReplaceCooldown;
+            if (response.Wait > canvas.TimeBuffer || (expectedCooldown + 500D) / response.CoolDownSeconds < 700)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min((int)response.CoolDownSeconds, 60)), finishToken);
+            }
+            else
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(canvas.OptimalCooldown), finishToken);
+            }
         }
 
         protected abstract void ValidateCanvas();

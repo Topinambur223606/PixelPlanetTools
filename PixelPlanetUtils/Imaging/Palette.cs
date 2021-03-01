@@ -26,7 +26,7 @@ namespace PixelPlanetUtils.Imaging
             {
                 for (int i = 0; i < ColorsSkipped; i++)
                 {
-                    var c = colors[i];
+                    Rgba32 c = colors[i];
                     c.A = 0;
                     colors[i] = c;
                 }
@@ -67,7 +67,7 @@ namespace PixelPlanetUtils.Imaging
 
         public bool IsCorrectPixelColor(byte actualColor, byte desiredColor)
         {
-            return (actualColor == desiredColor) || 
+            return (actualColor == desiredColor) ||
                    (bgColorReplacement != null &&
                    actualColor < ColorsSkipped &&
                    desiredColor == bgColorReplacement[actualColor]);

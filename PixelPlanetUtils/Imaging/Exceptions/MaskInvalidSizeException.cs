@@ -10,7 +10,7 @@ namespace PixelPlanetUtils.Imaging
         [SuppressMessage("Usage", "CA2237:Mark ISerializable types with serializable")]
         public class MaskInvalidSizeException : Exception
         {
-            public MaskInvalidSizeException() : base ("Image and mask sizes are not equal")
+            public MaskInvalidSizeException() : base("Image and mask sizes are not equal")
             { }
         }
     }

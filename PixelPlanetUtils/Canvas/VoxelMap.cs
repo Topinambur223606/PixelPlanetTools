@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace PixelPlanetUtils.Canvas
+﻿namespace PixelPlanetUtils.Canvas
 {
     public static class VoxelMap
     {

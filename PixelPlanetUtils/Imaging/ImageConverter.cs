@@ -55,11 +55,11 @@ namespace PixelPlanetUtils.Imaging
                 byte[] data = await wc.DownloadDataTaskAsync(csvUri);
                 logger.LogTechInfo("Document is downloaded");
                 logger.LogTechState("Converting...");
-                using (var stream = new MemoryStream(data))
+                using (MemoryStream stream = new MemoryStream(data))
                 {
-                    using (var reader = new StreamReader(stream))
+                    using (StreamReader reader = new StreamReader(stream))
                     {
-                        var dim = reader.ReadLine().Split(',').Select(int.Parse).ToList();
+                        List<int> dim = reader.ReadLine().Split(',').Select(int.Parse).ToList();
                         int sx = dim[0], sy = dim[2], sz = dim[1];
                         byte[,,] res = new byte[sx, sy, sz];
                         Dictionary<string, byte> knownColors = new Dictionary<string, byte>();
@@ -67,15 +67,15 @@ namespace PixelPlanetUtils.Imaging
                         {
                             for (int y = 0; y < sy; y++)
                             {
-                                var rowHex = reader.ReadLine().Split(',');
+                                string[] rowHex = reader.ReadLine().Split(',');
                                 for (int x = 0; x < sx; x++)
                                 {
-                                    var hex = rowHex[x];
+                                    string hex = rowHex[x];
                                     if (hex.EndsWith("FF"))
                                     {
                                         if (!knownColors.TryGetValue(hex, out byte colorCode))
                                         {
-                                            var color = Rgba32.ParseHex(hex);
+                                            Rgba32 color = Rgba32.ParseHex(hex);
                                             knownColors[hex] = colorCode = palette.ClosestAvailable(color);
                                         }
                                         res[x, y, z] = colorCode;
@@ -132,7 +132,7 @@ namespace PixelPlanetUtils.Imaging
                 {
                     logger.LogTechInfo("Image is downloaded");
                     logger.LogTechState("Converting image...");
-                    var metadata = image.Metadata.GetPngMetadata().TextData.ToDictionary(d => d.Keyword, d => d.Value);
+                    Dictionary<string, string> metadata = image.Metadata.GetPngMetadata().TextData.ToDictionary(d => d.Keyword, d => d.Value);
                     if (!(metadata.TryGetValue("SproxelFileVersion", out string version) && version == "1"))
                     {
                         throw new Exception("not the Sproxel exported PNG");
@@ -152,7 +152,7 @@ namespace PixelPlanetUtils.Imaging
                             for (int x = 0; x < sx; x++)
                             {
                                 int imageX = y * sx + x;
-                                var color = image[imageX, imageY];
+                                Rgba32 color = image[imageX, imageY];
                                 if (color.A > 0)
                                 {
                                     if (!knownColors.TryGetValue(color, out byte colorCode))

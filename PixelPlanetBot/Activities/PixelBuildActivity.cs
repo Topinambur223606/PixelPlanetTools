@@ -80,8 +80,8 @@ namespace PixelPlanetBot.Activities
                 {
                     try
                     {
-                        var irx = x - options.LeftX;
-                        var iry = y - options.TopY;
+                        int irx = x - options.LeftX;
+                        int iry = y - options.TopY;
 
                         if (irx < 0 || irx >= width || iry < 0 || iry >= height)
                         {
@@ -321,14 +321,7 @@ namespace PixelPlanetBot.Activities
                         {
                             bool placed = actualColor < Palette.ColorsSkipped;
                             logger.LogPixel($"{(placed ? "P" : "Rep")}laced pixel:", DateTime.Now, MessageGroup.Pixel, x, y, colorNameResolver.GetName(color));
-                            if (response.Wait > canvas.TimeBuffer || response.CoolDownSeconds * 1000 > Math.Max(canvas.ReplaceCooldown, 1000))
-                            {
-                                await Task.Delay(TimeSpan.FromSeconds(response.CoolDownSeconds), finishToken);
-                            }
-                            else
-                            {
-                                await Task.Delay(TimeSpan.FromMilliseconds(canvas.OptimalCooldown), finishToken);
-                            }
+                            await WaitAfterPlaced(response, placed);
                         }
                         else
                         {
