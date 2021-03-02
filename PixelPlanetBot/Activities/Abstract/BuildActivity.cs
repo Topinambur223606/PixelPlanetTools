@@ -325,14 +325,24 @@ namespace PixelPlanetBot.Activities.Abstract
         protected async Task WaitAfterPlaced(PixelReturnData response, bool placed)
         {
             int expectedCooldown = placed ? canvas.PlaceCooldown : canvas.ReplaceCooldown;
-            if (response.Wait > canvas.TimeBuffer || (expectedCooldown + 500D) / response.CoolDownSeconds < 700)
+            bool cdIsTooLong = Math.Max(expectedCooldown, 1000) / Math.Max(response.CoolDownSeconds, 1D) < 1000;
+            TimeSpan timeToWait;
+
+            if (cdIsTooLong)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Min((int)response.CoolDownSeconds, 60)), finishToken);
+                //accumulate time when CD is long to use it efficiently when CD becames normal
+                timeToWait = TimeSpan.FromMilliseconds(Math.Min(response.Wait - 1000, 30000 + 4 * canvas.ReplaceCooldown));
+            }
+            else if (response.Wait > canvas.TimeBuffer)
+            {
+                timeToWait = TimeSpan.FromSeconds(response.CoolDownSeconds);
             }
             else
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(canvas.OptimalCooldown), finishToken);
+                timeToWait = TimeSpan.FromMilliseconds(canvas.OptimalCooldown);
             }
+
+            await Task.Delay(timeToWait, finishToken);
         }
 
         protected abstract void ValidateCanvas();
