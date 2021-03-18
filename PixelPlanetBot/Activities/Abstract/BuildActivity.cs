@@ -378,7 +378,7 @@ namespace PixelPlanetBot.Activities.Abstract
                 logger.LogFail(response.ReturnCode);
                 if (response.ReturnCode == ReturnCode.IpOverused)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(response.Wait), finishToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(response.Wait - 1000, 55000)), finishToken);
                 }
                 throw new Exception("critical error when trying to place");
             }
