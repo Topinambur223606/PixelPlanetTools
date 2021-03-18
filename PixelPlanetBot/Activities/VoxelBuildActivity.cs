@@ -350,27 +350,7 @@ namespace PixelPlanetBot.Activities
                         }
                         else
                         {
-                            logger.LogDebug($"PerformBuildingCycle: return code {response.ReturnCode}");
-                            if (response.ReturnCode == ReturnCode.Captcha)
-                            {
-                                if (options.CaptchaTimeout > 0)
-                                {
-                                    ProcessCaptchaTimeout();
-                                }
-                                else
-                                {
-                                    ProcessCaptcha();
-                                }
-                            }
-                            else
-                            {
-                                logger.LogFail(response.ReturnCode);
-                                if (response.ReturnCode != ReturnCode.IpOverused)
-                                {
-                                    return true;
-                                }
-                            }
-                            await Task.Delay(TimeSpan.FromMilliseconds(response.Wait), finishToken);
+                            await ProcessPlaceFail(response);
                         }
                     } while (!success);
                 }

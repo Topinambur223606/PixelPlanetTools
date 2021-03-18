@@ -46,5 +46,9 @@ namespace PixelPlanetUtils.NetworkInteraction
         public static string LogoutUrl => $"{BaseHttpAdress}/api/auth/logout";
 
         public static string MeUrl => $"{BaseHttpAdress}/api/me";
+
+        public static string CaptchaImageUrl => $"{BaseHttpAdress}/captchas/captcha.svg";
+
+        public static string CaptchaPostUrl => $"{BaseHttpAdress}/api/captcha";
     }
 }

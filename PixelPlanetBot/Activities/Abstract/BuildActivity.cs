@@ -1,4 +1,5 @@
-﻿using PixelPlanetBot.Options;
+﻿using PixelPlanetBot.Captcha;
+using PixelPlanetBot.Options;
 using PixelPlanetBot.Options.Enums;
 using PixelPlanetUtils;
 using PixelPlanetUtils.Canvas;
@@ -134,20 +135,17 @@ namespace PixelPlanetBot.Activities.Abstract
                         {
                             repeatingFails = false;
                             wasChanged = await PerformBuildingCycle(wrapper);
-                            if (options.DefenseMode)
+                            if (!wasChanged && options.DefenseMode)
                             {
-                                if (!wasChanged)
+                                logger.Log("Image is intact, waiting...", MessageGroup.Info);
+                                lock (waitingGriefLockObject)
                                 {
-                                    logger.Log("Image is intact, waiting...", MessageGroup.Info);
-                                    lock (waitingGriefLockObject)
-                                    {
-                                        logger.LogDebug("Run(): acquiring grief waiting lock");
-                                        gotGriefed.Reset();
-                                        gotGriefed.WaitOne();
-                                    }
-                                    logger.LogDebug("Run(): got griefed");
-                                    Thread.Sleep(ThreadSafeRandom.Next(500, 3000));
+                                    logger.LogDebug("Run(): acquiring grief waiting lock");
+                                    gotGriefed.Reset();
+                                    gotGriefed.WaitOne();
                                 }
+                                logger.LogDebug("Run(): got griefed");
+                                await Task.Delay(ThreadSafeRandom.Next(500, 3000), finishToken);
                             }
                         } while (options.DefenseMode || wasChanged);
                         logger.Log("Building is finished", MessageGroup.Info);
@@ -286,21 +284,37 @@ namespace PixelPlanetBot.Activities.Abstract
 
         protected void ProcessCaptcha()
         {
-            logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
             if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
                 captchaCts = new CancellationTokenSource();
                 new Thread(BeepThreadBody).Start();
             }
-            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+
+            if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Solver))
             {
-                Process.Start(UrlManager.BaseHttpAdress);
+                logger.LogAndPause("Please go to captcha window and enter the solution", MessageGroup.Captcha);
+                CaptchaForm.EnableVisualStyles();
+                using (CaptchaForm form = new CaptchaForm(proxySettings)
+                {
+                    ShowInBackground = options.NotificationMode.HasFlag(CaptchaNotificationMode.ShowInBackground)
+                })
+                {
+                    form.ShowDialog();
+                }
             }
-            while (Console.KeyAvailable)
-            {
+            else
+            { 
+                if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Browser))
+                {
+                    Process.Start(UrlManager.BaseHttpAdress);
+                }
+                logger.LogAndPause("Please go to browser and place pixel, then return and press any key", MessageGroup.Captcha);
+                while (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                }
                 Console.ReadKey(true);
             }
-            Console.ReadKey(true);
             logger.ResumeLogging();
             captchaCts?.Cancel();
             captchaCts?.Dispose();
@@ -343,6 +357,31 @@ namespace PixelPlanetBot.Activities.Abstract
             }
 
             await Task.Delay(timeToWait, finishToken);
+        }
+
+        protected async Task ProcessPlaceFail(PixelReturnData response)
+        {
+            logger.LogDebug($"PerformBuildingCycle: return code {response.ReturnCode}");
+            if (response.ReturnCode == ReturnCode.Captcha)
+            {
+                if (options.CaptchaTimeout > 0)
+                {
+                    ProcessCaptchaTimeout();
+                }
+                else
+                {
+                    ProcessCaptcha();
+                }
+            }
+            else
+            {
+                logger.LogFail(response.ReturnCode);
+                if (response.ReturnCode == ReturnCode.IpOverused)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(response.Wait), finishToken);
+                }
+                throw new Exception("critical error when trying to place");
+            }
         }
 
         protected abstract void ValidateCanvas();

@@ -40,9 +40,17 @@ Besides `run` (and `run3d`) command, it also has `sessions` command used for log
 
 ### Run parameters (both regular and 3D modes):
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
-- `--notificationMode` - defines bot behaviour when captcha appears, possible values: `none`, `sound` (default value), `browser`, `both`;
-- `--captchaTimeout` - if specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press.
 - `-s, --session` - name of already created session to be loaded;
+- `--captchaTimeout` - if specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press;
+- `--notificationMode` - defines bot behaviour when captcha appears, possible values:
+  - `none`;
+  - `sound` (default value) - bot beeps every minute;
+  - `browser` - bot starts default browser;
+  - `solver` - bot opens window that allows you to solve captcha;
+  - `bgSolver` - bot opens window that allows you to solve captcha in background - if you don't want to be bothered;
+  - `soundBrowser` - combined `sound` and `browser`;
+  - `soundSolver` - combined `sound` and `solver`;
+  - `soundBgSolver` - combined `sound` and `bgSolver`.
 
 ### Run parameters (only regular - `run`):
 - `-i, --imagePath` - **required**, URI (URL or path) of image that is built;
@@ -71,7 +79,7 @@ Note that only one of image and template options is needed, bot will refuse to l
 ### Examples
 - `bot.exe run -x 123 -y 456 -i image.png` - basic usage, `image.png` should be located in same folder with bot executable.
 - `bot.exe run --useMirror --imagePath http://imagehosting.example/image.png --leftX -123 -d --topY -456 --logFilePath D:\myLogs\bot.log --captchaTimeout 30`
-- `bot.exe run --notificationMode both --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
+- `bot.exe run --notificationMode soundBgSolver --proxyAddress 1.2.3.4:5678 -i "relative path\with spaces\in double\quotes.png" --defenseMode --placingOrder left -x 123 -y 456 --disableUpdates`
 - `bot.exe sessions --list -a -u "email@sample.text" -p "password" -s mySession`
 - `bot.exe run3d -s mySession -i template.csv -x 123 -y 456 -z 10 --placingOrder topAscX`
 

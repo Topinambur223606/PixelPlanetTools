@@ -1,8 +1,10 @@
 ﻿using Newtonsoft.Json;
 using PixelPlanetUtils.NetworkInteraction.Models;
 using PixelPlanetUtils.Sessions;
+using Svg;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -77,6 +79,24 @@ namespace PixelPlanetUtils.NetworkInteraction
             }
         }
 
+        public async Task<SvgDocument> GetCaptchaImageAsync(CancellationToken cancellationToken = default)
+        {
+            using (HttpClientHandler handler = GetHttpClientHandler())
+            {
+                using (HttpClient httpClient = GetHttpClient(handler))
+                {
+                    Uri uri = new Uri(UrlManager.CaptchaImageUrl);
+                    using (HttpResponseMessage responseMessage = await httpClient.GetAsync(uri, cancellationToken))
+                    {
+                        using (Stream svgStream = await responseMessage.Content.ReadAsStreamAsync())
+                        {
+                            return SvgDocument.Open<SvgDocument>(svgStream);
+                        }
+                    }
+                }
+            }
+        }
+
         public async Task Login(string nameOrEmail, string password, CancellationToken cancellationToken = default)
         {
             AuthRequestModel authModel = new AuthRequestModel
@@ -139,5 +159,32 @@ namespace PixelPlanetUtils.NetworkInteraction
                 }
             }
         }
+
+        public async Task PostCaptchaText(string text, CancellationToken cancellationToken = default)
+        {
+            CaptchaPostRequest request = new CaptchaPostRequest(text);
+            string json = JsonConvert.SerializeObject(request);
+
+            using (HttpClientHandler handler = GetHttpClientHandler())
+            {
+                using (HttpClient httpClient = GetHttpClient(handler))
+                {
+                    using (StringContent content = new StringContent(json, Encoding.UTF8, "application/json"))
+                    {
+                        Uri uri = new Uri(UrlManager.CaptchaPostUrl);
+                        using (HttpResponseMessage responseMessage = await httpClient.PostAsync(uri, content, cancellationToken))
+                        {
+                            string responseJson = await responseMessage.Content.ReadAsStringAsync();
+                            CaptchaPostResponse response = JsonConvert.DeserializeObject<CaptchaPostResponse>(responseJson);
+                            if (!response.Success)
+                            {
+                                throw new Exception(response.Errors.First());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
