@@ -172,8 +172,8 @@ namespace PixelPlanetBot
                 bool success = true;
                 parser.ParseArguments<Run2DOptions, Run3DOptions, CheckUpdatesOption, SessionsOptions>(args)
                     .WithNotParsed(e => success = false)
-                    .WithParsed((Action<CheckUpdatesOption>)(o => checkUpdates = true))
-                    .WithParsed((Action<Run2DOptions>)(o =>
+                    .WithParsed<CheckUpdatesOption>(o => checkUpdates = true)
+                    .WithParsed<Run2DOptions>(o =>
                     {
                         if (!ProcessAppOptions(o))
                         {
@@ -189,8 +189,8 @@ namespace PixelPlanetBot
                         }
                         CheckWarnProxy(o);
 
-                    }))
-                    .WithParsed((Action<Run3DOptions>)(o =>
+                    })
+                    .WithParsed<Run3DOptions>(o =>
                     {
                         if (!ProcessAppOptions(o))
                         {
@@ -206,8 +206,8 @@ namespace PixelPlanetBot
                         appOptions = run3dOptions = o;
                         CheckWarnProxy(o);
 
-                    }))
-                    .WithParsed((Action<SessionsOptions>)(o =>
+                    })
+                    .WithParsed<SessionsOptions>(o =>
                     {
                         if (!ProcessAppOptions(o))
                         {
@@ -238,7 +238,7 @@ namespace PixelPlanetBot
                             Console.WriteLine("Session name to remove should be specified");
                             return;
                         }
-                    }));
+                    });
                 return success;
             }
         }
