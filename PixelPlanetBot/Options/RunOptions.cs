@@ -9,7 +9,7 @@ namespace PixelPlanetBot.Options
         [Option('d', "defenseMode", Default = false, HelpText = "Determines whether app continues observation and defense after building is finished")]
         public bool DefenseMode { get; set; }
 
-        [Option("notificationMode", Default = CaptchaNotificationMode.Sound, HelpText = "Determines how app reacts to captcha. Available options: sound, browser, both, none")]
+        [Option("notificationMode", Default = CaptchaNotificationMode.Sound, HelpText = "Determines how app reacts to captcha. Available options: none, sound, browser, solver, bgSolver, soundBrowser, soundSolver, soundBgSolver")]
         public CaptchaNotificationMode NotificationMode { get; set; }
 
         [Option("captchaTimeout", HelpText = "If specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press")]
