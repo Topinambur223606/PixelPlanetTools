@@ -3,7 +3,6 @@ using Svg;
 using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Runtime.InteropServices;
 
 namespace PixelPlanetBot.Captcha
 {
@@ -66,6 +65,7 @@ namespace PixelPlanetBot.Captcha
             }
             catch (Exception ex)
             {
+                solutionTextBox.Clear();
                 var setTask = SetCaptchaImage();
                 MessageBox.Show(ex.Message, "Error");
                 await setTask;

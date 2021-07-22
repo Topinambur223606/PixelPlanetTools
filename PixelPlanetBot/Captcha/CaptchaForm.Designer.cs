@@ -84,6 +84,7 @@ namespace PixelPlanetBot.Captcha
             // 
             // CaptchaForm
             // 
+            this.AcceptButton = this.sendButton;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(500, 362);
