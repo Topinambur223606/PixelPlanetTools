@@ -21,6 +21,8 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         public Session Session { get; set; }
 
+        private string captchaId;
+
         private HttpClientHandler GetHttpClientHandler()
         {
             HttpClientHandler handler = new HttpClientHandler();
@@ -88,6 +90,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                     Uri uri = new Uri(UrlManager.CaptchaImageUrl);
                     using (HttpResponseMessage responseMessage = await httpClient.GetAsync(uri, cancellationToken))
                     {
+                        captchaId = responseMessage.Headers.GetValues("captcha-id").FirstOrDefault();
                         using (Stream svgStream = await responseMessage.Content.ReadAsStreamAsync())
                         {
                             return SvgDocument.Open<SvgDocument>(svgStream);
@@ -162,7 +165,7 @@ namespace PixelPlanetUtils.NetworkInteraction
 
         public async Task PostCaptchaText(string text, CancellationToken cancellationToken = default)
         {
-            CaptchaPostRequest request = new CaptchaPostRequest(text);
+            CaptchaPostRequest request = new CaptchaPostRequest(text, captchaId);
             string json = JsonConvert.SerializeObject(request);
 
             using (HttpClientHandler handler = GetHttpClientHandler())

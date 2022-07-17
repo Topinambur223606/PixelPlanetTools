@@ -20,7 +20,7 @@ namespace PixelPlanetUtils.Imaging
             using (WebClient wc = new WebClient())
             {
                 byte[] data = await wc.DownloadDataTaskAsync(imageUri);
-                using (Image<Rgba32> image = Image.Load(data))
+                using (Image<Rgba32> image = Image.Load<Rgba32>(data))
                 {
                     logger.LogTechInfo("Image is downloaded");
                     logger.LogTechState("Converting image...");
@@ -128,7 +128,7 @@ namespace PixelPlanetUtils.Imaging
             using (WebClient wc = new WebClient())
             {
                 byte[] data = await wc.DownloadDataTaskAsync(imageUri);
-                using (Image<Rgba32> image = Image.Load(data))
+                using (Image<Rgba32> image = Image.Load<Rgba32>(data))
                 {
                     logger.LogTechInfo("Image is downloaded");
                     logger.LogTechState("Converting image...");

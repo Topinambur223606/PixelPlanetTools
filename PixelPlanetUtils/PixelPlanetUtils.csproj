@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetUtils</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>6.2.0.0</FileVersion>
-    <AssemblyVersion>6.2.0.0</AssemblyVersion>
-    <Version>6.2</Version>
+    <FileVersion>6.2.1.0</FileVersion>
+    <AssemblyVersion>6.2.1.0</AssemblyVersion>
+    <Version>6.2.1</Version>
     <OutputType>Library</OutputType>
     <RootNamespace>PixelPlanetUtils</RootNamespace>
     <Authors>Topinambur223606</Authors>
@@ -13,10 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" Version="2.8.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.2" />
-    <PackageReference Include="Svg" Version="3.2.3" />
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
+    <PackageReference Include="Svg" Version="3.4.3" />
   </ItemGroup>
 
   <ItemGroup>
