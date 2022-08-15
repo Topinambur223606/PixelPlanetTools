@@ -3,12 +3,13 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>PixelPlanetBot</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>6.2.2.0</FileVersion>
-    <AssemblyVersion>6.2.2.0</AssemblyVersion>
-    <Version>6.2.2</Version>
+    <FileVersion>6.2.3.0</FileVersion>
+    <AssemblyVersion>6.2.3.0</AssemblyVersion>
+    <Version>6.2.3</Version>
     <RootNamespace>PixelPlanetBot</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   
   <ItemGroup>

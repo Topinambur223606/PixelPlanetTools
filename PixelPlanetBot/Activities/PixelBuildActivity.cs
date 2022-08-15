@@ -325,7 +325,7 @@ namespace PixelPlanetBot.Activities
                         }
                         else
                         {
-                            await ProcessPlaceFail(response);
+                            await ProcessPlaceFail((x, y), response);
                         }
                     } while (!success);
                 }

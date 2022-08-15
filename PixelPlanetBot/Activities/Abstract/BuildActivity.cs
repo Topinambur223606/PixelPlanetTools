@@ -359,7 +359,7 @@ namespace PixelPlanetBot.Activities.Abstract
             await Task.Delay(timeToWait, finishToken);
         }
 
-        protected async Task ProcessPlaceFail(PixelReturnData response)
+        protected async Task ProcessPlaceFail<T>(T coords, PixelReturnData response)
         {
             logger.LogDebug($"PerformBuildingCycle: return code {response.ReturnCode}");
             if (response.ReturnCode == ReturnCode.Captcha)
@@ -375,7 +375,7 @@ namespace PixelPlanetBot.Activities.Abstract
             }
             else
             {
-                logger.LogFail(response.ReturnCode);
+                logger.LogFail(coords, response.ReturnCode);
                 if (response.ReturnCode == ReturnCode.IpOverused)
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(response.Wait - 1000, 55000)), finishToken);

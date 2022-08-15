@@ -70,9 +70,12 @@ namespace PixelPlanetUtils.Logging
             logger.Log(msg, MessageGroup.Update);
         }
 
-        public static void LogFail(this Logger logger, ReturnCode returnCode)
+        public static void LogFail<T>(this Logger logger, T coordTuple, ReturnCode returnCode)
         {
-            logger.Log($"Failed to place: {errorReasons[returnCode]}", MessageGroup.PlaceFail);
+            string coords = returnCode is ReturnCode.InvalidCoordinateX or ReturnCode.InvalidCoordinateY or ReturnCode.InvalidCoordinateZ or ReturnCode.ProtectedPixel
+                            ? $" {coordTuple}"
+                            : null;
+            logger.Log($"Failed to place{coords}: {errorReasons[returnCode]}", MessageGroup.PlaceFail);
         }
 
         private static readonly Dictionary<ReturnCode, string> errorReasons = new Dictionary<ReturnCode, string>
