@@ -2,15 +2,20 @@
 {
     enum Opcode : byte
     {
-        ChangedMe = 0xA6,
-        Cooldown = 0xC2,
-        OnlineCounter = 0xA7,
-        PixelReturn = 0xC3,
-        PixelUpdate = 0xC1,
         RegisterCanvas = 0xA0,
         RegisterChunk = 0xA1,
+        UnregisterChunk = 0xA2,
         RegisterMultipleChunks = 0xA3,
-        RequestChatHistory = 0xA5,
-        UnregisterChunk = 0xA2
+        UnregisterMultipleChunks = 0xA4,
+        //RequestChatHistory = 0xA5,
+        ChangedMe = 0xA6,
+        OnlineCounter = 0xA7,
+
+        Ping = 0xB0,
+
+        PixelUpdate = 0xC1,
+        Cooldown = 0xC2,
+        PixelReturn = 0xC3,
+        CaptchaReturn = 0xC6
     }
 }

@@ -282,7 +282,7 @@ namespace PixelPlanetBot.Activities.Abstract
             }
         }
 
-        protected void ProcessCaptcha()
+        protected void ProcessCaptcha(WebsocketWrapper websocket)
         {
             if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
             {
@@ -294,7 +294,7 @@ namespace PixelPlanetBot.Activities.Abstract
             {
                 logger.LogAndPause("Please go to captcha window and enter the solution", MessageGroup.Captcha);
                 CaptchaForm.EnableVisualStyles();
-                using (CaptchaForm form = new CaptchaForm(proxySettings)
+                using (CaptchaForm form = new CaptchaForm(proxySettings, websocket, logger)
                 {
                     ShowInBackground = options.NotificationMode.HasFlag(CaptchaNotificationMode.ShowInBackground)
                 })
@@ -363,7 +363,7 @@ namespace PixelPlanetBot.Activities.Abstract
             await Task.Delay(timeToWait, finishToken);
         }
 
-        protected async Task ProcessPlaceFail<T>(T coords, PixelReturnData response)
+        protected async Task ProcessPlaceFail<T>(T coords, PixelReturnData response, WebsocketWrapper websocket)
         {
             logger.LogDebug($"PerformBuildingCycle: return code {response.ReturnCode}");
             if (response.ReturnCode == ReturnCode.Captcha)
@@ -374,7 +374,7 @@ namespace PixelPlanetBot.Activities.Abstract
                 }
                 else
                 {
-                    ProcessCaptcha();
+                    ProcessCaptcha(websocket);
                 }
             }
             else

@@ -50,7 +50,5 @@ namespace PixelPlanetUtils.NetworkInteraction
         public static string MeUrl => $"{BaseHttpAdress}/api/me";
 
         public static string CaptchaImageUrl => $"{BaseHttpAdress}/captcha.svg";
-
-        public static string CaptchaPostUrl => $"{BaseHttpAdress}/api/captcha";
     }
 }

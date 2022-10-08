@@ -1,4 +1,7 @@
-﻿using PixelPlanetUtils.NetworkInteraction;
+﻿using PixelPlanetUtils;
+using PixelPlanetUtils.Logging;
+using PixelPlanetUtils.NetworkInteraction;
+using PixelPlanetUtils.NetworkInteraction.Websocket;
 using Svg;
 using System;
 using System.Threading.Tasks;
@@ -9,7 +12,7 @@ namespace PixelPlanetBot.Captcha
     partial class CaptchaForm : Form
     {
         private static bool enabledVisualStyles;
-
+        
         public static void EnableVisualStyles()
         {
             if (!enabledVisualStyles)
@@ -21,18 +24,23 @@ namespace PixelPlanetBot.Captcha
         }
 
         private readonly PixelPlanetHttpApi api;
+        private readonly WebsocketWrapper websocket;
+        private readonly Logger logger;
+        private string captchaId;
 
         public bool ShowInBackground { get; set; }
 
         protected override bool ShowWithoutActivation => ShowInBackground;
 
-        public CaptchaForm(ProxySettings proxySettings)
+        public CaptchaForm(ProxySettings proxySettings, WebsocketWrapper websocket, Logger logger)
         {
             InitializeComponent();
             api = new PixelPlanetHttpApi
             {
                 ProxySettings = proxySettings
             };
+            this.websocket = websocket;
+            this.logger = logger;
         }
 
         private async void FormLoad(object sender, EventArgs e)
@@ -46,7 +54,7 @@ namespace PixelPlanetBot.Captcha
 
         private async Task SetCaptchaImage()
         {
-            SvgDocument svgImage = await api.GetCaptchaImageAsync();
+            (captchaId, SvgDocument svgImage) = await api.GetCaptchaImageAsync();
             captchaPictureBox.Image?.Dispose();
             captchaPictureBox.Image = svgImage.Draw();
         }
@@ -60,8 +68,17 @@ namespace PixelPlanetBot.Captcha
         {
             try
             {
-                await api.PostCaptchaText(solutionTextBox.Text);
-                Close();
+                websocket.SendCaptchaResponse(captchaId, solutionTextBox.Text);
+                var returnCode = websocket.GetCaptchaResponse();
+                logger.LogCaptchaResult(returnCode);
+                if (returnCode == CaptchaReturnCode.Success)
+                {
+                    Close();
+                }
+                else
+                {
+                    throw new Exception(ErrorTextResources.Get(returnCode));
+                }
             }
             catch (Exception ex)
             {

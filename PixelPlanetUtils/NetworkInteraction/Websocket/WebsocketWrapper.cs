@@ -1,4 +1,5 @@
-﻿using PixelPlanetUtils.Canvas;
+﻿using Newtonsoft.Json;
+using PixelPlanetUtils.Canvas;
 using PixelPlanetUtils.Eventing;
 using PixelPlanetUtils.Logging;
 using PixelPlanetUtils.Sessions;
@@ -29,6 +30,9 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
 
         private readonly ConcurrentQueue<PixelReturnData> pixelReturnData = new ConcurrentQueue<PixelReturnData>();
         private readonly ManualResetEvent pixelReturnResetEvent = new ManualResetEvent(false);
+
+        private byte captchaReturnCode;
+        private readonly AutoResetEvent captchaReturnResetEvent = new AutoResetEvent(false);
 
         private DateTime disconnectionTime;
         private bool isConnectingNow = false;
@@ -189,6 +193,21 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
             return result;
         }
 
+        public CaptchaReturnCode GetCaptchaResponse(int timeout = 5000)
+        {
+            if (!captchaReturnResetEvent.WaitOne(timeout))
+            {
+                logger.LogError("No captcha response");
+                return CaptchaReturnCode.Timeout;
+            }
+            var res = (CaptchaReturnCode)captchaReturnCode;
+            if (res > CaptchaReturnCode.MaxKnownError)
+            {
+                res = CaptchaReturnCode.Unknown;
+            }
+            return res;
+        }
+
         public void StartListening()
         {
             if (!listeningMode)
@@ -207,6 +226,11 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
                 throw new InvalidOperationException();
             }
             listeningResetEvent.Set();
+        }
+
+        public void SendCaptchaResponse(string captchaId, string solution)
+        {
+            webSocket.Send($"cs,{JsonConvert.SerializeObject(new string[] { solution, captchaId })}");
         }
 
         private void RegisterChunk(XY chunk)
@@ -347,6 +371,11 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
                 pixelReturnData.Enqueue(received);
                 pixelReturnResetEvent.Set();
             }
+            else if (data[0] == (byte)Opcode.CaptchaReturn)
+            {
+                captchaReturnCode = data[1];
+                captchaReturnResetEvent.Set();
+            }
             else if (!listeningMode && data[0] == (byte)Opcode.Cooldown)
             {
                 Array.Reverse(data, 1, 4);
@@ -412,6 +441,7 @@ namespace PixelPlanetUtils.NetworkInteraction.Websocket
                 OnMapChanged = null;
                 websocketResetEvent.Dispose();
                 pixelReturnResetEvent.Dispose();
+                captchaReturnResetEvent.Dispose();
                 if (listeningMode)
                 {
                     listeningResetEvent.Dispose();

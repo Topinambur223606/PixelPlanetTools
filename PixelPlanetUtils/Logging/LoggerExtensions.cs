@@ -1,11 +1,10 @@
 ﻿using PixelPlanetUtils.NetworkInteraction.Websocket;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 
 namespace PixelPlanetUtils.Logging
 {
-    public static class LoggerExtensions
+    public static partial class LoggerExtensions
     {
         public static int MaxCoordXYLength { get; set; } = 6;
 
@@ -75,23 +74,20 @@ namespace PixelPlanetUtils.Logging
             string coords = returnCode is ReturnCode.InvalidCoordinateX or ReturnCode.InvalidCoordinateY or ReturnCode.InvalidCoordinateZ or ReturnCode.ProtectedPixel
                             ? $" {coordTuple}"
                             : null;
-            logger.Log($"Failed to place{coords}: {errorReasons[returnCode]}", MessageGroup.PlaceFail);
+            logger.Log($"Failed to place{coords}: {ErrorTextResources.Get(returnCode)}", MessageGroup.PlaceFail);
         }
 
-        private static readonly Dictionary<ReturnCode, string> errorReasons = new Dictionary<ReturnCode, string>
+        public static void LogCaptchaResult(this Logger logger, CaptchaReturnCode returnCode)
         {
-            [ReturnCode.InvalidCanvas] = "invalid canvas",
-            [ReturnCode.InvalidCoordinateX] = "invalid x coordinate",
-            [ReturnCode.InvalidCoordinateY] = "invalid y coordinate",
-            [ReturnCode.InvalidCoordinateZ] = "invalid z coordinate",
-            [ReturnCode.InvalidColor] = "invalid color",
-            [ReturnCode.RegisteredUsersOnly] = "canvas is for registered users only",
-            [ReturnCode.NotEnoughPlacedForThisCanvas] = "no access to canvas because not enough pixels placed at main canvas",
-            [ReturnCode.ProtectedPixel] = "pixel is protected",
-            [ReturnCode.IpOverused] = "IP is overused",
-            [ReturnCode.ProxyDetected] = "proxy usage is detected"
-        };
-
+            if (returnCode == CaptchaReturnCode.Success)
+            {
+                logger.LogInfo("Captcha successfully solved");
+            }
+            else
+            {
+                logger.LogError($"Failed to handle captcha: {ErrorTextResources.Get(returnCode)}");
+            }
+        }
     }
 
 }
