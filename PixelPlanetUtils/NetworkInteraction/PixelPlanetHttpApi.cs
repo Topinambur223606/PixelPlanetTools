@@ -46,7 +46,7 @@ namespace PixelPlanetUtils.NetworkInteraction
                     {
                         Name = cookie.Key,
                         Value = cookie.Value,
-                        Domain = UrlManager.BaseUrl
+                        Domain = UrlManager.Hostname
                     });
                 }
             }

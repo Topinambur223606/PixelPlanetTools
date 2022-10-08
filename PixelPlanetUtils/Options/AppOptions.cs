@@ -17,11 +17,14 @@ namespace PixelPlanetUtils.Options
         [Option("showDebug", HelpText = "Toggles debug output to console window")]
         public bool ShowDebugLogs { get; set; }
 
-        [Option("useMirror", SetName = "useMirror", HelpText = "Makes app use mirror (https://fuckyouarkeros.fun/)")]
+        [Option("useMirror", SetName = "useMirror", HelpText = "Makes app use mirror (fuckyouarkeros.fun)")]
         public bool UseMirror { get; set; }
 
-        [Option("serverUrl", SetName = "serverUrl", HelpText = "Custom server URL")]
-        public string ServerUrl { get; set; }
+        [Option("serverHostname", SetName = "serverHostname", HelpText = "Custom server hostname")]
+        public string ServerHostname { get; set; }
+
+        [Option("noSsl", SetName = "serverHostname", HelpText = "Disable SSL (HTTP/WS instead of HTTPS/WSS)")]
+        public bool NoSsl { get; set; }
 
         [Option("proxyAddress", HelpText = "Proxy address that is used for placing pixels")]
         public string ProxyAddress { get; set; }

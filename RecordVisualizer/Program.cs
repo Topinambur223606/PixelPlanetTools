@@ -149,9 +149,9 @@ namespace RecordVisualizer
                 {
                     UrlManager.MirrorMode = o.UseMirror;
                 }
-                if (o.ServerUrl != null)
+                if (o.ServerHostname != null)
                 {
-                    UrlManager.BaseUrl = o.ServerUrl;
+                    UrlManager.Hostname = o.ServerHostname;
                 }
                 return true;
             }
