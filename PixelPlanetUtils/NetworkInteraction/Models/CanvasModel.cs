@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 
 namespace PixelPlanetUtils.NetworkInteraction.Models
@@ -25,6 +26,6 @@ namespace PixelPlanetUtils.NetworkInteraction.Models
 
         public int TimeBuffer => CumulativeCooldown - ReplaceCooldown;
 
-        public double OptimalCooldown => (39D * PlaceCooldown - 16000D) / 140D; //1s on Earth, 0.44s on voxels, 1.8s on 1bit, 25ms on coronavirus
+        public double OptimalCooldown => Math.Max(0D, (39D * PlaceCooldown - 16000D) / 140D); //1s on Earth, 0.44s on voxels, 1.8s on 1bit, 25ms on coronavirus
     }
 }

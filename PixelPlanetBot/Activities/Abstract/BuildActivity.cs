@@ -338,6 +338,10 @@ namespace PixelPlanetBot.Activities.Abstract
 
         protected async Task WaitAfterPlaced(PixelReturnData response, bool placed)
         {
+            if (options.ZeroCooldown)
+            {
+                return;
+            }
             int expectedCooldown = placed ? canvas.PlaceCooldown : canvas.ReplaceCooldown;
             bool cdIsTooLong = Math.Max(expectedCooldown, 1000) / Math.Max(response.CoolDownSeconds, 1D) < 1000;
             TimeSpan timeToWait;

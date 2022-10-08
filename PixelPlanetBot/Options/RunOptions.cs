@@ -17,5 +17,8 @@ namespace PixelPlanetBot.Options
 
         [Option('s', "session", HelpText = "Name of previously created session")]
         public string SessionName { get; set; }
+
+        [Option("zeroCooldown", HelpText = "Enforce zero cooldown (can be useful if you are admin)")]
+        public bool ZeroCooldown { get; set; }
     }
 }
