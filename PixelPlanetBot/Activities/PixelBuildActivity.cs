@@ -296,6 +296,7 @@ namespace PixelPlanetBot.Activities
             bool changed = false;
             foreach (Pixel pixel in pixelsToBuild)
             {
+                finishToken.ThrowIfCancellationRequested();
                 mapUpdatedResetEvent.WaitOne();
                 (short x, short y, byte color) = pixel;
                 byte actualColor = cache2d.GetPixelColor(x, y);

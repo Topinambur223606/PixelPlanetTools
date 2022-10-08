@@ -96,9 +96,9 @@ namespace PixelPlanetBot.Activities.Abstract
 
             palette = new Palette(canvas.Colors, canvas.Is3D);
             colorNameResolver = new ColorNameResolver(options.Canvas);
-
+            finishToken.ThrowIfCancellationRequested();
             await LoadImage();
-
+            finishToken.ThrowIfCancellationRequested();
             logger.LogTechState("Calculating pixel placing order...");
             CalculateOrder();
             logger.LogTechInfo("Pixel placing order is calculated");
@@ -127,6 +127,7 @@ namespace PixelPlanetBot.Activities.Abstract
                     {
                         wrapper.OnConnectionLost += (o, e) => mapUpdatedResetEvent.Reset();
                         cache.Wrapper = wrapper;
+                        finishToken.ThrowIfCancellationRequested();
                         cache.DownloadChunks();
                         wrapper.OnMapChanged += LogMapChanged;
                         ClearPlaced();
@@ -142,7 +143,10 @@ namespace PixelPlanetBot.Activities.Abstract
                                 {
                                     logger.LogDebug("Run(): acquiring grief waiting lock");
                                     gotGriefed.Reset();
-                                    gotGriefed.WaitOne();
+                                    while (!gotGriefed.WaitOne(1000))
+                                    {
+                                        finishToken.ThrowIfCancellationRequested();
+                                    }
                                 }
                                 logger.LogDebug("Run(): got griefed");
                                 await Task.Delay(ThreadSafeRandom.Next(500, 3000), finishToken);
@@ -154,6 +158,11 @@ namespace PixelPlanetBot.Activities.Abstract
                 }
                 catch (Exception ex)
                 {
+                    if (finishToken.IsCancellationRequested)
+                    {
+                        logger.LogTechState("Stop was requested");
+                        break;
+                    }
                     logger.LogError($"Unhandled exception: {ex.GetBaseException().Message}");
                     logger.LogDebug(ex.ToString());
                     int delay = repeatingFails ? 30 : 10;
@@ -247,9 +256,7 @@ namespace PixelPlanetBot.Activities.Abstract
                 } while (true);
             }
             catch (OperationCanceledException)
-            {
-                logger.LogDebug($"StatsCollectionThreadBody(): cancellation requested, finishing");
-            }
+            { }
             catch (Exception ex)
             {
                 logger.LogError($"Stats collection thread: unhandled exception - {ex.Message}");
