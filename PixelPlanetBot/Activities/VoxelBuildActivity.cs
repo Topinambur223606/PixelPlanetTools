@@ -321,6 +321,7 @@ namespace PixelPlanetBot.Activities
             bool changed = false;
             foreach (Voxel voxel in voxelsToBuild)
             {
+                finishToken.ThrowIfCancellationRequested();
                 mapUpdatedResetEvent.WaitOne();
                 (short x, short y, byte z, byte color) = voxel;
                 byte actualColor = cache3d.GetVoxelColor(x, y, z);
