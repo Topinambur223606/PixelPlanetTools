@@ -3,9 +3,9 @@
     <TargetFramework>net472</TargetFramework>
     <PackageId>RecordVisualizer</PackageId>
     <Product>PixelPlanetTools</Product>
-    <FileVersion>4.1.0.0</FileVersion>
-    <AssemblyVersion>4.1.0.0</AssemblyVersion>
-    <Version>4.1.0</Version>
+    <FileVersion>4.1.1.0</FileVersion>
+    <AssemblyVersion>4.1.1.0</AssemblyVersion>
+    <Version>4.1.1</Version>
     <RootNamespace>RecordVisualizer</RootNamespace>
     <Authors>Topinambur223606</Authors>
     <OutputType>Exe</OutputType>

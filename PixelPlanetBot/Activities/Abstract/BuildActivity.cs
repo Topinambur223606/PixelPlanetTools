@@ -328,7 +328,7 @@ namespace PixelPlanetBot.Activities.Abstract
             captchaCts = null;
         }
 
-        protected void ProcessCaptchaTimeout()
+        protected Task ProcessCaptchaTimeout()
         {
             logger.Log("Got captcha, waiting...", MessageGroup.Captcha);
             if (options.NotificationMode.HasFlag(CaptchaNotificationMode.Sound))
@@ -339,8 +339,7 @@ namespace PixelPlanetBot.Activities.Abstract
             {
                 Process.Start(UrlManager.BaseHttpAdress);
             }
-            Thread.Sleep(TimeSpan.FromSeconds(options.CaptchaTimeout));
-            logger.LogTechInfo("Captcha timeout");
+            return Task.Delay(TimeSpan.FromSeconds(options.CaptchaTimeout)).ContinueWith(t => logger.LogTechInfo("Captcha timeout"));
         }
 
         protected async Task WaitAfterPlaced(PixelReturnData response, bool placed)
@@ -370,18 +369,19 @@ namespace PixelPlanetBot.Activities.Abstract
             await Task.Delay(timeToWait, finishToken);
         }
 
-        protected async Task ProcessPlaceFail<T>(T coords, PixelReturnData response, WebsocketWrapper websocket)
+        protected Task ProcessPlaceFail<T>(T coords, PixelReturnData response, WebsocketWrapper websocket)
         {
             logger.LogDebug($"PerformBuildingCycle: return code {response.ReturnCode}");
             if (response.ReturnCode == ReturnCode.Captcha)
             {
                 if (options.CaptchaTimeout > 0)
                 {
-                    ProcessCaptchaTimeout();
+                    return ProcessCaptchaTimeout();
                 }
                 else
                 {
                     ProcessCaptcha(websocket);
+                    return Task.CompletedTask;
                 }
             }
             else
@@ -389,7 +389,7 @@ namespace PixelPlanetBot.Activities.Abstract
                 logger.LogFail(coords, response.ReturnCode);
                 if (response.ReturnCode == ReturnCode.IpOverused)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(response.Wait - 1000, 55000)), finishToken);
+                    return Task.Delay(TimeSpan.FromMilliseconds(Math.Min(response.Wait - 1000, 55000)), finishToken);
                 }
                 throw new Exception("critical error when trying to place");
             }

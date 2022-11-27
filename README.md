@@ -31,7 +31,8 @@ You can download executable files [here](../../releases/latest).
     - `--proxyUsername` - username for connecting to proxy, empty by default, no proxy authorization if not specified;
     - `--proxyPassword` - password for connecting to proxy, empty by default;
     - `--useMirror` - if specified, changes base address to [fuckyouarkeros.fun](https://fuckyouarkeros.fun) (site mirror);
-    - `--serverUrl` - if specified, changes base address to your custom one - for those who deployed their own PixelPlanet copy;
+    - `--serverHostname` - if specified, changes server hostname to your custom one - for those who deployed their own PixelPlanet copy;
+    - `--noSsl` - if specified, uses HTTP/WS protocols instead of HTTPS/WSS - use if self-hosted server is configured in that way;
     - note that `--useMirror` and `--serverUrl` options are not compatible;
 
 ## PixelPlanetBot
@@ -42,6 +43,7 @@ Besides `run` (and `run3d`) command, it also has `sessions` command used for log
 - `-d, --defenseMode` - makes bot stay opened when picture is finished to provide picture integrity, disabled by default;
 - `-s, --session` - name of already created session to be loaded;
 - `--captchaTimeout` - if specified and greater than zero, bot will wait corresponding amount of time (in seconds) for user to solve captcha instead of waiting for key press;
+- `--zeroCooldown` - if specified, removes cooldown between pixels, may be useful for self-hosted servers admins (won't work as intended without auth);
 - `--notificationMode` - defines bot behaviour when captcha appears, possible values:
   - `none`;
   - `sound` (default value) - bot beeps every minute;
